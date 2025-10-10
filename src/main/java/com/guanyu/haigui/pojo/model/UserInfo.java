@@ -16,9 +16,6 @@
 
 package com.guanyu.haigui.pojo.model;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
@@ -26,10 +23,8 @@ import lombok.Data;
  * @author Guanyu
  */
 @Data
-@TableName("sys_user")
 public class UserInfo {
     // 用户id
-    @TableId(type = IdType.AUTO)
     private Long id;
     // 用户名
     private String username;

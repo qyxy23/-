@@ -8,6 +8,8 @@ import java.util.List;
 
 @Mapper
 public interface UserDetailsMapper {
+    List<UserInfo> selectAllUsers();
+
     // @Select("SELECT * FROM sys_user WHERE username = #{username}")
     UserInfo selectUserInfoByUsername(String username);
 

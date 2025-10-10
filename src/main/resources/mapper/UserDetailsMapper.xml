@@ -8,6 +8,9 @@
         insert into sys_user (username, password) values (#{username}, #{password})
     </insert>
 
+    <select id="selectAllUsers" resultType="com.guanyu.haigui.pojo.model.UserInfo">
+        select * from sys_user
+    </select>
 
     <select id="selectUserInfoByUsername" resultType="com.guanyu.haigui.pojo.model.UserInfo">
         select * from sys_user where username = #{username}

@@ -23,7 +23,6 @@ public class AIConfig {
 
     @Bean
     public ArkService getArkService() {
-        log.info("AI API Key: {}", apiKey);
         // 检查apiKey是否为空，如果为空则返回null而不是抛出异常
         if (apiKey == null || apiKey.isEmpty()) {
             log.warn("AI API Key is not configured, AI service will be disabled");
