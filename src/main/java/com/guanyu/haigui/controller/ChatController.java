@@ -1,30 +1,29 @@
-/*
- * Copyright 2013-2018 the original author or authors.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package com.guanyu.haigui.controller;
-
+import com.guanyu.haigui.pojo.dto.JoinChatRoomRequest;
 import com.guanyu.haigui.pojo.model.ChatRoom;
+import com.guanyu.haigui.websocket.LobbyService;
+import com.volcengine.ark.runtime.model.completion.chat.ChatMessage;
+import com.volcengine.ark.runtime.model.completion.chat.ChatMessageRole;
+import io.swagger.annotations.ApiOperation;
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.Payload;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+
+import java.security.Principal;
+import java.util.List;
 import com.guanyu.haigui.service.ChatService;
 import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 
+/**
+ * 聊天接口
+ */
 
 @RestController
 @RequestMapping("/chat")
@@ -32,6 +31,13 @@ import java.util.List;
 public class ChatController {
     @Autowired
     private ChatService chatService;
+    private final LobbyService lobbyService;
+    private final SimpMessagingTemplate messagingTemplate; // 用于向客户端推送消息
+
+    public ChatController(LobbyService lobbyService, SimpMessagingTemplate messagingTemplate) {
+        this.lobbyService = lobbyService;
+        this.messagingTemplate = messagingTemplate;
+    }
 
 
     /**
@@ -62,4 +68,35 @@ public class ChatController {
         return chatService.getChatRoomList();
     }
 
+    // 处理用户加入大厅的请求（前端发送到/app/chat.joinLobby）
+    @MessageMapping("/chat/joinLobby")
+    public void joinLobby(@Payload JoinChatRoomRequest request, Principal principal) {
+        String userId = principal.getName(); // 从认证信息获取用户ID
+        String lobbyId = request.getChatRoomId();
+
+        // 加入大厅
+        lobbyService.joinLobby(lobbyId, userId);
+
+        // 订阅大厅的广播主题（客户端需自动订阅，或服务器通知前端订阅）
+        // 前端需主动订阅：/topic/chat/{lobbyId}
+        // 可选：通知大厅内其他成员“用户X加入”
+        ChatMessage chatMessage = new ChatMessage();
+        chatMessage.setRole(ChatMessageRole.valueOf("system"));
+        chatMessage.setContent(userId + " 加入了大厅");
+        messagingTemplate.convertAndSend("/topic/chat/" + lobbyId, chatMessage);
+    }
+
+    // 处理发送聊天消息的请求（前端发送到/app/chat.sendMessage）
+    @MessageMapping("/chat/sendMessage")
+    public void sendMessage(@Payload ChatMessage message, Principal principal) {
+        String lobbyId = message.getToolCallId();
+        String senderId = principal.getName();
+
+        ChatMessage chatMessage = new ChatMessage();
+        chatMessage.setRole(ChatMessageRole.valueOf("user"));
+        chatMessage.setContent(message.getContent());
+
+        // 广播消息到大厅的所有成员（/topic/chat/{lobbyId}）
+        messagingTemplate.convertAndSend("/topic/chat/" + lobbyId, chatMessage);
+    }
 }

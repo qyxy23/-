@@ -1,35 +1,43 @@
 package com.guanyu.haigui.config;
 
-
 import com.volcengine.ark.runtime.service.ArkService;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import okhttp3.ConnectionPool;
 import okhttp3.Dispatcher;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @Configuration
 @ConfigurationProperties(prefix = "ai")
 @Data
 public class AIConfig {
 
+    @Value("${ai.api-key:}")
     private String apiKey;
 
     @Bean
     public ArkService getArkService() {
+        log.info("AI API Key: {}", apiKey);
+        // 检查apiKey是否为空，如果为空则返回null而不是抛出异常
+        if (apiKey == null || apiKey.isEmpty()) {
+            log.warn("AI API Key is not configured, AI service will be disabled");
+            return null;
+        }
+
         String baseUrl = "https://ark.cn-beijing.volces.com/api/v3";
         ConnectionPool connectionPool = new ConnectionPool(5, 1, TimeUnit.SECONDS);
         Dispatcher dispatcher = new Dispatcher();
-        ArkService service =
-                ArkService.builder()
+        return ArkService.builder()
                 .dispatcher(dispatcher)
                 .connectionPool(connectionPool)
                 .baseUrl(baseUrl)
                 .apiKey(apiKey)
                 .build();
-        return service;
     }
 }

@@ -16,24 +16,32 @@
 
 package com.guanyu.haigui.pojo.model;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 /**
  * @author Guanyu
  */
 @Data
-public class User {
-    private String id;
-
+@TableName("sys_user")
+public class UserInfo {
+    // 用户id
+    @TableId(type = IdType.AUTO)
+    private Long id;
+    // 用户名
     private String username;
-
+    // 密码
     private String password;
-
+    // 手机号
     private String phone;
-
-    private String avatar;
-
-    private Integer online_status;
-
+    // 创建时间
     private String create_time;
+    // 头像
+    @ApiModelProperty("头像")
+    private String avatar;
+    // 角色
+    private String role;
 }

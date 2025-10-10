@@ -1,0 +1,82 @@
+server:
+  port: 8080
+
+jwt:
+  # 设置jwt签名加密时使用的秘钥
+  admin-secret-key: QY
+  # 设置jwt过期时间
+  admin-ttl: 7200000
+  # 设置前端传递过来的令牌名称
+  admin-token-name: authorization
+  # 用户令牌
+  user-secret-key: client
+  user-ttl: 7200000
+  user-token-name: authorization
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+    default-fetch-size: 100
+    default-statement-timeout: 30
+  mapper-locations: classpath*:mapper/**/*.xml # 如果有 XML 文件
+
+spring:
+  profiles:
+    active: dev
+  main:
+    allow-circular-references: true
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://124.220.226.16:3306/HaiGuiTang?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true
+    username: HaiGuiTang
+    password: 137218
+  redis:
+    host: ${qingyou.redis.host}
+    port: ${qingyou.redis.port}
+    database: ${qingyou.redis.database}
+    password: ${qingyou.redis.password}
+  rabbitmq:
+    host: 123.56.129.140 # RabbitMQ服务器地址
+    port: 5672 # 默认端口
+    username: admin # 默认用户名
+    password: 123456 # 默认密码
+    virtual-host: qingyou # 虚拟主机
+    listener:
+      simple:
+        acknowledge-mode: manual # 手动确认模式
+        concurrency: 5 # 消费者并发数
+        max-concurrency: 10 # 最大消费者并发数
+    template:
+      retry:
+        enabled: true # 启用重试机制
+        initial-interval: 1000ms # 初始重试间隔
+        max-interval: 10000ms # 最大重试间隔
+        max-attempts: 3
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+# MyBatis-Plus 配置
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl # 打印 SQL 日志（开发阶段可选）
+    map-underscore-to-camel-case: true # 下划线转驼峰
+  mapper-locations: classpath*:/mapper/**/*.xml # 自定义 XML 映射文件路径（非必须）
+  global-config:
+    db-config:
+      id-type: auto # 主键策略（默认自增，可选雪花算法 snowflake、UUID 等）
+      logic-delete-field: deleted # 逻辑删除字段（全局生效，需配合逻辑删除功能）
+
+minio:
+  endpoint: http://123.56.129.140:9000
+  accesskey: minioadmin
+  secretKey: minioadmin
+
+logging:
+  level:
+    com:
+      qingyou:
+        mapper: debug
+        service: info
+        controller: info

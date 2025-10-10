@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- namespace等于mapper接口类的全限定名,这样实现对应 -->
+<mapper namespace="com.guanyu.haigui.mapper.UserDetailsMapper">
+    <insert id="insert">
+        insert into sys_user (username, password) values (#{username}, #{password})
+    </insert>
+
+
+    <select id="selectUserInfoByUsername" resultType="com.guanyu.haigui.pojo.model.UserInfo">
+        select * from sys_user where username = #{username}
+    </select>
+    <select id="getUsersByIds" resultType="com.guanyu.haigui.pojo.model.UserInfo">
+        select * from sys_user where id in
+        <foreach item="item" index="index" collection="list"
+                 open="(" separator="," close=")">
+            #{item}
+        </foreach>
+    </select>
+</mapper>

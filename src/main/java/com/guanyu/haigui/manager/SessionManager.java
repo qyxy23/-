@@ -1,15 +1,18 @@
 package com.guanyu.haigui.manager;
 
 import com.google.gson.Gson;
+import com.guanyu.haigui.mapper.UserDetailsMapper;
+import com.guanyu.haigui.pojo.model.UserInfo;
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessage;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
-import java.util.ArrayList;
-import java.util.Set;
+import javax.annotation.Resource;
+import java.io.IOException;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * @author Guanyu
@@ -17,8 +20,10 @@ import java.util.Set;
  */
 @Component
 public class SessionManager {
-    @Autowired
+    @Resource
     private RedisTemplate<String, Object> redisTemplate;
+    @Resource
+    private UserDetailsMapper userDetailsMapper;
 
     // 存储用户ID→WebSocket Session的映射
     private static final String SESSION_KEY = "chat:sessions:";
@@ -39,7 +44,6 @@ public class SessionManager {
     /**
      * 移除用户会话
      *
-     * @param userId
      */
     public void removeSession(String userId) {
         redisTemplate.delete(SESSION_KEY + userId);
@@ -51,14 +55,13 @@ public class SessionManager {
      *
      * @param message
      */
-    public void broadcastMessage(ChatMessage message) {
-        // 遍历所有在线用户的Session，发送消息
-        // Set<String> onlineUsers = redisTemplate.opsForSet().members(ONLINE_USERS_KEY);
-        Set<String> onlineUsers = redisTemplate.opsForSet().members(ONLINE_USERS_KEY);
+    public void broadcastMessage(ChatMessage message) throws IOException {
+        // 获取在线用户ID集合并转换为Set<String>
+        Set<String> onlineUsers = getOnlineUsersAsStringSet();
         for (String userId : onlineUsers) {
             WebSocketSession session = (WebSocketSession) redisTemplate.opsForHash().get(SESSION_KEY + userId, "session");
-            if (session.isOpen()) {
-                session.sendMessage(new TextMessage(message.toJson()));
+            if (session != null && session.isOpen()) {
+                session.sendMessage(new TextMessage(message.toString()));
             }
         }
     }
@@ -67,10 +70,25 @@ public class SessionManager {
      * 广播在线用户列表给所有用户
      */
     public void broadcastOnlineUsers() {
-        // 广播在线用户列表给所有用户
-        Set<String> onlineUsers = redisTemplate.opsForSet().members(ONLINE_USERS_KEY);
-        List<User> users = userService.getUsersByIds(new ArrayList<>(onlineUsers));
+        // 获取在线用户ID集合并转换为Set<String>
+        Set<String> onlineUsers = getOnlineUsersAsStringSet();
+        List<String> userIds = new ArrayList<>(onlineUsers);
+        List<UserInfo> users = userDetailsMapper.getUsersByIds(userIds);
         String onlineUserListJson = new Gson().toJson(users);
-        // 发送给所有在线用户...
+        // 发送给所有在线用户...（此处添加实际广播逻辑）
+    }
+
+    /**
+     * 获取在线用户ID集合（转换为Set<String>）
+     */
+    private Set<String> getOnlineUsersAsStringSet() {
+        Set<Object> rawUsers = redisTemplate.opsForSet().members(ONLINE_USERS_KEY);
+        if (rawUsers == null) {
+            return Collections.emptySet();
+        }
+        return rawUsers.stream()
+                .filter(Objects::nonNull)
+                .map(Object::toString)
+                .collect(Collectors.toSet());
     }
 }

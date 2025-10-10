@@ -6,9 +6,10 @@ import com.volcengine.ark.runtime.model.completion.chat.ChatCompletionRequest;
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessage;
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessageRole;
 import com.volcengine.ark.runtime.service.ArkService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.Resource;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -17,21 +18,33 @@ AI调用
  */
 @Service
 public class AIManager {
-    @Resource
+    @Autowired(required = false)
+    @Nullable
     private ArkService arkService;
 
-    //只允许用户传入一个系统上下文和用户输入
-    public String doChat(String systemPrompt,String userPrompt) {
+    // 只允许用户传入一个系统上下文和用户输入
+    public String doChat(String systemPrompt, String userPrompt) {
+        // 检查AI服务是否可用
+        if (arkService == null) {
+            return "AI服务未配置或不可用";
+        }
+
         final List<ChatMessage> messages = new ArrayList<>();
-        final ChatMessage systemMessage = ChatMessage.builder().role(ChatMessageRole.SYSTEM).content(systemPrompt).build();
+        final ChatMessage systemMessage = ChatMessage.builder().role(ChatMessageRole.SYSTEM).content(systemPrompt)
+                .build();
         final ChatMessage userMessage = ChatMessage.builder().role(ChatMessageRole.USER).content(userPrompt).build();
         messages.add(systemMessage);
         messages.add(userMessage);
         return doChat(messages);
     }
 
-    //允许用户传入任意条消息队列
+    // 允许用户传入任意条消息队列
     public String doChat(List<ChatMessage> chatMessageList) {
+        // 检查AI服务是否可用
+        if (arkService == null) {
+            return "AI服务未配置或不可用";
+        }
+
         ChatCompletionRequest chatCompletionRequest = ChatCompletionRequest.builder()
                 // 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
                 .model("ep-20250913203623-2bv46")
