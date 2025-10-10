@@ -1,8 +1,7 @@
 package com.guanyu.haigui.pojo.vo;
 
 import com.guanyu.haigui.pojo.model.UserInfo;
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -11,15 +10,14 @@ import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
 
-
 @EqualsAndHashCode(callSuper = true)
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@ApiModel(description = "登录返回的数据格式")
+@Schema(description = "登录返回的数据格式")
 public class CustomUserDetails extends UserInfo implements UserDetails, Serializable {
-    @ApiModelProperty("jwt令牌")
+    @Schema(description = "jwt令牌")
     private String token;
 
     @Override

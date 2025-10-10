@@ -1,4 +1,4 @@
-package com.guanyu.haigui.Expection;
+package com.guanyu.haigui.Exception;
 
 public class UserAlreadyExistsException extends BusinessException {
     public UserAlreadyExistsException(String username) {

@@ -1,4 +1,4 @@
-package com.guanyu.haigui.Expection;
+package com.guanyu.haigui.Exception;
 
 public class BusinessException extends RuntimeException {
     public BusinessException(String message) {

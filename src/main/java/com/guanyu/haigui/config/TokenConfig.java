@@ -29,13 +29,16 @@ public class TokenConfig implements WebMvcConfigurer {
                 .addPathPatterns("/**")
                 // 排除无需校验Token的接口（关键：避免拦截登录、静态资源等）
                 .excludePathPatterns(
-                        "/login",          // 登录接口
-                        "/register",       // 注册接口
-                        "/logout",         // 登出接口
-                        "/swagger-ui/**",  // Swagger UI界面
+                        "/login", // 登录接口
+                        "/register", // 注册接口
+                        "/logout", // 登出接口
+                        "/swagger-ui/**", // Swagger UI界面
                         "/v3/api-docs/**", // Swagger API文档
-                        "/webjars/**",     // Swagger静态资源
-                        "/error"           // 错误页面
+                        "/v3/api-docs", // Swagger API文档根路径
+                        "/webjars/**", // Swagger静态资源
+                        "/doc.html", // Knife4j文档页面
+                        "/favicon.ico", // 网站图标
+                        "/error" // 错误页面
                 )
                 // 设置拦截器顺序（数字越小，优先级越高；可选，默认顺序由添加顺序决定）
                 .order(1);

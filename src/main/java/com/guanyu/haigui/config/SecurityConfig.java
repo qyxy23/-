@@ -21,7 +21,6 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 
-
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
@@ -56,8 +55,7 @@ public class SecurityConfig {
     @Bean
     public AuthenticationProvider authenticationProvider(
             UserDetailsService userDetailsService,
-            PasswordEncoder passwordEncoder
-    ) {
+            PasswordEncoder passwordEncoder) {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
         provider.setUserDetailsService(userDetailsService); // 设置用户加载器
         provider.setPasswordEncoder(passwordEncoder); // 设置密码编码器（关键！）
@@ -67,23 +65,30 @@ public class SecurityConfig {
     // 4. 配置AuthenticationManager（暴露给你的登录策略使用）
     @Bean
     public AuthenticationManager authenticationManager(
-            AuthenticationConfiguration authenticationConfiguration
-    ) throws Exception {
+            AuthenticationConfiguration authenticationConfiguration) throws Exception {
         return authenticationConfiguration.getAuthenticationManager();
     }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(AbstractHttpConfigurer::disable)
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/login/**").permitAll() // 允许登录
-                .requestMatchers("/admin/**").hasAnyRole("ADMIN") // 需ADMIN角色
-                .requestMatchers("/user/**").hasAnyRole("ADMIN", "USER") // 需ADMIN或USER
-                .anyRequest().authenticated()
-            )
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class); // 注入JWT过滤器
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/login/**").permitAll() // 允许登录
+                        .requestMatchers("/register").permitAll() // 允许注册
+                        .requestMatchers("/swagger-ui/**").permitAll() // 允许访问Swagger UI
+                        .requestMatchers("/swagger-resources/**").permitAll() // 允许访问Swagger资源
+                        .requestMatchers("/v3/api-docs/**").permitAll() // 允许访问API文档
+                        .requestMatchers("/v3/api-docs").permitAll() // 允许访问API文档根路径
+                        .requestMatchers("/webjars/**").permitAll() // 允许访问Webjars
+                        .requestMatchers("/doc.html").permitAll() // 允许访问Knife4j文档页面
+                        .requestMatchers("/favicon.ico").permitAll() // 允许访问favicon
+                        .requestMatchers("/error").permitAll() // 允许访问错误页面
+                        .requestMatchers("/admin/**").hasAnyRole("ADMIN") // 需ADMIN角色
+                        .requestMatchers("/user/**").hasAnyRole("ADMIN", "USER") // 需ADMIN或USER
+                        .anyRequest().authenticated())
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class); // 注入JWT过滤器
 
         return http.build();
     }

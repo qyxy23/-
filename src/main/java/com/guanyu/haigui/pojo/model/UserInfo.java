@@ -16,7 +16,7 @@
 
 package com.guanyu.haigui.pojo.model;
 
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 /**
@@ -35,7 +35,7 @@ public class UserInfo {
     // 创建时间
     private String create_time;
     // 头像
-    @ApiModelProperty("头像")
+    @Schema(description = "头像")
     private String avatar;
     // 角色
     private String role;

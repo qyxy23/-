@@ -16,7 +16,7 @@ public class CorsConfig implements WebMvcConfigurer {
         // 1. 配置 CORS 规则
         CorsConfiguration config = new CorsConfiguration();
         // 允许前端源（开发阶段用 *，生产环境建议指定具体源如 http://localhost:5173）
-        config.addAllowedOrigin("*");
+        config.addAllowedOriginPattern("*"); // 使用allowedOriginPattern替代allowedOrigin
         // 允许的 HTTP 方法（必须包含 OPTIONS，预检请求需要）
         config.addAllowedMethod("GET");
         config.addAllowedMethod("POST");
@@ -26,7 +26,7 @@ public class CorsConfig implements WebMvcConfigurer {
         // 允许前端读取的响应头（可选）
         config.addExposedHeader("*");
         // 是否允许发送 Cookie（若需要，设为 true，此时 allowedOrigin 不能为 *）
-        config.setAllowCredentials(false);
+        config.setAllowCredentials(true);
 
         // 2. 映射所有接口路径
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
@@ -36,11 +36,12 @@ public class CorsConfig implements WebMvcConfigurer {
         return new CorsFilter(source);
     }
 
+    @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
-                //允许发送cookie
+                // 允许发送cookie
                 .allowCredentials(true)
-                .allowedOrigins("*")
+                .allowedOriginPatterns("*") // 使用allowedOriginPatterns替代allowedOrigins
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*");
     }

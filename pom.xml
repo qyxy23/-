@@ -111,17 +111,30 @@
             <groupId>com.volcengine</groupId>
             <artifactId>volcengine-java-sdk-ark-runtime</artifactId>
             <version>0.2.34</version>
+            <!-- 关键：排除旧版 Swagger 注解 -->
+            <exclusions>
+                <exclusion>
+                    <groupId>io.swagger.core.v3</groupId>
+                    <artifactId>swagger-annotations</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <!-- jpa 简化数据访问层的开发，不需要手动写大量的SQL或者JDBC代码-->
         <!-- <dependency> -->
         <!--     <groupId>org.springframework.boot</groupId> -->
         <!--     <artifactId>spring-boot-starter-data-jpa</artifactId> -->
         <!-- </dependency> -->
-        <!-- swagger -->
+        <!-- springdoc-openapi for Spring Boot 3.x -->
         <dependency>
-            <groupId>io.springfox</groupId>
-            <artifactId>springfox-swagger2</artifactId>
-            <version>3.0.0</version>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.2.0</version>
+        </dependency>
+        <!-- Knife4j增强UI -->
+        <dependency>
+            <groupId>com.github.xiaoymin</groupId>
+            <artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
+            <version>4.4.0</version>
         </dependency>
         <!-- jwt -->
         <dependency>
@@ -153,10 +166,7 @@
         <!--     <artifactId>aspectjweaver</artifactId> -->
         <!-- </dependency> -->
 
-        <!-- <dependency> -->
-        <!--     <groupId>com.github.xiaoymin</groupId> -->
-        <!--     <artifactId>knife4j-spring-boot-starter</artifactId> -->
-        <!-- </dependency> -->
+
 
 
         <!-- <dependency> -->
@@ -200,6 +210,8 @@
         </dependency>
 
     </dependencies>
+
+
 
     <build>
         <plugins>

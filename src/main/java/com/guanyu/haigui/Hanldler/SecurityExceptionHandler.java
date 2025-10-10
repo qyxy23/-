@@ -1,6 +1,6 @@
 package com.guanyu.haigui.Hanldler;
 
-import com.guanyu.haigui.Expection.UserAlreadyExistsException;
+import com.guanyu.haigui.Exception.UserAlreadyExistsException;
 import com.guanyu.haigui.result.Result;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;

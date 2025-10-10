@@ -1,7 +1,7 @@
 package com.guanyu.haigui.Strategy.strategyImpl;
 
 import com.guanyu.haigui.Enum.UserRoleEnum;
-import com.guanyu.haigui.Expection.UserAlreadyExistsException;
+import com.guanyu.haigui.Exception.UserAlreadyExistsException;
 import com.guanyu.haigui.Strategy.RegisterStrategy;
 import com.guanyu.haigui.mapper.UserDetailsMapper;
 import com.guanyu.haigui.mapper.UserRoleMapper;

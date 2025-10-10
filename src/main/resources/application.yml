@@ -75,3 +75,25 @@ logging:
         mapper: debug
         service: info
         controller: info
+
+# SpringDoc OpenAPI 配置
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: "default"
+      paths-to-match: "/**"
+      packages-to-scan: com.guanyu.haigui.controller
+
+# Knife4j配置
+knife4j:
+  enable: true
+  production: false
+  basic:
+    enable: false
+    username: admin
+    password: admin

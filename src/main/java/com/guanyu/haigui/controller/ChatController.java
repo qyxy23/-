@@ -1,10 +1,12 @@
 package com.guanyu.haigui.controller;
+
 import com.guanyu.haigui.pojo.dto.JoinChatRoomRequest;
 import com.guanyu.haigui.pojo.model.ChatRoom;
 import com.guanyu.haigui.websocket.LobbyService;
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessage;
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessageRole;
-import io.swagger.annotations.ApiOperation;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -16,10 +18,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.security.Principal;
 import java.util.List;
 import com.guanyu.haigui.service.ChatService;
-import io.swagger.annotations.Api;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-
 
 /**
  * 聊天接口
@@ -27,7 +27,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/chat")
-@Api(tags = "聊天接口")
+@Tag(name = "聊天接口", description = "聊天相关接口")
 public class ChatController {
     @Autowired
     private ChatService chatService;
@@ -39,15 +39,14 @@ public class ChatController {
         this.messagingTemplate = messagingTemplate;
     }
 
-
     /**
      * 聊天
      *
-     * @param roomId 聊天室 ID
+     * @param roomId  聊天室 ID
      * @param message
      * @return
      */
-    @ApiOperation(value = "聊天")
+    @Operation(summary = "聊天")
     @PostMapping("/{roomId}")
     public String doChat(@PathVariable Long roomId, @RequestParam String message) {
         return chatService.chat(roomId, message);
@@ -58,7 +57,7 @@ public class ChatController {
      *
      * @return
      */
-    @ApiOperation(value = "获取聊天室列表内容")
+    @Operation(summary = "获取聊天室列表内容")
     @GetMapping()
     public List<ChatRoom> getChatRoomList() {
         // System.out.println("获取聊天室列表");

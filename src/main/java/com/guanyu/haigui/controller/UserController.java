@@ -7,7 +7,7 @@ import com.guanyu.haigui.pojo.vo.CustomUserDetails;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.Strategy.LoginStrategy;
 import com.guanyu.haigui.service.UserService;
-import io.swagger.annotations.Api;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -22,7 +22,7 @@ import javax.security.sasl.AuthenticationException;
 import java.util.Map;
 
 @RestController
-@Api(tags = "登录接口")
+@Tag(name = "登录接口", description = "用户登录注册相关接口")
 @Component
 @RequiredArgsConstructor
 @RequestMapping("/user")
