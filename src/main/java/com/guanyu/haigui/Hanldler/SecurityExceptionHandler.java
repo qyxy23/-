@@ -5,14 +5,14 @@ import com.guanyu.haigui.result.Result;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
-import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 
 /**
  * 全局异常处理器
  */
-@ControllerAdvice
+@RestControllerAdvice
 public class SecurityExceptionHandler {
 
     /**
@@ -39,5 +39,10 @@ public class SecurityExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public Result<?> handleAccessDenied(AccessDeniedException ex) {
         return Result.error("无权限访问该资源");
+    }
+
+    @ExceptionHandler(RuntimeException.class)
+    public Result<?> handleRuntimeException(RuntimeException ex) {
+        return Result.error(405, ex.getMessage());
     }
 }

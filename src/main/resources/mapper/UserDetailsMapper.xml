@@ -4,7 +4,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <!-- namespace等于mapper接口类的全限定名,这样实现对应 -->
 <mapper namespace="com.guanyu.haigui.mapper.UserDetailsMapper">
-    <insert id="insert">
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         insert into sys_user (username, password) values (#{username}, #{password})
     </insert>
 

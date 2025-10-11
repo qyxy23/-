@@ -75,8 +75,8 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/login/**").permitAll() // 允许登录
-                        .requestMatchers("/register").permitAll() // 允许注册
+                        // .requestMatchers("/user/login").permitAll() // 允许登录
+                        .requestMatchers("/user/**").permitAll() // 允许注册
                         .requestMatchers("/swagger-ui/**").permitAll() // 允许访问Swagger UI
                         .requestMatchers("/swagger-resources/**").permitAll() // 允许访问Swagger资源
                         .requestMatchers("/v3/api-docs/**").permitAll() // 允许访问API文档
@@ -85,8 +85,8 @@ public class SecurityConfig {
                         .requestMatchers("/doc.html").permitAll() // 允许访问Knife4j文档页面
                         .requestMatchers("/favicon.ico").permitAll() // 允许访问favicon
                         .requestMatchers("/error").permitAll() // 允许访问错误页面
-                        .requestMatchers("/admin/**").hasAnyRole("ADMIN") // 需ADMIN角色
-                        .requestMatchers("/user/**").hasAnyRole("ADMIN", "USER") // 需ADMIN或USER
+                        // .requestMatchers("/admin/**").hasAnyRole("ADMIN") // 需ADMIN角色
+                        // .requestMatchers("/user/**").hasAnyRole("ADMIN", "USER") // 需ADMIN或USER
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class); // 注入JWT过滤器
 

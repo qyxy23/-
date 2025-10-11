@@ -37,7 +37,7 @@ public class JwtTokenUtil {
     }
 
     public String generateToken(CustomUserDetails userDetails) {
-        Long userId = Long.valueOf(userDetails.getId());
+        Long userId = userDetails.getId();
         Map<String, Object> claims = new HashMap<>();
         // 将用户权限（角色）存入Claims（需确保UserDetails的getAuthorities()返回角色列表）
         claims.put("roles", userDetails.getAuthorities().stream()

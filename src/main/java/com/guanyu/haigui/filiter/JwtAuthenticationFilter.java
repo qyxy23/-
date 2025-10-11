@@ -47,6 +47,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     // 3. 解析Token中的身份信息
                     String username = jwtTokenUtil.getUsernameFromToken(token);
                     List<String> roles = jwtTokenUtil.getRolesFromToken(token);
+                    log.debug("用户{}的Token验证通过，角色：{}", username, roles);
 
                     // 4. 构造Spring Security的Authentication对象（携带角色权限）
                     List<GrantedAuthority> authorities = roles.stream()

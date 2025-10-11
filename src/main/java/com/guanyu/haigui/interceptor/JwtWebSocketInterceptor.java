@@ -1,5 +1,6 @@
 package com.guanyu.haigui.interceptor;
 
+import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
@@ -11,6 +12,7 @@ import org.springframework.web.socket.server.HandshakeInterceptor;
 import com.guanyu.haigui.utils.JwtTokenUtil;
 import java.util.Map;
 
+@Slf4j
 @Component
 public class JwtWebSocketInterceptor implements HandshakeInterceptor {
 
@@ -36,6 +38,7 @@ public class JwtWebSocketInterceptor implements HandshakeInterceptor {
             if (jwtTokenUtil.validateToken(token)) {
                 // 3. 提取用户信息（如UserID、Username），存入WebSocket Session的attributes
                 String username = jwtTokenUtil.getUsernameFromToken(token);
+                log.info("用户：{} 尝试连接 WebSocket", username);
                 Long userId = jwtTokenUtil.getUserIdFromToken(token);
                 attributes.put("username", username);
                 attributes.put("userId", userId);

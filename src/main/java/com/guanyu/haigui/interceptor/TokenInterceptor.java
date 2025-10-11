@@ -32,6 +32,20 @@ public class TokenInterceptor implements HandlerInterceptor {
 
         //1、从请求头中获取令牌
         String token = request.getHeader(jwtProperties.getAdminTokenName());
+        log.info("当前请求的令牌：{}", token);
+        // 检查token是否为null
+        if (token == null) {
+            log.warn("Missing token in request header");
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            return false;
+        }
+
+        // 检查token是否以"Bearer "开头
+        if (!token.startsWith("Bearer ")) {
+            log.warn("Invalid token format: {}", token);
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            return false;
+        }
         //去掉Bearer
         token = token.substring(7);
         //2、校验令牌
@@ -46,7 +60,8 @@ public class TokenInterceptor implements HandlerInterceptor {
             return true;
         } catch (Exception ex) {
             //4、不通过，响应401状态码
-            response.setStatus(401);
+            log.error("Token validation failed", ex);
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             return false;
         }
     }

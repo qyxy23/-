@@ -19,10 +19,16 @@ import java.util.List;
 public class CustomUserDetails extends UserInfo implements UserDetails, Serializable {
     @Schema(description = "jwt令牌")
     private String token;
+    @Schema(description = "权限列表")
+    private List<GrantedAuthority> authorities; // 必须有此属性！
+
+
+
+
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of();
+        return authorities;
     }
 
     @Override

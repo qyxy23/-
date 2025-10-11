@@ -1,9 +1,7 @@
 package com.guanyu.haigui.Strategy;
 
+import com.guanyu.haigui.pojo.dto.RegisterRequest;
 import com.guanyu.haigui.pojo.vo.CustomUserDetails ;
-
-import java.util.Map;
-
 /**
  * 注册策略接口：定义不同注册方式的通用行为
  */
@@ -15,5 +13,5 @@ public interface RegisterStrategy {
      * @return 注册结果（用户ID、Token等）
      * @throws Exception 注册失败异常
      */
-    CustomUserDetails register(Map<String, String> params) throws Exception;
+    CustomUserDetails register(RegisterRequest  params) throws Exception;
 }

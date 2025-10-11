@@ -5,16 +5,22 @@ import com.guanyu.haigui.Exception.UserAlreadyExistsException;
 import com.guanyu.haigui.Strategy.RegisterStrategy;
 import com.guanyu.haigui.mapper.UserDetailsMapper;
 import com.guanyu.haigui.mapper.UserRoleMapper;
+import com.guanyu.haigui.pojo.dto.RegisterRequest;
 import com.guanyu.haigui.pojo.dto.UserRole;
 import com.guanyu.haigui.pojo.model.UserInfo;
 import com.guanyu.haigui.pojo.vo.CustomUserDetails;
 import com.guanyu.haigui.utils.JwtTokenUtil;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 
-import java.util.Map;
+import java.util.Collections;
+import java.util.List;
 
+@Slf4j
 @Component
 public class PasswordRegisterStrategy implements RegisterStrategy {
     @Resource
@@ -27,9 +33,9 @@ public class PasswordRegisterStrategy implements RegisterStrategy {
     private UserRoleMapper userRoleMapper;
 
     @Override
-    public CustomUserDetails register(Map<String, String> params) {
-        String username = params.get("username");
-        String password = params.get("password");
+    public CustomUserDetails register(RegisterRequest params) {
+        String username = params.getUsername();
+        String password = params.getPassword();
         try {
             // 1. 检查用户名是否已经存在
             UserInfo userInfo = userDetailsMapper.selectUserInfoByUsername(username);
@@ -39,15 +45,23 @@ public class PasswordRegisterStrategy implements RegisterStrategy {
             }
             // 2. 编码密码（关键改造：明文 → 哈希值）
             String encodedPassword = passwordEncoder.encode(password); // 编码后的密码
+            log.info("密码已编码：{}", encodedPassword);
             // 创建用户
             CustomUserDetails CustomUserDetails = new CustomUserDetails();
             CustomUserDetails.setUsername(username);
             CustomUserDetails.setPassword(encodedPassword);
             CustomUserDetails.setRole(UserRoleEnum.USER.name());
-            // int insertCount = userDetailsMapper.insert(CustomUserDetails);
-            // if (insertCount <= 0) {
-            // throw new RuntimeException("用户注册失败，请重试");
-            // }
+            int insertCount = userDetailsMapper.insert(CustomUserDetails);
+            if (insertCount <= 0) {
+            throw new RuntimeException("用户注册失败，请重试");
+            }
+
+            // 将UserRoleEnum.USER转换为GrantedAuthority（如"ROLE_USER"）
+            List<GrantedAuthority> authorities = Collections.singletonList(
+                    new SimpleGrantedAuthority("ROLE_" + UserRoleEnum.USER.name())
+            );
+            System.out.println("authorities = " + authorities);
+            CustomUserDetails.setAuthorities(authorities); // 设置到对象中
 
             // 4. 获取数据库生成的用户ID（关键！）
             Long userId = CustomUserDetails.getId();

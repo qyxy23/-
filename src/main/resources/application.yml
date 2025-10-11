@@ -3,14 +3,14 @@ server:
 
 jwt:
   # 设置jwt签名加密时使用的秘钥
-  admin-secret-key: QY
+  admin-secret-key: mySuperLongSecretKeyForJWTWithMoreThan32Bytes!!
   # 设置jwt过期时间
-  admin-ttl: 7200000
+  admin-ttl: 86400000
   # 设置前端传递过来的令牌名称
   admin-token-name: authorization
   # 用户令牌
   user-secret-key: client
-  user-ttl: 7200000
+  user-ttl: 86400000
   user-token-name: authorization
 
 spring:
@@ -19,10 +19,11 @@ spring:
   main:
     allow-circular-references: true
   datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://124.220.226.16:3306/HaiGuiTang?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true
-    username: HaiGuiTang
-    password: 137218
+    druid:
+      driver-class-name: ${qingyou.datasource.driver-class-name}
+      url: jdbc:mysql://${qingyou.datasource.host}:${qingyou.datasource.port}/${qingyou.datasource.database}?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true
+      username: ${qingyou.datasource.username}
+      password: ${qingyou.datasource.password}
   sql:
     init:
       mode: never
