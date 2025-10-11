@@ -28,14 +28,6 @@ public class JwtTokenUtil {
     // ------------------------------
     // 核心方法：生成Token（携带角色）
     // ------------------------------
-
-    public String generateToken(Long userId, String role) {
-        CustomUserDetails userDetails = new CustomUserDetails();
-        userDetails.setId(userId);
-        userDetails.setRole(role);
-        return generateToken(userDetails);
-    }
-
     public String generateToken(CustomUserDetails userDetails) {
         Long userId = userDetails.getId();
         Map<String, Object> claims = new HashMap<>();

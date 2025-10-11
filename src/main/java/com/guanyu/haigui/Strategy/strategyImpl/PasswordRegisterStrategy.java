@@ -4,7 +4,6 @@ import com.guanyu.haigui.Enum.UserRoleEnum;
 import com.guanyu.haigui.Exception.UserAlreadyExistsException;
 import com.guanyu.haigui.Strategy.RegisterStrategy;
 import com.guanyu.haigui.mapper.UserDetailsMapper;
-import com.guanyu.haigui.mapper.UserRoleMapper;
 import com.guanyu.haigui.pojo.dto.RegisterRequest;
 import com.guanyu.haigui.pojo.dto.UserRole;
 import com.guanyu.haigui.pojo.model.UserInfo;
@@ -29,8 +28,6 @@ public class PasswordRegisterStrategy implements RegisterStrategy {
     private UserDetailsMapper userDetailsMapper;
     @Resource
     private BCryptPasswordEncoder passwordEncoder; // 注入密码编码器
-    @Resource
-    private UserRoleMapper userRoleMapper;
 
     @Override
     public CustomUserDetails register(RegisterRequest params) {
@@ -53,7 +50,7 @@ public class PasswordRegisterStrategy implements RegisterStrategy {
             CustomUserDetails.setRole(UserRoleEnum.USER.name());
             int insertCount = userDetailsMapper.insert(CustomUserDetails);
             if (insertCount <= 0) {
-            throw new RuntimeException("用户注册失败，请重试");
+                throw new RuntimeException("用户注册失败，请重试");
             }
 
             // 将UserRoleEnum.USER转换为GrantedAuthority（如"ROLE_USER"）
@@ -70,7 +67,7 @@ public class PasswordRegisterStrategy implements RegisterStrategy {
             UserRole userRole = new UserRole();
             userRole.setUserId(userId);
             userRole.setRoleId(UserRoleEnum.USER.getRoleId()); // 角色ID从枚举获取
-            int roleInsertCount = userRoleMapper.insertUserRole(userRole);
+            int roleInsertCount = userDetailsMapper.insertUserRole(userRole);
             if (roleInsertCount <= 0) {
                 // 可选：回滚用户插入（若需要事务）
                 throw new RuntimeException("用户角色关联失败");

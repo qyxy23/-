@@ -27,17 +27,12 @@ spring:
   sql:
     init:
       mode: never
-  redis:
-    host: ${qingyou.redis.host}
-    port: ${qingyou.redis.port}
-    database: ${qingyou.redis.database}
-    password: ${qingyou.redis.password}
   rabbitmq:
-    host: 123.56.129.140 # RabbitMQ服务器地址
-    port: 5672 # 默认端口
-    username: admin # 默认用户名
-    password: 123456 # 默认密码
-    virtual-host: qingyou # 虚拟主机
+    host: ${qingyou.rabbitmq.host}
+    port: ${qingyou.rabbitmq.host}
+    username: ${qingyou.rabbitmq.username}
+    password: ${qingyou.rabbitmq.password} # 默认密码
+    virtual-host: ${qingyou.rabbitmq.virtual-host} # 虚拟主机
     listener:
       simple:
         acknowledge-mode: manual # 手动确认模式
@@ -53,6 +48,12 @@ spring:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
+  data:
+    redis:
+      host: ${qingyou.redis.host}
+      port: ${qingyou.redis.port}
+      database: ${qingyou.redis.database}
+      password: ${qingyou.redis.password}
 
 mybatis:
   # 若有XML映射文件，配置路径（可选）
@@ -65,9 +66,9 @@ mybatis:
     default-statement-timeout: 30
 
 minio:
-  endpoint: http://123.56.129.140:9000
-  accesskey: minioadmin
-  secretKey: minioadmin
+  endpoint: ${qingyou.minio.endpoint}
+  accesskey: ${qingyou.minio.accesskey}
+  secretKey: ${qingyou.minio.secretKey}
 
 logging:
   level:

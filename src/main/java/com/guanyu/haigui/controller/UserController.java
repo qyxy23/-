@@ -3,6 +3,7 @@ package com.guanyu.haigui.controller;
 import com.guanyu.haigui.Enum.LoginType;
 import com.guanyu.haigui.Enum.RegisterType;
 import com.guanyu.haigui.Strategy.RegisterStrategy;
+import com.guanyu.haigui.pojo.dto.LoginRequest;
 import com.guanyu.haigui.pojo.dto.RegisterRequest;
 import com.guanyu.haigui.pojo.vo.CustomUserDetails;
 import com.guanyu.haigui.result.Result;
@@ -12,7 +13,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.*;
 
@@ -36,21 +36,18 @@ public class UserController {
     private final Map<RegisterType, RegisterStrategy> RegisterstrategyMap; // 策略映射（Spring自动注入所有实现）
 
     /**
-     * 执行登录
+     * 执行登录验证
      *
-     * @param type   登录类型
-     * @param params 登录参数
      * @return 认证结果
      */
     @PostMapping("/login")
-    @PreAuthorize("hasAnyRole('USER')")
-    public Result<CustomUserDetails> Login(LoginType type, Map<String, String> params)
+    public Result<CustomUserDetails> Login(@RequestBody LoginRequest request)
             throws AuthenticationException {
-        LoginStrategy strategy = strategyMap.get(type);
+        LoginStrategy strategy = strategyMap.get(request.getType());
         if (strategy == null) {
             return Result.error("登录方式不存在");
         }
-        return Result.success(strategy.login(params));
+        return Result.success(strategy.login(request));
     }
 
     // 退出登录接口

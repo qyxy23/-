@@ -27,11 +27,14 @@ public class UserInfo {
     // 用户id
     private Long id;
     // 用户名
+    @Schema(description = "用户名")
     private String username;
     // 密码
     private String password;
     // 手机号
     private String phone;
+    // 邮箱
+    private String email;
     // 创建时间
     private String create_time;
     // 头像
@@ -39,4 +42,10 @@ public class UserInfo {
     private String avatar;
     // 角色
     private String role;
+    // 状态
+    private boolean enabled;
+
+    public boolean getEnabled() {
+        return enabled;
+    }
 }

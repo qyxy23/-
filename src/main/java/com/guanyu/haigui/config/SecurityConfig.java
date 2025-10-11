@@ -3,6 +3,7 @@ package com.guanyu.haigui.config;
 import com.guanyu.haigui.filiter.JwtAuthenticationFilter;
 import com.guanyu.haigui.mapper.UserDetailsMapper;
 import com.guanyu.haigui.pojo.model.UserInfo;
+import com.guanyu.haigui.pojo.vo.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,6 +14,8 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -21,12 +24,16 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
 
     // 全局配置 BCrypt 密码编码器
     @Bean
@@ -39,15 +46,27 @@ public class SecurityConfig {
     public UserDetailsService userDetailsService(UserDetailsMapper userDetailsMapper) {
         return username -> {
             UserInfo userInfo = userDetailsMapper.selectUserInfoByUsername(username);
+
             if (userInfo == null) {
-                throw new UsernameNotFoundException("用户不存在");
+                throw new UsernameNotFoundException("用户不存在：" + username);
             }
-            // 构造UserDetails对象（Spring Security需要的用户信息）
-            return org.springframework.security.core.userdetails.User.builder()
-                    .username(userInfo.getUsername())
-                    .password(userInfo.getPassword()) // 这里是编码后的密码
-                    .roles(userInfo.getRole()) // 角色
-                    .build();
+            // 2. 查询用户所有角色（从中间表+角色表）
+            List<String> roleNames = userDetailsMapper.selectUserRolesByUserId(userInfo.getId());
+            // 3. 将角色转换为GrantedAuthority（Spring Security要求的权限格式，如"ROLE_ADMIN"）
+            List<GrantedAuthority> authorities = roleNames.stream()
+                    .map(role -> new SimpleGrantedAuthority("ROLE_" + role)) // 给角色加"ROLE_"前缀（Spring Security默认要求）
+                    .collect(Collectors.toList());
+
+            CustomUserDetails customUserDetails = new CustomUserDetails();
+            customUserDetails.setUsername(userInfo.getUsername());
+            customUserDetails.setPassword(userInfo.getPassword());
+            customUserDetails.setAuthorities(authorities);
+            // 可选：设置其他字段（如enabled、id等，需CustomUserDetails有对应setter）
+            customUserDetails.setEnabled(userInfo.getEnabled());
+            customUserDetails.setId(userInfo.getId());
+
+            // 4. 返回CustomUserDetails（实现了UserDetails接口）
+            return customUserDetails;
         };
     }
 
@@ -75,8 +94,8 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // .requestMatchers("/user/login").permitAll() // 允许登录
-                        .requestMatchers("/user/**").permitAll() // 允许注册
+                        .requestMatchers("/user/login").permitAll() // 允许登录
+                        .requestMatchers("/user/register").permitAll() // 允许注册
                         .requestMatchers("/swagger-ui/**").permitAll() // 允许访问Swagger UI
                         .requestMatchers("/swagger-resources/**").permitAll() // 允许访问Swagger资源
                         .requestMatchers("/v3/api-docs/**").permitAll() // 允许访问API文档
