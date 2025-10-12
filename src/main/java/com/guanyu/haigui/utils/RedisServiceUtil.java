@@ -1,7 +1,10 @@
 package com.guanyu.haigui.utils;
 
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.stereotype.Service;
+
+import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
@@ -29,5 +32,15 @@ public class RedisServiceUtil {
 
     public void deleteOnlineStatus(Long id) {
         redisTemplate.delete(USER_ONLINE_KEY_PREFIX + id);
+    }
+
+    @PostConstruct
+    public void initRedisTemplate() {
+        // 设置Key和Value的序列化器为字符串
+        redisTemplate.setKeySerializer(RedisSerializer.string());
+        redisTemplate.setValueSerializer(RedisSerializer.string());
+        // 若有Hash结构需求，同步设置Hash的序列化器
+        redisTemplate.setHashKeySerializer(RedisSerializer.string());
+        redisTemplate.setHashValueSerializer(RedisSerializer.string());
     }
 }

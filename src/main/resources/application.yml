@@ -29,7 +29,7 @@ spring:
       mode: never
   rabbitmq:
     host: ${qingyou.rabbitmq.host}
-    port: ${qingyou.rabbitmq.host}
+    port: ${qingyou.rabbitmq.port}
     username: ${qingyou.rabbitmq.username}
     password: ${qingyou.rabbitmq.password} # 默认密码
     virtual-host: ${qingyou.rabbitmq.virtual-host} # 虚拟主机
