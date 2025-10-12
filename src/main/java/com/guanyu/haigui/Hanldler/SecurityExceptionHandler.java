@@ -8,6 +8,8 @@ import org.springframework.security.authentication.DisabledException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import javax.security.sasl.AuthenticationException;
+
 
 /**
  * 全局异常处理器
@@ -44,5 +46,15 @@ public class SecurityExceptionHandler {
     @ExceptionHandler(RuntimeException.class)
     public Result<?> handleRuntimeException(RuntimeException ex) {
         return Result.error(405, ex.getMessage());
+    }
+
+    @ExceptionHandler(Exception.class)
+    public Result<?> handleException(Exception ex) {
+        return Result.error(ex.getMessage());
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public Result<?> handleThrowable(Throwable ex) {
+        return Result.error(ex.getMessage());
     }
 }

@@ -47,17 +47,18 @@ public class PasswordRegisterStrategy implements RegisterStrategy {
             CustomUserDetails CustomUserDetails = new CustomUserDetails();
             CustomUserDetails.setUsername(username);
             CustomUserDetails.setPassword(encodedPassword);
-            CustomUserDetails.setRole(UserRoleEnum.USER.name());
+            CustomUserDetails.setRole(params.getRole());
             int insertCount = userDetailsMapper.insert(CustomUserDetails);
             if (insertCount <= 0) {
                 throw new RuntimeException("用户注册失败，请重试");
             }
 
+
             // 将UserRoleEnum.USER转换为GrantedAuthority（如"ROLE_USER"）
             List<GrantedAuthority> authorities = Collections.singletonList(
-                    new SimpleGrantedAuthority("ROLE_" + UserRoleEnum.USER.name())
+                    new SimpleGrantedAuthority("ROLE_" + params.getRole())
             );
-            System.out.println("authorities = " + authorities);
+            log.info("权限已设置：{}", authorities);
             CustomUserDetails.setAuthorities(authorities); // 设置到对象中
 
             // 4. 获取数据库生成的用户ID（关键！）
@@ -66,7 +67,7 @@ public class PasswordRegisterStrategy implements RegisterStrategy {
             // 5. 插入用户角色中间表（关联用户ID和角色ID）
             UserRole userRole = new UserRole();
             userRole.setUserId(userId);
-            userRole.setRoleId(UserRoleEnum.USER.getRoleId()); // 角色ID从枚举获取
+            userRole.setRoleId(params.getRole().getRoleId()); // 角色ID从枚举获取
             int roleInsertCount = userDetailsMapper.insertUserRole(userRole);
             if (roleInsertCount <= 0) {
                 // 可选：回滚用户插入（若需要事务）

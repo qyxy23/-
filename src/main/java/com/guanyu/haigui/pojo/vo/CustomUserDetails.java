@@ -1,5 +1,6 @@
 package com.guanyu.haigui.pojo.vo;
 
+import com.guanyu.haigui.Enum.UserRoleEnum;
 import com.guanyu.haigui.pojo.model.UserInfo;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
@@ -21,6 +22,8 @@ public class CustomUserDetails extends UserInfo implements UserDetails, Serializ
     private String token;
     @Schema(description = "权限列表")
     private List<GrantedAuthority> authorities; // 必须有此属性！
+    @Schema(description = "用户角色")
+    private UserRoleEnum role;
 
 
 
