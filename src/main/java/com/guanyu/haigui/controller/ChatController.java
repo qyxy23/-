@@ -4,25 +4,21 @@ import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.dto.JoinChatRoomRequest;
 import com.guanyu.haigui.pojo.vo.ChatRoomListVO;
 import com.guanyu.haigui.result.Result;
+import com.guanyu.haigui.service.ChatService;
 import com.guanyu.haigui.websocket.LobbyService;
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessage;
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessageRole;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.List;
-import com.guanyu.haigui.service.ChatService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
 
 /**
  * 聊天接口
@@ -58,7 +54,6 @@ public class ChatController {
     @Operation(summary = "获取聊天室列表内容")
     @GetMapping()
     public List<ChatRoomListVO> getChatRoomList() {
-        // System.out.println("获取聊天室列表");
         // List<ChatRoom> chatRoomList = chatService.getChatRoomList();
         // System.out.println("chatRoomList = " + chatRoomList);
         // return chatRoomList;

@@ -29,9 +29,10 @@ public class TokenInterceptor implements HandlerInterceptor {
             //当前拦截到的不是动态方法，直接放行
             return true;
         }
+        System.out.println("当前请求的资源：" + handler);
 
         //1、从请求头中获取令牌
-        String token = request.getHeader(jwtProperties.getAdminTokenName());
+        String token = request.getHeader( "Authorization" );
         log.info("当前请求的令牌：{}", token);
         // 检查token是否为null
         if (token == null) {
@@ -54,6 +55,7 @@ public class TokenInterceptor implements HandlerInterceptor {
             jwtTokenUtil.validateToken(token);
             Long empId = jwtTokenUtil.getUserIdFromToken(token);
             log.info("当前用户id：{}", empId);
+            System.out.println(empId+"通过token");
             //设置当前登录用户id到当前线程中
             BaseContext.setCurrentId(empId);
             //3、通过，放行
