@@ -1,6 +1,6 @@
 package com.guanyu.haigui.service;
 
-import com.guanyu.haigui.pojo.model.ChatRoom;
+import com.guanyu.haigui.pojo.vo.ChatRoomListVO;
 
 import java.util.List;
 
@@ -12,8 +12,13 @@ public interface ChatService {
      * @param question 问题
      * @return
      */
-    String chat(Long roomId,String question);
+    String chatWithAI(Long roomId,String question);
 
 
-    List<ChatRoom> getChatRoomList();
+    /**
+     * 获取当前用户的聊天室列表（含最后一条消息）
+     * @param userId 当前用户ID
+     * @return 聊天室列表（带最后一条消息）
+     */
+    List<ChatRoomListVO> getAIChatRoomListWithLastMessage(Long userId);
 }

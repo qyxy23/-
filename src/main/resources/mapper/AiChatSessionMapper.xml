@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- namespace等于mapper接口类的全限定名,这样实现对应 -->
+<mapper namespace="com.guanyu.haigui.mapper.AiChatSessionMapper">
+    <insert id="insertMsg">
+        INSERT INTO ai_chat_messages (session_id, sender_type, content, send_time, is_read)
+        VALUES (#{sessionId}, #{role}, #{content}, #{sendTime}, #{isRead});
+    </insert>
+
+    <insert id="insertSession">
+        INSERT INTO ai_chat_sessions (session_id, user_id, title, create_time, update_time, is_deleted)
+        VALUES (#{sessionId}, #{userId}, #{title}, #{createTime}, #{updateTime}, #{isDeleted});
+    </insert>
+
+    <update id="updateById">
+        UPDATE ai_chat_sessions
+        SET
+        title = #{title},
+        update_time = #{updateTime}
+        WHERE
+        session_id = #{sessionId};
+    </update>
+
+    <select id="selectValidSessionsByUserId" resultType="com.guanyu.haigui.pojo.model.AiChatSession">
+        SELECT
+        session_id AS sessionId,
+        user_id AS userId,
+        title,
+        create_time AS createTime,
+        update_time AS updateTime,
+        is_deleted AS isDeleted
+        FROM
+        ai_chat_sessions
+        WHERE
+        user_id = #{userId}
+        AND is_deleted = 0
+        ORDER BY
+        update_time DESC;
+    </select>
+
+
+    <select id="selectChatRoomListWithLastMessage" resultType="com.guanyu.haigui.pojo.vo.ChatRoomListVO">
+        SELECT
+        s.session_id AS sessionId,
+        s.title,
+        m.content AS lastMessageContent,
+        CASE m.sender_type
+        WHEN 'USER' THEN #{SenderTypeEnum.USER.dbValue}
+        WHEN 'AI' THEN #{SenderTypeEnum.AI.dbValue}
+        END AS lastMessageSender,
+        m.send_time AS lastUpdateTime,
+        (SELECT is_read FROM ai_chat_messages
+        WHERE session_id = s.session_id
+        ORDER BY send_time DESC LIMIT 1) AS isRead
+        FROM
+        ai_chat_sessions s
+        LEFT JOIN (
+        SELECT
+        session_id,
+        content,
+        sender_type,
+        send_time,
+        ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY send_time DESC) AS rn
+        FROM
+        ai_chat_messages
+        ) m ON s.session_id = m.session_id AND m.rn = 1
+        WHERE
+        s.user_id = #{userId}
+        AND s.is_deleted = 0
+        ORDER BY
+        s.update_time DESC;
+    </select>
+
+    <select id="selectChatAIMessage" resultType="com.volcengine.ark.runtime.model.completion.chat.ChatMessage">
+        SELECT
+        msg_id AS msgId,
+        session_id AS sessionId,
+        sender_type AS senderType,
+        content AS content,
+        send_time AS sendTime,
+        is_read AS isRead
+        FROM
+        ai_chat_messages
+        WHERE
+        session_id = #{roomId}
+        ORDER BY
+        send_time ASC;
+    </select>
+
+</mapper>    
+    

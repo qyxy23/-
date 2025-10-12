@@ -1,16 +1,17 @@
 package com.guanyu.haigui.Strategy.strategyImpl;
 
-import com.guanyu.haigui.Enum.UserRoleEnum;
 import com.guanyu.haigui.Exception.UserAlreadyExistsException;
 import com.guanyu.haigui.Strategy.RegisterStrategy;
 import com.guanyu.haigui.mapper.UserDetailsMapper;
 import com.guanyu.haigui.pojo.dto.RegisterRequest;
-import com.guanyu.haigui.pojo.dto.UserRole;
+import com.guanyu.haigui.pojo.model.UserRole;
 import com.guanyu.haigui.pojo.model.UserInfo;
 import com.guanyu.haigui.pojo.vo.CustomUserDetails;
+import com.guanyu.haigui.pojo.vo.LogVO;
 import com.guanyu.haigui.utils.JwtTokenUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -30,7 +31,7 @@ public class PasswordRegisterStrategy implements RegisterStrategy {
     private BCryptPasswordEncoder passwordEncoder; // 注入密码编码器
 
     @Override
-    public CustomUserDetails register(RegisterRequest params) {
+    public LogVO register(RegisterRequest params) {
         String username = params.getUsername();
         String password = params.getPassword();
         try {
@@ -76,7 +77,9 @@ public class PasswordRegisterStrategy implements RegisterStrategy {
             // 生成【带角色信息】的 JWT Token
             String token = jwtUtil.generateToken(CustomUserDetails);
             CustomUserDetails.setToken(token);
-            return CustomUserDetails;
+            LogVO logVO = new LogVO();
+            BeanUtils.copyProperties(CustomUserDetails, logVO);
+            return logVO;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

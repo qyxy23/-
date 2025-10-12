@@ -16,7 +16,6 @@
 
 package com.guanyu.haigui.pojo.model;
 
-import com.guanyu.haigui.Enum.UserRoleEnum;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -37,7 +36,7 @@ public class UserInfo {
     // 邮箱
     private String email;
     // 创建时间
-    private String create_time;
+    private String createTime;
     // 头像
     @Schema(description = "头像")
     private String avatar;

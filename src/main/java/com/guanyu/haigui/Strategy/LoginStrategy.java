@@ -1,7 +1,7 @@
 package com.guanyu.haigui.Strategy;
 
 import com.guanyu.haigui.pojo.dto.LoginRequest;
-import com.guanyu.haigui.pojo.vo.CustomUserDetails ;
+import com.guanyu.haigui.pojo.vo.LogVO;
 
 import javax.security.sasl.AuthenticationException;
 
@@ -12,5 +12,5 @@ public interface LoginStrategy {
      * @return 认证结果
      * @throws AuthenticationException 认证失败异常
      */
-    CustomUserDetails login(LoginRequest request) throws AuthenticationException;
+    LogVO login(LoginRequest request) throws AuthenticationException;
 }

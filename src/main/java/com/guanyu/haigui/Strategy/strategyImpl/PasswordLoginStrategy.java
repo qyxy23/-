@@ -1,12 +1,13 @@
 package com.guanyu.haigui.Strategy.strategyImpl;
 
-import com.guanyu.haigui.mapper.UserDetailsMapper;
 import com.guanyu.haigui.pojo.dto.LoginRequest;
 import com.guanyu.haigui.pojo.vo.CustomUserDetails;
 import com.guanyu.haigui.Strategy.LoginStrategy;
+import com.guanyu.haigui.pojo.vo.LogVO;
 import com.guanyu.haigui.utils.JwtTokenUtil;
 import com.guanyu.haigui.utils.RedisServiceUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.BeanUtils;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -23,14 +24,11 @@ public class PasswordLoginStrategy implements LoginStrategy {
     @Resource
     private final AuthenticationManager authenticationManager;
     private final JwtTokenUtil jwtUtil; // JWT工具类（生成Token）
-    private final UserDetailsMapper loginUserDetailsMapper;
-    @Resource
-    private UserDetailsMapper userDetailsMapper;
     @Resource
     private RedisServiceUtil redisServiceUtil;
 
     @Override
-    public CustomUserDetails login(LoginRequest request) throws AuthenticationException {
+    public LogVO login(LoginRequest request) throws AuthenticationException {
         String username = request.getUsername();
         String password = request.getPassword();
 
@@ -48,8 +46,10 @@ public class PasswordLoginStrategy implements LoginStrategy {
 
             // 4. 只在Redis上更新用户在线状态
             redisServiceUtil.updateOnlineStatus(customUserDetails.getId(), token);
-
-            return customUserDetails;
+            LogVO loginVO = new LogVO();
+            BeanUtils.copyProperties(customUserDetails, loginVO);
+            System.out.println("LoginVO authorities AFTER copy: " + loginVO.getAuthorities());
+            return loginVO;
         } catch (BadCredentialsException e) {
             throw new AuthenticationException("密码错误");
         } catch (UsernameNotFoundException e) {

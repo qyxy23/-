@@ -1,4 +1,4 @@
-package com.guanyu.haigui.pojo.dto;
+package com.guanyu.haigui.pojo.model;
 
 import lombok.Data;
 

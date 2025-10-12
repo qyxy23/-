@@ -1,12 +1,15 @@
 package com.guanyu.haigui.controller;
 
+import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.dto.JoinChatRoomRequest;
-import com.guanyu.haigui.pojo.model.ChatRoom;
+import com.guanyu.haigui.pojo.vo.ChatRoomListVO;
+import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.websocket.LobbyService;
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessage;
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessageRole;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.AllArgsConstructor;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -24,7 +27,7 @@ import org.springframework.web.bind.annotation.*;
 /**
  * 聊天接口
  */
-
+@AllArgsConstructor
 @RestController
 @RequestMapping("/chat")
 @Tag(name = "聊天接口", description = "聊天相关接口")
@@ -33,11 +36,6 @@ public class ChatController {
     private ChatService chatService;
     private final LobbyService lobbyService;
     private final SimpMessagingTemplate messagingTemplate; // 用于向客户端推送消息
-
-    public ChatController(LobbyService lobbyService, SimpMessagingTemplate messagingTemplate) {
-        this.lobbyService = lobbyService;
-        this.messagingTemplate = messagingTemplate;
-    }
 
     /**
      * 聊天
@@ -48,8 +46,8 @@ public class ChatController {
      */
     @Operation(summary = "聊天")
     @PostMapping("/{roomId}")
-    public String doChat(@PathVariable Long roomId, @RequestParam String message) {
-        return chatService.chat(roomId, message);
+    public Result<String> doChat(@PathVariable Long roomId, @RequestParam String message) {
+        return Result.success(chatService.chatWithAI(roomId, message));
     }
 
     /**
@@ -59,15 +57,16 @@ public class ChatController {
      */
     @Operation(summary = "获取聊天室列表内容")
     @GetMapping()
-    public List<ChatRoom> getChatRoomList() {
+    public List<ChatRoomListVO> getChatRoomList() {
         // System.out.println("获取聊天室列表");
         // List<ChatRoom> chatRoomList = chatService.getChatRoomList();
         // System.out.println("chatRoomList = " + chatRoomList);
         // return chatRoomList;
-        return chatService.getChatRoomList();
+        return chatService.getAIChatRoomListWithLastMessage(BaseContext.getCurrentId());
     }
 
     // 处理用户加入大厅的请求（前端发送到/app/chat.joinLobby）
+    @Operation(summary = "处理用户加入大厅的请求")
     @MessageMapping("/chat/joinLobby")
     public void joinLobby(@Payload JoinChatRoomRequest request, Principal principal) {
         String userId = principal.getName(); // 从认证信息获取用户ID
@@ -86,6 +85,7 @@ public class ChatController {
     }
 
     // 处理发送聊天消息的请求（前端发送到/app/chat.sendMessage）
+    @Operation(summary = "处理发送聊天消息的请求")
     @MessageMapping("/chat/sendMessage")
     public void sendMessage(@Payload ChatMessage message, Principal principal) {
         String lobbyId = message.getToolCallId();

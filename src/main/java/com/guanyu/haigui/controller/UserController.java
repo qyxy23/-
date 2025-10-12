@@ -5,7 +5,7 @@ import com.guanyu.haigui.Enum.RegisterType;
 import com.guanyu.haigui.Strategy.RegisterStrategy;
 import com.guanyu.haigui.pojo.dto.LoginRequest;
 import com.guanyu.haigui.pojo.dto.RegisterRequest;
-import com.guanyu.haigui.pojo.vo.CustomUserDetails;
+import com.guanyu.haigui.pojo.vo.LogVO;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.Strategy.LoginStrategy;
 import com.guanyu.haigui.service.UserService;
@@ -41,7 +41,7 @@ public class UserController {
      * @return 认证结果
      */
     @PostMapping("/login")
-    public Result<CustomUserDetails> Login(@RequestBody LoginRequest request)
+    public Result<LogVO> Login(@RequestBody LoginRequest request)
             throws AuthenticationException {
         LoginStrategy strategy = strategyMap.get(request.getType());
         if (strategy == null) {
@@ -68,7 +68,7 @@ public class UserController {
      * @return 注册结果
      */
     @PostMapping("/register")
-    public Result<CustomUserDetails> register(
+    public Result<LogVO> register(
             @RequestBody RegisterRequest request) throws Exception {
         log.info("进入 register 方法");
         System.out.println("进入 register 方法");

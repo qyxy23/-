@@ -1,6 +1,6 @@
 package com.guanyu.haigui.mapper;
 
-import com.guanyu.haigui.pojo.dto.UserRole;
+import com.guanyu.haigui.pojo.model.UserRole;
 import com.guanyu.haigui.pojo.model.UserInfo;
 import com.guanyu.haigui.pojo.vo.CustomUserDetails;
 import org.apache.ibatis.annotations.Mapper;

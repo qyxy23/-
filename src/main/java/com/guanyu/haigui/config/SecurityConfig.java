@@ -5,6 +5,7 @@ import com.guanyu.haigui.mapper.UserDetailsMapper;
 import com.guanyu.haigui.pojo.model.UserInfo;
 import com.guanyu.haigui.pojo.vo.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.BeanUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -58,12 +59,8 @@ public class SecurityConfig {
                     .collect(Collectors.toList());
 
             CustomUserDetails customUserDetails = new CustomUserDetails();
-            customUserDetails.setUsername(userInfo.getUsername());
-            customUserDetails.setPassword(userInfo.getPassword());
+            BeanUtils.copyProperties(userInfo, customUserDetails);
             customUserDetails.setAuthorities(authorities);
-            // 可选：设置其他字段（如enabled、id等，需CustomUserDetails有对应setter）
-            customUserDetails.setEnabled(userInfo.getEnabled());
-            customUserDetails.setId(userInfo.getId());
 
             // 4. 返回CustomUserDetails（实现了UserDetails接口）
             return customUserDetails;

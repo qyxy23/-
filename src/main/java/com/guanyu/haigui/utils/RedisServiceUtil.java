@@ -17,6 +17,8 @@ public class RedisServiceUtil {
     @Resource
     private JwtTokenUtil jwtUtil;
     private static final String USER_ONLINE_KEY_PREFIX = "user:online:"; // Redis 在线状态键前缀
+    private static final String ROOM_ONLINE_KEY_PREFIX = "room:online:"; // Redis 在线状态键前缀
+
 
     public void updateOnlineStatus(Long id, String token) {
         Date tokenExpiration = jwtUtil.getExpirationDateFromToken(token); // 需要 JwtUtil 支持
@@ -34,6 +36,20 @@ public class RedisServiceUtil {
         redisTemplate.delete(USER_ONLINE_KEY_PREFIX + id);
     }
 
+    public boolean selectOnlineRooms(Long roomId) {
+        String value =  redisTemplate.opsForValue().get(ROOM_ONLINE_KEY_PREFIX + roomId);
+        return "1".equals(value);
+    }
+
+    public void updateOnlineRooms(Long roomId) {
+        redisTemplate.opsForValue().set(ROOM_ONLINE_KEY_PREFIX + roomId, "1", 30, TimeUnit.MINUTES);
+    }
+
+    public void deleteOnlineRooms(Long roomId) {
+        redisTemplate.delete(ROOM_ONLINE_KEY_PREFIX + roomId);
+    }
+
+
     @PostConstruct
     public void initRedisTemplate() {
         // 设置Key和Value的序列化器为字符串
@@ -43,4 +59,6 @@ public class RedisServiceUtil {
         redisTemplate.setHashKeySerializer(RedisSerializer.string());
         redisTemplate.setHashValueSerializer(RedisSerializer.string());
     }
+
+
 }
