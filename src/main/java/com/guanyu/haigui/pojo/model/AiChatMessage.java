@@ -1,5 +1,6 @@
 package com.guanyu.haigui.pojo.model;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessage;
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessageRole;
 import lombok.AllArgsConstructor;
@@ -26,6 +27,10 @@ public class AiChatMessage extends ChatMessage{
     private Long sessionId;
 
     /** 消息发送时间（对应数据库send_time） */
+    @JsonFormat(
+            pattern = "yyyy-MM-dd HH:mm:ss",  // 序列化后的字符串格式
+            timezone = "GMT+8"               // 时区（与配置一致）
+    )
     private LocalDateTime sendTime;
 
     /** 是否已读（0=未读，1=已读，对应数据库is_read） */
@@ -45,6 +50,10 @@ public class AiChatMessage extends ChatMessage{
     public static class Builder extends ChatMessage.Builder { // 继承父类的 Builder
         private Long msgId;
         private Long sessionId;
+        @JsonFormat(
+                pattern = "yyyy-MM-dd HH:mm:ss",  // 序列化后的字符串格式
+                timezone = "GMT+8"               // 时区（与配置一致）
+        )
         private LocalDateTime sendTime;
         private Integer isRead;
         private ChatMessageRole role;

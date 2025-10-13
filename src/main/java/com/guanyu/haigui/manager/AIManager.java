@@ -2,6 +2,7 @@ package com.guanyu.haigui.manager;
 
 import cn.hutool.core.collection.CollUtil;
 import com.volcengine.ark.runtime.model.completion.chat.*;
+import com.volcengine.ark.runtime.model.completion.chat.ChatMessageRole;
 import com.volcengine.ark.runtime.service.ArkService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

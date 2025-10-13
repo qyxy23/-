@@ -10,7 +10,7 @@ import org.apache.ibatis.type.Alias;
 @Alias("SenderTypeEnum") // MyBatis别名
 public enum SenderTypeEnum {
     USER("用户"),
-    AI("AI"),
+    ASSISTANT("AI"),
     SYSTEM("系统");
 
     private final String desc;

@@ -45,11 +45,13 @@ public class SecurityExceptionHandler {
 
     @ExceptionHandler(RuntimeException.class)
     public Result<?> handleRuntimeException(RuntimeException ex) {
+        ex.printStackTrace();
         return Result.error(405, ex.getMessage());
     }
 
     @ExceptionHandler(Exception.class)
     public Result<?> handleException(Exception ex) {
+        ex.printStackTrace();
         return Result.error(ex.getMessage());
     }
 

@@ -57,10 +57,7 @@
         s.session_id AS sessionId,
         s.title,
         m.content AS lastMessageContent,
-        CASE m.sender_type
-        WHEN 'USER' THEN #{SenderTypeEnum.USER.dbValue}
-        WHEN 'AI' THEN #{SenderTypeEnum.AI.dbValue}
-        END AS lastMessageSender,
+        m.sender_type AS senderType,  <!-- 返回原始sender_type -->
         m.send_time AS lastUpdateTime,
         (SELECT is_read FROM ai_chat_messages
         WHERE session_id = s.session_id
@@ -101,14 +98,10 @@
     </select>
 
     <!-- 查询语句引用resultMap -->
-    <select id="selectOfficialChatAIMessage" resultMap="AiChatMessageResultMap">
+    <select id="selectOfficialChatAIMessage" resultType="com.volcengine.ark.runtime.model.completion.chat.ChatMessage">
         SELECT
-        msg_id,
-        session_id,
-        sender_type,  <!-- 对应msgId、sessionId、senderType（自动映射） -->
-        content,
-        send_time,
-        is_read
+        sender_type as role,  <!-- 对应msgId、sessionId、senderType（自动映射） -->
+        content
         FROM ai_chat_messages
         WHERE session_id = #{sessionId}
         ORDER BY send_time ASC;

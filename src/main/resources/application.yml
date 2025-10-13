@@ -54,6 +54,10 @@ spring:
       port: ${qingyou.redis.port}
       database: ${qingyou.redis.database}
       password: ${qingyou.redis.password}
+  jackson:
+    serialization:
+          write-dates-as-timestamps: false
+
 
 mybatis:
   # 若有XML映射文件，配置路径（可选）
@@ -69,6 +73,8 @@ minio:
   endpoint: ${qingyou.minio.endpoint}
   accesskey: ${qingyou.minio.accesskey}
   secretKey: ${qingyou.minio.secretKey}
+
+
 
 logging:
   level:
@@ -99,3 +105,4 @@ knife4j:
     enable: false
     username: admin
     password: admin
+

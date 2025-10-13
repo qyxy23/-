@@ -68,6 +68,7 @@ public class ChatServicesImpl implements ChatService {
 //             messages = convertToOfficialChatMessages(aiMessages);
         }
 
+
         // 4. 插入用户消息（官方ChatMessage）
         AiChatMessage userMsg = AiChatMessage.builder().sessionId(roomId)
                 .sendTime(LocalDateTime.now()).isRead(0).build();

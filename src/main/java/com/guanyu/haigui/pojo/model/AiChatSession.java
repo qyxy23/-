@@ -1,7 +1,9 @@
 package com.guanyu.haigui.pojo.model;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Builder;
 import lombok.Data;
+
 import java.time.LocalDateTime;
 
 /**
@@ -21,9 +23,17 @@ public class AiChatSession {
     private String title;
 
     /** 会话创建时间（对应数据库create_time） */
+    @JsonFormat(
+            pattern = "yyyy-MM-dd HH:mm:ss",  // 序列化后的字符串格式
+            timezone = "GMT+8"               // 时区（与配置一致）
+    )
     private LocalDateTime createTime;
 
     /** 最后一条消息时间（对应数据库update_time） */
+    @JsonFormat(
+            pattern = "yyyy-MM-dd HH:mm:ss",  // 序列化后的字符串格式
+            timezone = "GMT+8"               // 时区（与配置一致）
+    )
     private LocalDateTime updateTime;
 
     /** 逻辑删除标记（0=未删除，1=已删除，对应数据库is_deleted） */
