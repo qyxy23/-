@@ -15,8 +15,9 @@ import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @AllArgsConstructor
 @Service
@@ -45,8 +46,9 @@ public class ChatServicesImpl implements ChatService {
             // 3.1 插入会话记录（关联当前用户）
             AiChatSession newSession = AiChatSession.builder()
                     .sessionId(roomId).userId(userId).createTime(LocalDateTime.now())
-                    .updateTime(LocalDateTime.now()).isDeleted(0).build();
+                    .updateTime(LocalDateTime.now()).title("海龟汤游戏"+roomId).isDeleted(0).build();
             aiChatMapper.insertSession(newSession); // 插入会话
+            //TODO:之后通过AI总结海龟汤游戏来更新标题
 
             // 3.2 插入系统消息（官方ChatMessage）
             AiChatMessage systemMsg = AiChatMessage.builder().sessionId(roomId)
@@ -56,13 +58,14 @@ public class ChatServicesImpl implements ChatService {
             aiChatMapper.insertMsg(systemMsg); // 插入消息（合并原insertSystemMsg）
 
             // 3.3 初始化缓存：存系统消息
-            messages.add(systemMsg);
+            messages.add(convertSingleAiMessage(systemMsg));
             // globalMessageMap.put(roomId, messages);
             redisServiceUtil.updateOnlineRooms(roomId); // 标记会话已开始
         } else {
-            // 3.4 非首次会话：从缓存读取历史消息
-            messages = aiChatMapper.selectChatAIMessage(roomId);
-            // messages = globalMessageMap.get(roomId);
+            // 3.4 TODO:非首次会话：从缓存读取历史消息
+            // List<AiChatMessage> aiMessages = aiChatMapper.selectChatAIMessage(roomId);
+            messages = aiChatMapper.selectOfficialChatAIMessage(roomId);
+//             messages = convertToOfficialChatMessages(aiMessages);
         }
 
         // 4. 插入用户消息（官方ChatMessage）
@@ -71,7 +74,7 @@ public class ChatServicesImpl implements ChatService {
         userMsg.setRole(ChatMessageRole.USER); // 用户消息角色
         userMsg.setContent(message);
         aiChatMapper.insertMsg(userMsg); // 插入消息（合并原insertUserMsg）
-        messages.add(userMsg);
+        messages.add(convertSingleAiMessage(userMsg));
 
         // 5. 调用AI生成回复
         String answer = aiManager.doChat(messages);
@@ -81,8 +84,8 @@ public class ChatServicesImpl implements ChatService {
                 .sendTime(LocalDateTime.now()).isRead(0).build();
         assistantMsg.setRole(ChatMessageRole.ASSISTANT); // AI回复角色
         assistantMsg.setContent(answer);
-        aiChatMapper.insertMsg(assistantMsg);// 插入消息（合并原insertAImsg）
-        messages.add(assistantMsg); // 更新缓存
+        aiChatMapper.insertMsg(assistantMsg);// 插入消息（合并原insertAIMsg）
+        messages.add(convertSingleAiMessage(assistantMsg)); // 更新缓存
 
         // 7. 处理会话结束：若AI回复“游戏结束”
         if (answer.contains("游戏结束")) {
@@ -93,6 +96,26 @@ public class ChatServicesImpl implements ChatService {
             aiChatMapper.updateById(endSession);
         }
         return answer;
+    }
+
+    public List<ChatMessage> convertToOfficialChatMessages(List<AiChatMessage> aiMessages) {
+        return aiMessages.stream()
+                .map(aiMsg -> ChatMessage.builder()
+                        .role(aiMsg.getRole()) // 确保AiChatMessage的role与官方一致（如ChatMessageRole.SYSTEM）
+                        .content((String) aiMsg.getContent())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+
+    /**
+     * 辅助方法：转换单条AiChatMessage（可选，用于复用逻辑）
+     */
+    private ChatMessage convertSingleAiMessage(AiChatMessage aiMsg) {
+        return ChatMessage.builder()
+                .role(aiMsg.getRole()) // 确保AiChatMessage的role与官方ChatMessageRole一致
+                .content((String) aiMsg.getContent())
+                .build();
     }
 
 

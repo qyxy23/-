@@ -1,10 +1,7 @@
 package com.guanyu.haigui.manager;
 
 import cn.hutool.core.collection.CollUtil;
-import com.volcengine.ark.runtime.model.completion.chat.ChatCompletionChoice;
-import com.volcengine.ark.runtime.model.completion.chat.ChatCompletionRequest;
-import com.volcengine.ark.runtime.model.completion.chat.ChatMessage;
-import com.volcengine.ark.runtime.model.completion.chat.ChatMessageRole;
+import com.volcengine.ark.runtime.model.completion.chat.*;
 import com.volcengine.ark.runtime.service.ArkService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -50,12 +47,41 @@ public class AIManager {
                 .model("ep-20250913203623-2bv46")
                 .messages(chatMessageList)
                 .build();
-        List<ChatCompletionChoice> choices = arkService.createChatCompletion(chatCompletionRequest).getChoices();
-        if (CollUtil.isEmpty(choices)) {
-            return "对AI请求失败";
+
+
+        // arkService.streamChatCompletion(chatCompletionRequest)
+        //         .doOnError(Throwable::printStackTrace)
+        //         .blockingForEach(
+        //                 choice -> {
+        //                     if (choice.getChoices().size() > 0) {
+        //                         System.out.print(choice.getChoices().get(0).getMessage().getContent());
+        //                     }
+        //                 }
+        //         );
+        //
+        // arkService.shutdownExecutor();
+        try {
+            // 1. 调用同步API获取完整响应（替换原流式调用）
+            ChatCompletionResult result = arkService.createChatCompletion(
+                    chatCompletionRequest
+            );
+
+            // 2. 提取响应中的choices列表（匹配你原有的逻辑）
+            List<ChatCompletionChoice> choices = result.getChoices();
+
+            // 3. 判断choices是否为空（原逻辑保留）
+            if (CollUtil.isEmpty(choices)) {
+                return "对AI请求失败";
+            }
+
+            // 4. 提取第一个choice的内容（原逻辑保留）
+            String content = (String) choices.get(0).getMessage().getContent();
+            System.out.println("AI返回内容 " + content);
+            return content;
+        } catch (Exception e) {
+            // 5. 异常处理（可选，增强鲁棒性）
+            e.printStackTrace();
+            return "AI请求失败：" + e.getMessage();
         }
-        String content = (String) choices.get(0).getMessage().getContent();
-        System.out.println("AI返回内容 " + content);
-        return content;
     }
 }

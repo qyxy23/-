@@ -1,7 +1,11 @@
 package com.guanyu.haigui.pojo.model;
 
-import lombok.*;
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessage;
+import com.volcengine.ark.runtime.model.completion.chat.ChatMessageRole;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
@@ -37,11 +41,14 @@ public class AiChatMessage extends ChatMessage{
         return new Builder();
     }
 
+
     public static class Builder extends ChatMessage.Builder { // 继承父类的 Builder
         private Long msgId;
         private Long sessionId;
         private LocalDateTime sendTime;
         private Integer isRead;
+        private ChatMessageRole role;
+        private Object content;
 
         // 子类字段的 setter 方法
         public Builder msgId(Long msgId) {
@@ -67,11 +74,19 @@ public class AiChatMessage extends ChatMessage{
         // 重写 build() 方法，设置子类和父类字段
         @Override
         public AiChatMessage build() {
-            AiChatMessage msg = (AiChatMessage) super.build(); // 先构建父类部分
+            // 1. 创建 AiChatMessage 实例（目标类型）
+            AiChatMessage msg = new AiChatMessage();
+
+            // 2. 填充父类字段（从子类Builder继承的字段中获取）
+            msg.setRole(this.role);               // 来自父类Builder的 role
+            msg.setContent(this.content);         // 来自父类Builder的 content
+
+            // 3. 填充子类字段（子类Builder自己的字段）
             msg.setMsgId(this.msgId);
             msg.setSessionId(this.sessionId);
             msg.setSendTime(this.sendTime);
             msg.setIsRead(this.isRead);
+
             return msg;
         }
     }

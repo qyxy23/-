@@ -4,6 +4,17 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <!-- namespace等于mapper接口类的全限定名,这样实现对应 -->
 <mapper namespace="com.guanyu.haigui.mapper.AiChatSessionMapper">
+    <resultMap id="AiChatMessageResultMap" type="com.guanyu.haigui.pojo.model.AiChatMessage">
+        <!-- 仅需显式配置枚举字段：sender_type → senderType -->
+        <result
+                column="sender_type"
+                property="role"
+                jdbcType="VARCHAR"
+                typeHandler="org.apache.ibatis.type.EnumTypeHandler"
+        />
+        <!-- 其他字段由驼峰映射自动处理（无需写result标签） -->
+    </resultMap>
+
     <insert id="insertMsg">
         INSERT INTO ai_chat_messages (session_id, sender_type, content, send_time, is_read)
         VALUES (#{sessionId}, #{role}, #{content}, #{sendTime}, #{isRead});
@@ -73,7 +84,7 @@
         s.update_time DESC;
     </select>
 
-    <select id="selectChatAIMessage" resultType="com.volcengine.ark.runtime.model.completion.chat.ChatMessage">
+    <select id="selectChatAIMessage" resultType="com.guanyu.haigui.pojo.model.AiChatMessage">
         SELECT
         msg_id AS msgId,
         session_id AS sessionId,
@@ -87,6 +98,20 @@
         session_id = #{roomId}
         ORDER BY
         send_time ASC;
+    </select>
+
+    <!-- 查询语句引用resultMap -->
+    <select id="selectOfficialChatAIMessage" resultMap="AiChatMessageResultMap">
+        SELECT
+        msg_id,
+        session_id,
+        sender_type,  <!-- 对应msgId、sessionId、senderType（自动映射） -->
+        content,
+        send_time,
+        is_read
+        FROM ai_chat_messages
+        WHERE session_id = #{sessionId}
+        ORDER BY send_time ASC;
     </select>
 
 </mapper>    
