@@ -47,7 +47,11 @@ public class ChatServicesImpl implements ChatService {
             AiChatSession newSession = AiChatSession.builder()
                     .sessionId(roomId).userId(userId).createTime(LocalDateTime.now())
                     .updateTime(LocalDateTime.now()).title("海龟汤游戏"+roomId).isDeleted(0).build();
-            aiChatMapper.insertSession(newSession); // 插入会话
+            try{
+                aiChatMapper.insertSession(newSession); // 插入会话
+            } catch (RuntimeException e) {
+                throw new RuntimeException("会话已存在,数据库异常,请重新生成成会话");
+            }
             //TODO:之后通过AI总结海龟汤游戏来更新标题
 
             // 3.2 插入系统消息（官方ChatMessage）
