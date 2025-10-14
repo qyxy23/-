@@ -3,6 +3,7 @@ package com.guanyu.haigui.utils;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.stereotype.Service;
+import org.springframework.web.socket.WebSocketSession;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
@@ -18,7 +19,25 @@ public class RedisServiceUtil {
     private JwtTokenUtil jwtUtil;
     private static final String USER_ONLINE_KEY_PREFIX = "user:online:"; // Redis 在线状态键前缀
     private static final String ROOM_ONLINE_KEY_PREFIX = "room:online:"; // Redis 在线状态键前缀
+    // 存储用户ID→WebSocket Session的映射
+    private static final String SESSION_KEY = "chat:sessions:";
+    // 存储在线用户列表
+    private static final String ONLINE_USERS_KEY = "chat:online_users";
 
+
+    public void updateSession(Long userId, WebSocketSession session) {
+        // 存储会话ID而不是整个session对象
+        redisTemplate.opsForHash().put(SESSION_KEY + userId, "sessionId", session.getId());
+        // 存储其他需要的会话信息
+        redisTemplate.opsForHash().put(SESSION_KEY + userId, "connectedAt", System.currentTimeMillis());
+
+        redisTemplate.opsForSet().add(ONLINE_USERS_KEY , String.valueOf(userId));
+    }
+
+    public void deleteSession(Long userId) {
+        redisTemplate.delete(SESSION_KEY + userId);
+        redisTemplate.opsForSet().remove(ONLINE_USERS_KEY, userId);
+    }
 
     public void updateOnlineStatus(Long id, String token) {
         Date tokenExpiration = jwtUtil.getExpirationDateFromToken(token); // 需要 JwtUtil 支持
@@ -59,6 +78,5 @@ public class RedisServiceUtil {
         redisTemplate.setHashKeySerializer(RedisSerializer.string());
         redisTemplate.setHashValueSerializer(RedisSerializer.string());
     }
-
 
 }

@@ -2,9 +2,12 @@ package com.guanyu.haigui.Hanldler;
 
 import com.guanyu.haigui.Exception.UserAlreadyExistsException;
 import com.guanyu.haigui.result.Result;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -15,7 +18,17 @@ import javax.security.sasl.AuthenticationException;
  * 全局异常处理器
  */
 @RestControllerAdvice
-public class SecurityExceptionHandler {
+public class GlobalExceptionHandler {
+
+
+    /**
+     * 405 请求方法不支持
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<String> handleMethodNotAllowed(HttpRequestMethodNotSupportedException ex) {
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body("请求方法不被支持: " + ex.getMessage());
+    }
 
     /**
      * 登录失败处理

@@ -11,6 +11,11 @@ import javax.annotation.Resource;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * @author Guanyu
+ * WebSocket处理器
+ * 查看在线用户列表
+ */
 @Component
 public class ChatWebSocketHandler extends TextWebSocketHandler {
     @Resource
@@ -19,7 +24,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         // 客户端连接时，从Session中获取userId（需根据你的业务逻辑提取，比如URL参数、Token解析）
-        String userId = getUserIdFromSession(session);
+        Long userId = getUserIdFromSession(session);
         sessionManager.addSession(userId, session);
         System.out.println("用户" + userId + "已连接，会话已添加");
     }
@@ -27,16 +32,16 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
         // 客户端断开时，清理会话
-        String userId = getUserIdFromSession(session);
+        Long userId = getUserIdFromSession(session);
         sessionManager.removeSession(userId);
         System.out.println("用户" + userId + "已断开，会话已移除");
     }
 
-    private String getUserIdFromSession(WebSocketSession session) {
+    private Long getUserIdFromSession(WebSocketSession session) {
         // 比如从URL参数中取：session.getUri().getQuery().split("=")[1]
         // 或从Token中解析：JWTUtil.getUserId(session.getHandshakeHeaders().get("Authorization").get(0))
         Map<String, Object> attributes = session.getAttributes();
-        return (String) attributes.get("userId");
+        return (Long) attributes.get("userId");
     }
 
     //TODO: 别人查看消息后要及时反馈

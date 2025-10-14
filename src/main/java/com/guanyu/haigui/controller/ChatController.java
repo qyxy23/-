@@ -11,24 +11,26 @@ import com.volcengine.ark.runtime.model.completion.chat.ChatMessageRole;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 
+import javax.annotation.Resource;
 import java.security.Principal;
 import java.util.List;
 
 /**
  * 聊天接口
  */
+@Slf4j
 @AllArgsConstructor
 @RestController
 @RequestMapping("/chat")
 @Tag(name = "聊天接口", description = "聊天相关接口")
 public class ChatController {
-    @Autowired
+    @Resource
     private ChatService chatService;
     private final LobbyService lobbyService;
     private final SimpMessagingTemplate messagingTemplate; // 用于向客户端推送消息
@@ -62,11 +64,12 @@ public class ChatController {
 
     // 处理用户加入大厅的请求（前端发送到/app/chat.joinLobby）
     @Operation(summary = "处理用户加入大厅的请求")
-    @MessageMapping("/chat/joinLobby")
+    @MessageMapping("/ws/joinLobby")
     public void joinLobby(@Payload JoinChatRoomRequest request, Principal principal) {
         String userId = principal.getName(); // 从认证信息获取用户ID
         String lobbyId = request.getChatRoomId();
 
+        log.info("用户{}加入大厅{}", userId, lobbyId);
         // 加入大厅
         lobbyService.joinLobby(lobbyId, userId);
 
@@ -81,7 +84,7 @@ public class ChatController {
 
     // 处理发送聊天消息的请求（前端发送到/app/chat.sendMessage）
     @Operation(summary = "处理发送聊天消息的请求")
-    @MessageMapping("/chat/sendMessage")
+    @MessageMapping("/ws/sendMessage")
     public void sendMessage(@Payload ChatMessage message, Principal principal) {
         String lobbyId = message.getToolCallId();
         String senderId = principal.getName();
