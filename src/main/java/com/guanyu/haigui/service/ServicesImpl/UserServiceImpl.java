@@ -32,7 +32,7 @@ public class UserServiceImpl implements UserService {
             UserInfo userInfo = UserDetailsMapper.selectUserInfoByUsername(username);
             if (userInfo != null) {
                 // 4. 删除 Redis 中的在线状态键
-                redisServiceUtil.deleteOnlineStatus(userInfo.getId());
+                redisServiceUtil.deleteOnlineStatus(userInfo.getUserId());
             }
             return "退出成功";
         } catch (Exception e) {

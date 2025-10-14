@@ -29,7 +29,7 @@ public class JwtTokenUtil {
     // 核心方法：生成Token（携带角色）
     // ------------------------------
     public String generateToken(CustomUserDetails userDetails) {
-        Long userId = userDetails.getId();
+        Long userId = userDetails.getUserId();
         Map<String, Object> claims = new HashMap<>();
         // 将用户权限（角色）存入Claims（需确保UserDetails的getAuthorities()返回角色列表）
         claims.put("roles", userDetails.getAuthorities().stream()

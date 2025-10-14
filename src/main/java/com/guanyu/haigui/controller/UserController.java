@@ -2,17 +2,16 @@ package com.guanyu.haigui.controller;
 
 import com.guanyu.haigui.Enum.LoginType;
 import com.guanyu.haigui.Enum.RegisterType;
+import com.guanyu.haigui.Strategy.LoginStrategy;
 import com.guanyu.haigui.Strategy.RegisterStrategy;
 import com.guanyu.haigui.pojo.dto.LoginRequest;
 import com.guanyu.haigui.pojo.dto.RegisterRequest;
 import com.guanyu.haigui.pojo.vo.LogVO;
 import com.guanyu.haigui.result.Result;
-import com.guanyu.haigui.Strategy.LoginStrategy;
 import com.guanyu.haigui.service.UserService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,11 +27,11 @@ import java.util.Map;
 @RequestMapping("/user")
 public class UserController {
     @Resource
-    @Qualifier("strategyMap")
+    // @Qualifier("strategyMap")
     private final Map<LoginType, LoginStrategy> strategyMap; // 策略映射（Spring自动注入所有实现）
     private final UserService userService;
     @Resource
-    @Qualifier("registerStrategyMap")
+    // @Qualifier("registerStrategyMap")
     private final Map<RegisterType, RegisterStrategy> RegisterstrategyMap; // 策略映射（Spring自动注入所有实现）
 
     /**

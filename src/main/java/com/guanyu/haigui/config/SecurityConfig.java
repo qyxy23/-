@@ -52,7 +52,7 @@ public class SecurityConfig {
                 throw new UsernameNotFoundException("用户不存在：" + username);
             }
             // 2. 查询用户所有角色（从中间表+角色表）
-            List<String> roleNames = userDetailsMapper.selectUserRolesByUserId(userInfo.getId());
+            List<String> roleNames = userDetailsMapper.selectUserRolesByUserId(userInfo.getUserId());
             // 3. 将角色转换为GrantedAuthority（Spring Security要求的权限格式，如"ROLE_ADMIN"）
             List<GrantedAuthority> authorities = roleNames.stream()
                     .map(role -> new SimpleGrantedAuthority("ROLE_" + role)) // 给角色加"ROLE_"前缀（Spring Security默认要求）

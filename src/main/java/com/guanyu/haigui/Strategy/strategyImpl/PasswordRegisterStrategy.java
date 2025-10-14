@@ -63,7 +63,7 @@ public class PasswordRegisterStrategy implements RegisterStrategy {
             CustomUserDetails.setAuthorities(authorities); // 设置到对象中
 
             // 4. 获取数据库生成的用户ID（关键！）
-            Long userId = CustomUserDetails.getId();
+            Long userId = CustomUserDetails.getUserId();
 
             // 5. 插入用户角色中间表（关联用户ID和角色ID）
             UserRole userRole = new UserRole();

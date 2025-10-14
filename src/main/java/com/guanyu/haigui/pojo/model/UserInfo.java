@@ -25,7 +25,7 @@ import lombok.Data;
 @Data
 public class UserInfo {
     // 用户id
-    private Long id;
+    private Long userId;
     // 用户名
     @Schema(description = "用户名")
     private String username;

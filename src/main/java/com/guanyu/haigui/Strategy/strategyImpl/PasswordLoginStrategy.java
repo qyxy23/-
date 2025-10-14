@@ -45,7 +45,7 @@ public class PasswordLoginStrategy implements LoginStrategy {
             customUserDetails.setToken(token);
 
             // 4. 只在Redis上更新用户在线状态
-            redisServiceUtil.updateOnlineStatus(customUserDetails.getId(), token);
+            redisServiceUtil.updateOnlineStatus(customUserDetails.getUserId(), token);
             LogVO loginVO = new LogVO();
             BeanUtils.copyProperties(customUserDetails, loginVO);
             System.out.println("LoginVO authorities AFTER copy: " + loginVO.getAuthorities());
