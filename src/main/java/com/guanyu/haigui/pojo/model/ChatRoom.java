@@ -1,13 +1,53 @@
 package com.guanyu.haigui.pojo.model;
 
-import com.volcengine.ark.runtime.model.completion.chat.ChatMessage;
+import com.guanyu.haigui.Enum.RoomStatus;
+import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
+@Entity
+@Table(name = "chat_rooms")
 public class ChatRoom {
-    private Long roomId;
+
+    @Id
+    @Column(name = "room_id", length = 36)
+    private String roomId;
+
+    @Column(name = "room_name", nullable = false)
     private String roomName;
-    private List<ChatMessage> chatMessageList;
+
+    @ManyToOne(fetch = FetchType.LAZY) // 使用 jakarta.persistence.ManyToOne
+    @JoinColumn(name = "creator_id", nullable = false)
+    @Schema(description = "聊天室创建者")
+    private UserInfo creator; // 关联用户表
+
+    @Column(name = "required_members", nullable = false)
+    private Integer requiredMembers;
+
+    @Column(name = "current_members", nullable = false)
+    private Integer currentMembers;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private RoomStatus status;
+
+    @CreationTimestamp
+    @Column(name = "create_time", updatable = false, nullable = false)
+    private LocalDateTime createTime;
+
+    @UpdateTimestamp
+    @Column(name = "update_time", nullable = false)
+    private LocalDateTime updateTime;
+
+    // 成员列表（可选，用于查询）
+    @OneToMany(mappedBy = "chatRoom", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Schema(hidden = true) // 在OpenAPI文档中隐藏此字段
+    private List<ChatRoomMember> members = new ArrayList<>();
 }

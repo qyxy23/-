@@ -13,8 +13,8 @@ import com.volcengine.ark.runtime.model.completion.chat.ChatMessage;
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessageRole;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.threeten.bp.LocalDateTime;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -31,7 +31,7 @@ public class ChatServicesImpl implements ChatService {
     // private final Map<Long, List<ChatMessage>> globalMessageMap = new ConcurrentHashMap<>(); // 缓存会话消息
 
 
-    public String chatWithAI(Long roomId, String message) {
+    public String chatWithAI(String roomId, String message) {
         // 1. 获取当前用户ID BaseContext
         Long userId = BaseContext.getCurrentId();
         List<ChatMessage> messages = new ArrayList<>(); // 统一用官方ChatMessage缓存
@@ -55,7 +55,7 @@ public class ChatServicesImpl implements ChatService {
             //TODO:之后通过AI总结海龟汤游戏来更新标题
 
             // 3.2 插入系统消息（官方ChatMessage）
-            AiChatMessage systemMsg = AiChatMessage.builder().sessionId(roomId)
+            AiChatMessage systemMsg = AiChatMessage.builder().chatSession(newSession)
                     .sendTime(LocalDateTime.now()).isRead(0).build();
             systemMsg.setRole(ChatMessageRole.SYSTEM); // 系统消息角色
             systemMsg.setContent(StatusConstant.SystemPrompt);
@@ -71,10 +71,10 @@ public class ChatServicesImpl implements ChatService {
             messages = aiChatMapper.selectOfficialChatAIMessage(roomId);
 //             messages = convertToOfficialChatMessages(aiMessages);
         }
-
+        AiChatSession newSession = aiChatMapper.selectSessionBySessionId();
 
         // 4. 插入用户消息（官方ChatMessage）
-        AiChatMessage userMsg = AiChatMessage.builder().sessionId(roomId)
+        AiChatMessage userMsg = AiChatMessage.builder().chatSession(newSession)
                 .sendTime(LocalDateTime.now()).isRead(0).build();
         userMsg.setRole(ChatMessageRole.USER); // 用户消息角色
         userMsg.setContent(message);
@@ -85,7 +85,7 @@ public class ChatServicesImpl implements ChatService {
         String answer = aiManager.doChat(messages);
 
         // 6. 插入AI回复（官方ChatMessage，角色为ASSISTANT）
-        AiChatMessage assistantMsg = AiChatMessage.builder().sessionId(roomId)
+        AiChatMessage assistantMsg = AiChatMessage.builder().chatSession(newSession)
                 .sendTime(LocalDateTime.now()).isRead(0).build();
         assistantMsg.setRole(ChatMessageRole.ASSISTANT); // AI回复角色
         assistantMsg.setContent(answer);
@@ -107,7 +107,7 @@ public class ChatServicesImpl implements ChatService {
         return aiMessages.stream()
                 .map(aiMsg -> ChatMessage.builder()
                         .role(aiMsg.getRole()) // 确保AiChatMessage的role与官方一致（如ChatMessageRole.SYSTEM）
-                        .content((String) aiMsg.getContent())
+                        .content(aiMsg.getContent())
                         .build())
                 .collect(Collectors.toList());
     }
@@ -119,7 +119,7 @@ public class ChatServicesImpl implements ChatService {
     private ChatMessage convertSingleAiMessage(AiChatMessage aiMsg) {
         return ChatMessage.builder()
                 .role(aiMsg.getRole()) // 确保AiChatMessage的role与官方ChatMessageRole一致
-                .content((String) aiMsg.getContent())
+                .content(aiMsg.getContent())
                 .build();
     }
 

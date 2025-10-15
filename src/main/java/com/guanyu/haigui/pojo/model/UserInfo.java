@@ -17,14 +17,19 @@
 package com.guanyu.haigui.pojo.model;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.persistence.*;
 import lombok.Data;
 
 /**
  * @author Guanyu
  */
+@Entity
 @Data
+@Table(name = "sys_user")
 public class UserInfo {
-    // 用户id
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "user_id")
     private Long userId;
     // 用户名
     @Schema(description = "用户名")
@@ -46,4 +51,6 @@ public class UserInfo {
     public boolean getEnabled() {
         return enabled;
     }
+
+
 }

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- namespace等于mapper接口类的全限定名,这样实现对应 -->
+<mapper namespace="com.guanyu.haigui.mapper.ChatRoomMemberMapper">
+
+
+    <insert id="joinRoomMember">
+        insert into chat_room_members(room_id, member_id, join_time)
+        values (#{roomId}, #{memberId}, #{joinTime})
+    </insert>
+    <insert id="addMember">
+        insert into chat_room_members(room_id, member_id, join_time)
+        values (#{roomId}, #{memberId}, #{joinTime})
+    </insert>
+    <select id="existsByRoomIdAndMemberId" resultType="java.lang.Boolean">
+        select exists(
+            select 1 from chat_room_members
+            where room_id = #{roomId} and member_id = #{memberId}
+        )
+    </select>
+</mapper>
+    

@@ -106,6 +106,19 @@
         WHERE session_id = #{sessionId}
         ORDER BY send_time ASC;
     </select>
+    <select id="selectSessionBySessionId" resultType="com.guanyu.haigui.pojo.model.AiChatSession">
+        SELECT
+        session_id AS sessionId,
+        user_id AS userId,
+        title,
+        create_time AS createTime,
+        update_time AS updateTime,
+        is_deleted AS isDeleted
+        FROM
+        ai_chat_sessions
+        WHERE
+        session_id = #{sessionId};
+    </select>
 
 </mapper>    
     

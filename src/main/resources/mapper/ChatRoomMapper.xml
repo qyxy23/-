@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- namespace等于mapper接口类的全限定名,这样实现对应 -->
+<mapper namespace="com.guanyu.haigui.mapper.ChatRoomMapper">
+
+
+    <insert id="createChatRoom">
+        insert into chat_rooms(room_id, room_name, creator_id, required_members, current_members, status, create_time, update_time)
+        values (#{roomId}, #{roomName}, #{creator.id}, #{requiredMembers}, #{currentMembers}, #{status}, #{createTime}, #{updateTime})
+    </insert>
+    <update id="updateRoom">
+        update chat_rooms
+        <set>
+            <if test="roomName != null">
+                room_name = #{roomName},
+            </if>
+            <if test="creator != null">
+                creator_id = #{creator.id},
+            </if>
+            <if test="requiredMembers != null">
+                required_members = #{requiredMembers},
+            </if>
+            <if test="currentMembers != null">
+                current_members = #{currentMembers},
+            </if>
+            <if test="status != null">
+                status = #{status},
+            </if>
+        </set>
+    </update>
+    <update id="updateRoomStatus">
+        update chat_rooms set status = #{status} where room_id = #{roomId}
+    </update>
+    <select id="checkByRoomIdAndStatus" resultType="com.guanyu.haigui.pojo.model.ChatRoom">
+        select * from chat_rooms where room_id = #{roomId} and status = #{status}
+    </select>
+</mapper>
+    

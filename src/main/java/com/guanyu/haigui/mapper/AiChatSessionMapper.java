@@ -34,12 +34,14 @@ public interface AiChatSessionMapper {
     void insertSession(AiChatSession newSession);
 
 
-    void insertMsg(ChatMessage chatMessage);
+    void insertMsg(AiChatMessage chatMessage);
 
 
     void updateById(AiChatSession endSession);
 
     List<AiChatMessage> selectChatAIMessage(Long roomId);
 
-    List<ChatMessage> selectOfficialChatAIMessage(Long roomId);
+    List<ChatMessage> selectOfficialChatAIMessage(String roomId);
+
+    AiChatSession selectSessionBySessionId();
 }

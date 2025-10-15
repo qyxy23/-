@@ -1,7 +1,7 @@
 package com.guanyu.haigui.mapper;
 
-import com.guanyu.haigui.pojo.model.UserRole;
 import com.guanyu.haigui.pojo.model.UserInfo;
+import com.guanyu.haigui.pojo.model.UserRole;
 import com.guanyu.haigui.pojo.vo.CustomUserDetails;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
@@ -30,4 +30,6 @@ public interface UserDetailsMapper {
 
     List<String> selectUserRolesByUserId(Long userId);
 
+    @Select("SELECT * FROM sys_user WHERE sys_user.user_id = #{creatorId}")
+    UserInfo selectUserInfoById(Long creatorId);
 }

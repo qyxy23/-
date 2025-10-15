@@ -12,7 +12,7 @@ public interface ChatService {
      * @param question 问题
      * @return
      */
-    String chatWithAI(Long roomId,String question);
+    String chatWithAI(String roomId,String question);
 
 
     /**

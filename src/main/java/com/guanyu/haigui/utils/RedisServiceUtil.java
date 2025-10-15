@@ -55,12 +55,12 @@ public class RedisServiceUtil {
         redisTemplate.delete(USER_ONLINE_KEY_PREFIX + id);
     }
 
-    public boolean selectOnlineRooms(Long roomId) {
+    public boolean selectOnlineRooms(String roomId) {
         String value =  redisTemplate.opsForValue().get(ROOM_ONLINE_KEY_PREFIX + roomId);
         return "1".equals(value);
     }
 
-    public void updateOnlineRooms(Long roomId) {
+    public void updateOnlineRooms(String roomId) {
         redisTemplate.opsForValue().set(ROOM_ONLINE_KEY_PREFIX + roomId, "1", 300000000, TimeUnit.MINUTES);
     }
 
