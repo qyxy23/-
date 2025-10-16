@@ -20,6 +20,7 @@ public class ChatRoom {
     @Column(name = "room_id", length = 36)
     private String roomId;
 
+    // 聊天室名称
     @Column(name = "room_name", nullable = false)
     private String roomName;
 

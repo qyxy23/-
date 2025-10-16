@@ -49,7 +49,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws IOException {
         // 1. 从Session attributes中获取用户身份（握手时存入）
         Map<String, Object> attributes = session.getAttributes();
-        Long userId = (Long) attributes.get("userId");
+        // Long userId = (Long) attributes.get("userId");
         String username = (String) attributes.get("username");
 
         // 2. 处理消息（如转发给其他用户）

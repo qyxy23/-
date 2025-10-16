@@ -1,6 +1,7 @@
 package com.guanyu.haigui.controller;
 
 import com.guanyu.haigui.context.BaseContext;
+import com.guanyu.haigui.pojo.dto.CreateRoomRequest;
 import com.guanyu.haigui.pojo.dto.JoinChatRoomRequest;
 import com.guanyu.haigui.pojo.vo.ChatRoomListVO;
 import com.guanyu.haigui.result.Result;
@@ -94,7 +95,9 @@ public class ChatController {
 
     @Operation(summary = "创建大厅")
     @MessageMapping("/createLobby")
-    public void createLobby(@Payload String lobbyId , Integer requiredMembers) {
+    public void createLobby(@Payload CreateRoomRequest request) {
+        String lobbyId = request.getRoomName();
+        Integer requiredMembers = request.getRequiredMembers();
         String userId = BaseContext.getCurrentId().toString();
         log.info("用户{}创建大厅{}", userId, lobbyId);
         // 创建大厅
