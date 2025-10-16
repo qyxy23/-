@@ -2,7 +2,7 @@ package com.guanyu.haigui.pojo.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
-import org.threeten.bp.LocalDateTime;
+import java.time.LocalDateTime;
 
 @Data
 @Entity

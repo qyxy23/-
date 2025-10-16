@@ -7,7 +7,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.threeten.bp.LocalDateTime;
+
+import java.time.LocalDateTime;
 
 /**
  * AI聊天消息实体类（对应ai_chat_messages表）
@@ -64,6 +65,14 @@ public class AiChatMessage {
     /** 是否已读（0=未读，1=已读，仅用户未读AI消息时有效） */
     @Column(name = "is_read", nullable = false)
     private Integer isRead;
+
+    public String getSessionId() {
+        return chatSession.getSessionId();
+    }
+
+    public void setSessionId(String sessionId) {
+        this.chatSession.setSessionId(sessionId);
+    }
 
     // 可选：保留sessionId字段（如果需要直接访问字符串ID）
     // @Column(name = "session_id", insertable = false, updatable = false)

@@ -15,9 +15,14 @@
         <!-- 其他字段由驼峰映射自动处理（无需写result标签） -->
     </resultMap>
 
-    <insert id="insertMsg">
-        INSERT INTO ai_chat_messages (session_id, sender_type, content, send_time, is_read)
-        VALUES (#{sessionId}, #{role}, #{content}, #{sendTime}, #{isRead});
+    <!-- AiChatMessageMapper.xml -->
+    <insert id="insertMsg" parameterType="com.guanyu.haigui.pojo.model.AiChatMessage">
+        INSERT INTO ai_chat_messages
+        (session_id, sender_type, content, send_time, is_read
+        <if test="senderId != null">, sender_id</if>)
+        VALUES
+        (#{sessionId}, #{role}, #{content}, #{sendTime}, #{isRead}
+        <if test="senderId != null">, #{senderId}</if>)
     </insert>
 
     <insert id="insertSession">

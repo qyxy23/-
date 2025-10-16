@@ -7,7 +7,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
-import org.threeten.bp.LocalDateTime;
+
+import java.time.LocalDateTime;
 
 /**
  * AI聊天会话实体类（对应ai_chat_sessions表）

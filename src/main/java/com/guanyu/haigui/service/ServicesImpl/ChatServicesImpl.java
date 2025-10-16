@@ -13,8 +13,8 @@ import com.volcengine.ark.runtime.model.completion.chat.ChatMessage;
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessageRole;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.threeten.bp.LocalDateTime;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -56,9 +56,8 @@ public class ChatServicesImpl implements ChatService {
 
             // 3.2 插入系统消息（官方ChatMessage）
             AiChatMessage systemMsg = AiChatMessage.builder().chatSession(newSession)
-                    .sendTime(LocalDateTime.now()).isRead(0).build();
-            systemMsg.setRole(ChatMessageRole.SYSTEM); // 系统消息角色
-            systemMsg.setContent(StatusConstant.SystemPrompt);
+                    .sendTime(LocalDateTime.now()).isRead(0).role(ChatMessageRole.SYSTEM)
+                    .content(StatusConstant.SystemPrompt).build();
             aiChatMapper.insertMsg(systemMsg); // 插入消息（合并原insertSystemMsg）
 
             // 3.3 初始化缓存：存系统消息
@@ -71,11 +70,11 @@ public class ChatServicesImpl implements ChatService {
             messages = aiChatMapper.selectOfficialChatAIMessage(roomId);
 //             messages = convertToOfficialChatMessages(aiMessages);
         }
-        AiChatSession newSession = aiChatMapper.selectSessionBySessionId();
+        AiChatSession Session = aiChatMapper.selectSessionBySessionId(roomId);
 
         // 4. 插入用户消息（官方ChatMessage）
-        AiChatMessage userMsg = AiChatMessage.builder().chatSession(newSession)
-                .sendTime(LocalDateTime.now()).isRead(0).build();
+        AiChatMessage userMsg = AiChatMessage.builder().chatSession(Session)
+                .sendTime(LocalDateTime.now()).isRead(0).senderId(userId).build();
         userMsg.setRole(ChatMessageRole.USER); // 用户消息角色
         userMsg.setContent(message);
         aiChatMapper.insertMsg(userMsg); // 插入消息（合并原insertUserMsg）
@@ -85,7 +84,7 @@ public class ChatServicesImpl implements ChatService {
         String answer = aiManager.doChat(messages);
 
         // 6. 插入AI回复（官方ChatMessage，角色为ASSISTANT）
-        AiChatMessage assistantMsg = AiChatMessage.builder().chatSession(newSession)
+        AiChatMessage assistantMsg = AiChatMessage.builder().chatSession(Session)
                 .sendTime(LocalDateTime.now()).isRead(0).build();
         assistantMsg.setRole(ChatMessageRole.ASSISTANT); // AI回复角色
         assistantMsg.setContent(answer);

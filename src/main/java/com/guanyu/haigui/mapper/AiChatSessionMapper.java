@@ -43,5 +43,5 @@ public interface AiChatSessionMapper {
 
     List<ChatMessage> selectOfficialChatAIMessage(String roomId);
 
-    AiChatSession selectSessionBySessionId();
+    AiChatSession selectSessionBySessionId(String sessionId);
 }
