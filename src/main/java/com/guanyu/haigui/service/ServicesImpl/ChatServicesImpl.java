@@ -1,12 +1,17 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
+import cn.hutool.core.lang.UUID;
+import com.guanyu.haigui.Exception.NoBeginRequest;
 import com.guanyu.haigui.constant.StatusConstant;
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.manager.AIManager;
 import com.guanyu.haigui.mapper.AiChatSessionMapper;
 import com.guanyu.haigui.pojo.model.AiChatMessage;
 import com.guanyu.haigui.pojo.model.AiChatSession;
+import com.guanyu.haigui.pojo.vo.AiChatMessageDetailVo;
+import com.guanyu.haigui.pojo.vo.ChatRoomListDetailVO;
 import com.guanyu.haigui.pojo.vo.ChatRoomListVO;
+import com.guanyu.haigui.pojo.vo.FirstChatVo;
 import com.guanyu.haigui.service.ChatService;
 import com.guanyu.haigui.utils.RedisServiceUtil;
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessage;
@@ -17,6 +22,10 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @AllArgsConstructor
@@ -28,47 +37,107 @@ public class ChatServicesImpl implements ChatService {
 
     private RedisServiceUtil redisServiceUtil;
 
-    // private final Map<Long, List<ChatMessage>> globalMessageMap = new ConcurrentHashMap<>(); // 缓存会话消息
+    private final Map<String, List<ChatMessage>> globalMessageMap = new ConcurrentHashMap<>(); // 缓存会话消息
 
 
-    public String chatWithAI(String roomId, String message) {
+    @Override
+    public FirstChatVo doFirstChatWithAi(String message) {
+        String roomId = UUID.randomUUID().toString();
         // 1. 获取当前用户ID BaseContext
         Long userId = BaseContext.getCurrentId();
         List<ChatMessage> messages = new ArrayList<>(); // 统一用官方ChatMessage缓存
 
         // 2. 校验会话合法性：未开始且消息不含“开始”，拒绝请求
-        if (!redisServiceUtil.selectOnlineRooms(roomId) && !message.contains("开始")) {
-            return StatusConstant.NoBeginRequest;
+        if (!message.contains("开始")) {
+            throw new NoBeginRequest(StatusConstant.NoBeginRequest);
         }
 
-        // 3. 首次会话：创建会话记录 + 系统提示消息
-        if (!redisServiceUtil.selectOnlineRooms(roomId)) {
-            // 3.1 插入会话记录（关联当前用户）
-            AiChatSession newSession = AiChatSession.builder()
-                    .sessionId(roomId).userId(userId).createTime(LocalDateTime.now())
-                    .updateTime(LocalDateTime.now()).title("海龟汤游戏"+roomId).isDeleted(0).build();
-            try{
-                aiChatMapper.insertSession(newSession); // 插入会话
-            } catch (RuntimeException e) {
-                throw new RuntimeException("会话已存在,数据库异常,请重新生成成会话");
-            }
-            //TODO:之后通过AI总结海龟汤游戏来更新标题
 
-            // 3.2 插入系统消息（官方ChatMessage）
-            AiChatMessage systemMsg = AiChatMessage.builder().chatSession(newSession)
-                    .sendTime(LocalDateTime.now()).isRead(0).role(ChatMessageRole.SYSTEM)
-                    .content(StatusConstant.SystemPrompt).build();
-            aiChatMapper.insertMsg(systemMsg); // 插入消息（合并原insertSystemMsg）
+        // 3.1 插入会话记录（关联当前用户）
+        AiChatSession session = AiChatSession.builder()
+                .sessionId(roomId).userId(userId).createTime(LocalDateTime.now())
+                .updateTime(LocalDateTime.now()).isDeleted(0).build();
 
-            // 3.3 初始化缓存：存系统消息
-            messages.add(convertSingleAiMessage(systemMsg));
-            // globalMessageMap.put(roomId, messages);
-            redisServiceUtil.updateOnlineRooms(roomId); // 标记会话已开始
-        } else {
-            // 3.4 TODO:非首次会话：从缓存读取历史消息
-            // List<AiChatMessage> aiMessages = aiChatMapper.selectChatAIMessage(roomId);
+        try{
+            aiChatMapper.insertSession(session); // 插入会话
+        } catch (RuntimeException e) {
+            throw new RuntimeException("会话已存在,数据库异常,请重新生成成会话");
+        }
+
+
+        // 3.2 插入系统消息（官方ChatMessage）
+        AiChatMessage systemMsg = AiChatMessage.builder().chatSession(session)
+                .sendTime(LocalDateTime.now()).isRead(0).role(ChatMessageRole.SYSTEM)
+                .content(StatusConstant.SystemFirstPrompt).build();
+        // 3.3 初始化缓存：存系统消息
+        messages.add(convertSingleAiMessage(systemMsg));
+        redisServiceUtil.updateOnlineRooms(roomId); // 标记会话已开始
+
+        // 4. 插入用户消息（官方ChatMessage）
+        AiChatMessage userMsg = AiChatMessage.builder().chatSession(session)
+                .sendTime(LocalDateTime.now()).isRead(0).senderId(userId).build();
+        userMsg.setRole(ChatMessageRole.USER); // 用户消息角色
+        userMsg.setContent(message);
+        messages.add(convertSingleAiMessage(userMsg));
+
+        // 5. 调用AI生成回复
+        String answer = aiManager.doChat(messages);
+
+        // 使用更宽松的正则表达式，允许换行和空格
+        Pattern pattern = Pattern.compile("汤面[：:]\\s*(.*?)\\s*标题[：:]\\s*(.*)", Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(answer.trim());
+
+
+        if (!matcher.find()) {
+            throw new RuntimeException("无法解析AI回复");
+        }
+
+        String soupContent = matcher.group(1).trim();
+        String titleContent = matcher.group(2).trim();
+        System.out.println("汤面内容: \"" + soupContent + "\"");
+        System.out.println("标题内容: \"" + titleContent + "\"");
+
+        systemMsg.setContent(StatusConstant.SystemPrompt);
+        aiChatMapper.insertMsg(systemMsg); // 插入消息
+        aiChatMapper.insertMsg(userMsg); // 插入消息（合并原insertUserMsg）
+        session.setTitle(titleContent);
+        aiChatMapper.updateById(session);
+
+        // 6. 插入AI回复（官方ChatMessage，角色为ASSISTANT）
+        AiChatMessage assistantMsg = AiChatMessage.builder().chatSession(session)
+                .sendTime(LocalDateTime.now()).isRead(0).build();
+        assistantMsg.setRole(ChatMessageRole.ASSISTANT); // AI回复角色
+        assistantMsg.setContent(answer);
+        aiChatMapper.insertMsg(assistantMsg);// 插入消息（合并原insertAIMsg）
+        messages.add(convertSingleAiMessage(assistantMsg));
+        // 更新缓存
+        globalMessageMap.put(roomId, messages);
+
+        FirstChatVo firstChatVo = new FirstChatVo();
+        firstChatVo.setRoomId(roomId);
+        firstChatVo.setTitle(titleContent);
+        firstChatVo.setMessage(soupContent);
+        return firstChatVo;
+    }
+
+
+    /**
+     * 非首次会话聊天
+     * @param roomId 房间id
+     * @param message 问题
+     */
+    public String chatWithAI(String roomId, String message) {
+        // 1. 获取当前用户ID BaseContext
+        Long userId = BaseContext.getCurrentId();
+        List<ChatMessage> messages; // 统一用官方ChatMessage缓存
+
+
+        // 3.4 TODO:非首次会话：从缓存读取历史消息
+        // messages = aiChatMapper.selectOfficialChatAIMessage(roomId);
+        messages = globalMessageMap.get(roomId);
+        if (messages == null) {
             messages = aiChatMapper.selectOfficialChatAIMessage(roomId);
-//             messages = convertToOfficialChatMessages(aiMessages);
+            globalMessageMap.put(roomId, messages);
         }
         AiChatSession Session = aiChatMapper.selectSessionBySessionId(roomId);
 
@@ -94,13 +163,83 @@ public class ChatServicesImpl implements ChatService {
         // 7. 处理会话结束：若AI回复“游戏结束”
         if (answer.contains("游戏结束")) {
             // 7.1 清除内存缓存
-            // globalMessageMap.remove(roomId);
+            globalMessageMap.remove(roomId);
             // 7.2 逻辑删除会话记录（避免物理删除）
             AiChatSession endSession = AiChatSession.builder().sessionId(roomId).isDeleted(1).build();
             aiChatMapper.updateById(endSession);
         }
         return answer;
     }
+
+
+//     public String chatWithAI(String roomId, String message) {
+//         // 1. 获取当前用户ID BaseContext
+//         Long userId = BaseContext.getCurrentId();
+//         List<ChatMessage> messages = new ArrayList<>(); // 统一用官方ChatMessage缓存
+//
+//         // 2. 校验会话合法性：未开始且消息不含“开始”，拒绝请求
+//         if (!redisServiceUtil.selectOnlineRooms(roomId) && !message.contains("开始")) {
+//             return StatusConstant.NoBeginRequest;
+//         }
+//
+//         // 3. 首次会话：创建会话记录 + 系统提示消息
+//         if (!redisServiceUtil.selectOnlineRooms(roomId)) {
+//             // 3.1 插入会话记录（关联当前用户）
+//             AiChatSession newSession = AiChatSession.builder()
+//                     .sessionId(roomId).userId(userId).createTime(LocalDateTime.now())
+//                     .updateTime(LocalDateTime.now()).title("海龟汤游戏"+roomId).isDeleted(0).build();
+//             try{
+//                 aiChatMapper.insertSession(newSession); // 插入会话
+//             } catch (RuntimeException e) {
+//                 throw new RuntimeException("会话已存在,数据库异常,请重新生成成会话");
+//             }
+//
+//             // 3.2 插入系统消息（官方ChatMessage）
+//             AiChatMessage systemMsg = AiChatMessage.builder().chatSession(newSession)
+//                     .sendTime(LocalDateTime.now()).isRead(0).role(ChatMessageRole.SYSTEM)
+//                     .content(StatusConstant.SystemPrompt).build();
+//             aiChatMapper.insertMsg(systemMsg); // 插入消息（合并原insertSystemMsg）
+//
+//             // 3.3 初始化缓存：存系统消息
+//             messages.add(convertSingleAiMessage(systemMsg));
+//             // globalMessageMap.put(roomId, messages);
+//             redisServiceUtil.updateOnlineRooms(roomId); // 标记会话已开始
+//         } else {
+//             // List<AiChatMessage> aiMessages = aiChatMapper.selectChatAIMessage(roomId);
+//             messages = aiChatMapper.selectOfficialChatAIMessage(roomId);
+// //             messages = convertToOfficialChatMessages(aiMessages);
+//         }
+//         AiChatSession Session = aiChatMapper.selectSessionBySessionId(roomId);
+//
+//         // 4. 插入用户消息（官方ChatMessage）
+//         AiChatMessage userMsg = AiChatMessage.builder().chatSession(Session)
+//                 .sendTime(LocalDateTime.now()).isRead(0).senderId(userId).build();
+//         userMsg.setRole(ChatMessageRole.USER); // 用户消息角色
+//         userMsg.setContent(message);
+//         aiChatMapper.insertMsg(userMsg); // 插入消息（合并原insertUserMsg）
+//         messages.add(convertSingleAiMessage(userMsg));
+//
+//         // 5. 调用AI生成回复
+//         String answer = aiManager.doChat(messages);
+//
+//         // 6. 插入AI回复（官方ChatMessage，角色为ASSISTANT）
+//         AiChatMessage assistantMsg = AiChatMessage.builder().chatSession(Session)
+//                 .sendTime(LocalDateTime.now()).isRead(0).build();
+//         assistantMsg.setRole(ChatMessageRole.ASSISTANT); // AI回复角色
+//         assistantMsg.setContent(answer);
+//         aiChatMapper.insertMsg(assistantMsg);// 插入消息（合并原insertAIMsg）
+//         messages.add(convertSingleAiMessage(assistantMsg)); // 更新缓存
+//
+//         // 7. 处理会话结束：若AI回复“游戏结束”
+//         if (answer.contains("游戏结束")) {
+//             // 7.1 清除内存缓存
+//             // globalMessageMap.remove(roomId);
+//             // 7.2 逻辑删除会话记录（避免物理删除）
+//             AiChatSession endSession = AiChatSession.builder().sessionId(roomId).isDeleted(1).build();
+//             aiChatMapper.updateById(endSession);
+//         }
+//         return answer;
+//     }
 
     public List<ChatMessage> convertToOfficialChatMessages(List<AiChatMessage> aiMessages) {
         return aiMessages.stream()
@@ -140,6 +279,14 @@ public class ChatServicesImpl implements ChatService {
      */
     public List<ChatRoomListVO> getAIChatRoomListWithLastMessage(Long userId) {
         return aiChatMapper.selectChatRoomListWithLastMessage(userId);
+    }
+
+    @Override
+    public ChatRoomListDetailVO getAIChatRoomListDetail(String sessionId) {
+        List<AiChatMessageDetailVo> messages = aiChatMapper.selectChatAIMessageDetail(sessionId);
+        ChatRoomListDetailVO detailVO = new ChatRoomListDetailVO();
+        detailVO.setChatMessageList(messages);
+        return detailVO;
     }
 
 

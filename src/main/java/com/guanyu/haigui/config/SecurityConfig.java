@@ -14,6 +14,7 @@ import org.springframework.security.authentication.dao.DaoAuthenticationProvider
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -23,15 +24,18 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
-public class SecurityConfig {
+public class SecurityConfig{
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
@@ -89,23 +93,51 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
+                // 启用 CORS（关联 CorsConfigurationSource）
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/user/login").permitAll() // 允许登录
-                        .requestMatchers("/user/register").permitAll() // 允许注册
-                        .requestMatchers("/swagger-ui/**").permitAll() // 允许访问Swagger UI
-                        .requestMatchers("/swagger-resources/**").permitAll() // 允许访问Swagger资源
-                        .requestMatchers("/v3/api-docs/**").permitAll() // 允许访问API文档
-                        .requestMatchers("/v3/api-docs").permitAll() // 允许访问API文档根路径
-                        .requestMatchers("/webjars/**").permitAll() // 允许访问Webjars
-                        .requestMatchers("/doc.html").permitAll() // 允许访问Knife4j文档页面
-                        .requestMatchers("/favicon.ico").permitAll() // 允许访问favicon
-                        .requestMatchers("/error").permitAll() // 允许访问错误页面
-                        // .requestMatchers("/admin/**").hasAnyRole("ADMIN") // 需ADMIN角色
-                        // .requestMatchers("/user/**").hasAnyRole("ADMIN", "USER") // 需ADMIN或USER
+                        .requestMatchers("/user/login").permitAll()
+                        .requestMatchers("/user/register").permitAll()
+                        .requestMatchers("/webjars/**").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/doc.html").permitAll()
+                        .requestMatchers("/ws/**").permitAll()
                         .anyRequest().authenticated())
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class); // 注入JWT过滤器
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        // 1. 创建 CORS 配置对象
+        CorsConfiguration config = new CorsConfiguration();
+
+        // 2. 允许的前端域名（替换为你的前端地址，如 http://localhost:5173、https://your-frontend.com）
+        config.setAllowedOrigins(Arrays.asList("http://localhost:5173", "https://your-frontend-domain.com"));
+
+        // 3. 允许的请求方法（GET/POST/PUT/DELETE/OPTIONS）
+        config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+
+        // 4. 允许的请求头（必须包含 Authorization）
+        config.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept"));
+
+        // 5. 允许前端访问的响应头（如 Authorization）
+        config.setExposedHeaders(Arrays.asList("Authorization"));
+
+        // 6. 是否允许携带 Cookie（根据需求，JWT 无状态可设为 false）
+        config.setAllowCredentials(true);
+
+        // 7. 预检请求有效期（秒），减少重复预检
+        config.setMaxAge(3600L);
+
+        // 8. 对所有接口生效
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config); // 所有路径都应用此配置
+
+        return source;
+    }
+
+
+
 }

@@ -1,18 +1,28 @@
 package com.guanyu.haigui.service;
 
+import com.guanyu.haigui.pojo.vo.ChatRoomListDetailVO;
 import com.guanyu.haigui.pojo.vo.ChatRoomListVO;
+import com.guanyu.haigui.pojo.vo.FirstChatVo;
 
 import java.util.List;
 
 public interface ChatService {
 
+
+    /**
+     * 聊天
+     * @param message 问题
+     * @return
+     */
+    FirstChatVo doFirstChatWithAi(String message);
+
     /**
      * 聊天
      * @param roomId 房间id
-     * @param question 问题
+     * @param message 问题
      * @return
      */
-    String chatWithAI(String roomId,String question);
+    String chatWithAI(String roomId,String message);
 
 
     /**
@@ -21,4 +31,6 @@ public interface ChatService {
      * @return 聊天室列表（带最后一条消息）
      */
     List<ChatRoomListVO> getAIChatRoomListWithLastMessage(Long userId);
+
+    ChatRoomListDetailVO getAIChatRoomListDetail(String sessionId);
 }

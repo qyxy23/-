@@ -1,5 +1,6 @@
 package com.guanyu.haigui.Hanldler;
 
+import com.guanyu.haigui.Exception.NoBeginRequest;
 import com.guanyu.haigui.Exception.UserAlreadyExistsException;
 import com.guanyu.haigui.result.Result;
 import org.springframework.http.HttpStatus;
@@ -49,6 +50,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DisabledException.class)
     public Result<?> handleDisabledAccount(DisabledException ex) {
         return Result.error("账户已被禁用，请联系管理员");
+    }
+
+    @ExceptionHandler(NoBeginRequest.class)
+    public Result<?> handleNoBeginRequest(NoBeginRequest ex) {
+        return Result.error(ex.getMessage());
     }
 
     @ExceptionHandler(AccessDeniedException.class)

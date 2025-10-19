@@ -2,6 +2,7 @@ package com.guanyu.haigui.mapper;
 
 import com.guanyu.haigui.pojo.model.AiChatMessage;
 import com.guanyu.haigui.pojo.model.AiChatSession;
+import com.guanyu.haigui.pojo.vo.AiChatMessageDetailVo;
 import com.guanyu.haigui.pojo.vo.ChatRoomListVO;
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessage;
 import org.apache.ibatis.annotations.Mapper;
@@ -30,7 +31,6 @@ public interface AiChatSessionMapper {
     List<ChatRoomListVO> selectChatRoomListWithLastMessage(@Param("userId") Long userId);
 
 
-
     void insertSession(AiChatSession newSession);
 
 
@@ -39,7 +39,10 @@ public interface AiChatSessionMapper {
 
     void updateById(AiChatSession endSession);
 
-    List<AiChatMessage> selectChatAIMessage(Long roomId);
+    List<AiChatMessage> selectChatAIMessage(String roomId);
+
+    List<AiChatMessageDetailVo> selectChatAIMessageDetail(String roomId);
+
 
     List<ChatMessage> selectOfficialChatAIMessage(String roomId);
 

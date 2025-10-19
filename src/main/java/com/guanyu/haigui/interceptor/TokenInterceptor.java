@@ -1,24 +1,20 @@
 package com.guanyu.haigui.interceptor;
 
 import com.guanyu.haigui.context.BaseContext;
-import com.guanyu.haigui.properties.JwtProperties;
 import com.guanyu.haigui.utils.JwtTokenUtil;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-
 import javax.annotation.Resource;
 
 @Component
 @Slf4j
 public class TokenInterceptor implements HandlerInterceptor {
-    @Resource
-    private JwtProperties jwtProperties;
     @Resource
     private JwtTokenUtil jwtTokenUtil;
 

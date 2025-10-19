@@ -3,60 +3,22 @@ package com.guanyu.haigui.controller;
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.dto.CreateRoomRequest;
 import com.guanyu.haigui.pojo.dto.JoinChatRoomRequest;
-import com.guanyu.haigui.pojo.vo.ChatRoomListVO;
-import com.guanyu.haigui.result.Result;
-import com.guanyu.haigui.service.ChatService;
 import com.guanyu.haigui.service.ServicesImpl.ChatRoomService;
 import com.guanyu.haigui.websocket.LobbyService;
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessage;
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessageRole;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.web.bind.annotation.*;
-
-import javax.annotation.Resource;
-import java.util.List;
-
-/**
- * 聊天接口
- */
 @Slf4j
 @AllArgsConstructor
-@RestController
-@RequestMapping("/chat")
-@Tag(name = "聊天接口", description = "聊天相关接口")
-public class ChatController {
-    @Resource
-    private ChatService chatService;
+public class ChatWithFriendsController {
     private final LobbyService lobbyService;
     private final SimpMessagingTemplate messagingTemplate; // 用于向客户端推送消息
     private final ChatRoomService chatRoomService;
-
-    /**
-     * 聊天
-     *
-     * @param roomId  聊天室 ID
-     */
-    @Operation(summary = "聊天")
-    @PostMapping("/{roomId}")
-    public Result<String> doChat(@PathVariable String roomId, @RequestParam String message) {
-        return Result.success(chatService.chatWithAI(roomId, message));
-    }
-
-    /**
-     * 获取聊天室列表
-     *
-     */
-    @Operation(summary = "获取聊天室列表内容")
-    @GetMapping()
-    public List<ChatRoomListVO> getChatRoomList() {
-        return chatService.getAIChatRoomListWithLastMessage(BaseContext.getCurrentId());
-    }
 
     // 处理用户加入大厅的请求（前端发送到/app/chat.joinLobby）
     @Operation(summary = "处理用户加入大厅的请求")
@@ -103,4 +65,5 @@ public class ChatController {
         // 创建大厅
         chatRoomService.createChatRoom(lobbyId, requiredMembers, BaseContext.getCurrentId());
     }
+
 }

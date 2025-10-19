@@ -1,5 +1,6 @@
 package com.guanyu.haigui.Strategy.strategyImpl;
 
+import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.dto.LoginRequest;
 import com.guanyu.haigui.pojo.vo.CustomUserDetails;
 import com.guanyu.haigui.Strategy.LoginStrategy;
@@ -48,7 +49,7 @@ public class PasswordLoginStrategy implements LoginStrategy {
             redisServiceUtil.updateOnlineStatus(customUserDetails.getUserId(), token);
             LogVO loginVO = new LogVO();
             BeanUtils.copyProperties(customUserDetails, loginVO);
-            System.out.println("LoginVO authorities AFTER copy: " + loginVO.getAuthorities());
+            System.out.println("用户"+ BaseContext.getCurrentId() +"具有以下权限"+ loginVO.getAuthorities());
             return loginVO;
         } catch (BadCredentialsException e) {
             throw new AuthenticationException("密码错误");
