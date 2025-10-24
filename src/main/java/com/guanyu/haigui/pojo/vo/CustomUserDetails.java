@@ -24,6 +24,12 @@ public class CustomUserDetails extends UserInfo implements UserDetails, Serializ
     @Schema(description = "用户角色")
     private UserRoleEnum role;
 
+    public CustomUserDetails(Long userId, String username, List<GrantedAuthority> authorities) {
+        super(userId, username);
+        this.authorities = authorities;
+        this.role = UserRoleEnum.getRoleByRoleId(authorities.get(0).getAuthority());
+    }
+
     @Override
     public List<GrantedAuthority> getAuthorities() {
         return authorities;

@@ -18,15 +18,22 @@ package com.guanyu.haigui.pojo.model;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import javax.security.auth.Subject;
+import java.security.Principal;
 
 /**
  * @author Guanyu
  */
 @Entity
 @Data
+@AllArgsConstructor
+@NoArgsConstructor
 @Table(name = "sys_user")
-public class UserInfo {
+public class UserInfo implements Principal {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "user_id")
@@ -53,4 +60,18 @@ public class UserInfo {
     }
 
 
+    public UserInfo(Long userId, String username) {
+        this.userId = userId;
+        this.username = username;
+    }
+
+    @Override
+    public String getName() {
+        return username;
+    }
+
+    @Override
+    public boolean implies(Subject subject) {
+        return Principal.super.implies(subject);
+    }
 }

@@ -1,38 +1,103 @@
 package com.guanyu.haigui.config;
 
 import com.guanyu.haigui.interceptor.JwtWebSocketInterceptor;
-import lombok.AllArgsConstructor;
+import com.guanyu.haigui.interceptor.WebSocketSecurityInterceptor;
+import com.guanyu.haigui.pojo.model.UserInfo;
+import jakarta.annotation.Resource;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
-import org.springframework.web.socket.config.annotation.EnableWebSocket;
+import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
-@AllArgsConstructor
+import org.springframework.web.socket.config.annotation.WebSocketTransportRegistration;
+
+import java.util.concurrent.ConcurrentHashMap;
+
 @Configuration
-@EnableWebSocket
 @EnableWebSocketMessageBroker
-// public class WebSocketConfig implements WebSocketConfigurer,WebSocketMessageBrokerConfigurer {
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-    private final JwtWebSocketInterceptor jwtInterceptor;
+    @Resource
+    private JwtWebSocketInterceptor jwtWebSocketInterceptor;
+    @Resource
+    @Lazy
+    private WebSocketSecurityInterceptor webSocketSecurityInterceptor;
 
-    // 注册WebSocket端点（前端连接入口）
 
+
+    /**
+     * 配置客户端入站通道，用于处理从客户端接收的消息
+     */
+    @Override
+    public void configureClientInboundChannel(ChannelRegistration registration) {
+        // 注册自定义WebSocket安全拦截器，确保在Spring Security拦截器之前执行
+        registration.interceptors(webSocketSecurityInterceptor);
+        // 注意：Spring Security的安全拦截器将由@EnableWebSocketSecurity自动配置
+    }
+
+    @Bean
+    public ConcurrentHashMap<String, UserInfo> sessionUserMap() {
+        return new ConcurrentHashMap<>();
+    }
+
+
+    /**
+     * 注册WebSocket端点（前端连接入口）
+     */
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws") // 前端连接的URL
                 .setAllowedOriginPatterns("*") // 允许跨域
-                .addInterceptors(jwtInterceptor)// 注册JWT拦截器
-                .withSockJS(); // 支持SockJS回退
+                .addInterceptors(jwtWebSocketInterceptor) // 注册JWT拦截器进行身份验证
+                .withSockJS(); // 支持SockJS回退机制
     }
 
-    // 配置消息代理（用于广播消息）
+    /**
+     * 配置WebSocket处理链
+     */
+    @Override
+    public void configureWebSocketTransport(WebSocketTransportRegistration registration) {
+        // 设置最大消息大小等配置
+        registration.setMessageSizeLimit(8192);
+        registration.setSendBufferSizeLimit(8192);
+        registration.setSendTimeLimit(10000);
+    }
+
+    /**
+     * 配置消息代理（用于广播消息）
+     */
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        registry.enableSimpleBroker("/topic", "/queue"); // 客户端订阅的前缀（/topic用于广播，/queue用于点对点）
-        registry.setApplicationDestinationPrefixes("/app"); // 客户端发送消息的前缀（如/app/chat.join）
+        // 启用简单消息代理，用于广播消息和点对点消息
+        registry.enableSimpleBroker("/topic", "/queue")
+                // 配置心跳机制：保持WebSocket连接活跃
+                .setHeartbeatValue(new long[] {20000, 20000}) // 客户端和服务器心跳间隔均为10秒
+                .setTaskScheduler(taskScheduler()); // 设置任务调度器用于心跳任务
+
+        // 设置应用程序消息前缀
+        // 前端发送到/app/**的消息会被路由到带有@MessageMapping注解的方法
+        registry.setApplicationDestinationPrefixes("/app");
     }
+
+    /**
+     * 配置TaskScheduler用于WebSocket心跳任务
+     */
+    @Bean
+    public TaskScheduler taskScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(10); // 线程池大小
+        scheduler.setThreadNamePrefix("websocket-heartbeat-scheduler-"); // 线程名称前缀
+        scheduler.setAwaitTerminationSeconds(60); // 关闭时等待任务完成的时间
+        scheduler.setWaitForTasksToCompleteOnShutdown(true); // 关闭时是否等待任务完成
+        scheduler.initialize(); // 初始化调度器
+        return scheduler;
+    }
+
 
     /**
      * 配置Redis消息监听：用于集群间的消息广播（分布式）

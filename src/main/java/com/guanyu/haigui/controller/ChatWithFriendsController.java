@@ -10,11 +10,17 @@ import com.volcengine.ark.runtime.model.completion.chat.ChatMessageRole;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.stereotype.Controller;
+import java.util.HashMap;
+import java.util.Map;
+
 @Slf4j
 @AllArgsConstructor
+@Controller
 public class ChatWithFriendsController {
     private final LobbyService lobbyService;
     private final SimpMessagingTemplate messagingTemplate; // 用于向客户端推送消息
@@ -57,13 +63,19 @@ public class ChatWithFriendsController {
 
     @Operation(summary = "创建大厅")
     @MessageMapping("/createLobby")
-    public void createLobby(@Payload CreateRoomRequest request) {
-        String lobbyId = request.getRoomName();
+    public Map<String, String> createLobby(@Payload CreateRoomRequest request, @Header("simpSessionId") String sessionId) {
+        String roomName = request.getRoomName();
         Integer requiredMembers = request.getRequiredMembers();
         String userId = BaseContext.getCurrentId().toString();
-        log.info("用户{}创建大厅{}", userId, lobbyId);
+        log.info("用户{}创建{}人大厅{}，会话ID：{}", userId, requiredMembers, roomName, sessionId);
         // 创建大厅
-        chatRoomService.createChatRoom(lobbyId, requiredMembers, BaseContext.getCurrentId());
+        String roomId = chatRoomService.createChatRoom(roomName, requiredMembers, BaseContext.getCurrentId());
+        
+        // 返回房间ID和会话ID
+        Map<String, String> result = new HashMap<>();
+        result.put("roomId", roomId);
+        result.put("sessionId", sessionId);
+        return result;
     }
 
 }

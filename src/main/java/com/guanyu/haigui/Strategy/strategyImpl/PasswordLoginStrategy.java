@@ -1,9 +1,8 @@
 package com.guanyu.haigui.Strategy.strategyImpl;
 
-import com.guanyu.haigui.context.BaseContext;
+import com.guanyu.haigui.Strategy.LoginStrategy;
 import com.guanyu.haigui.pojo.dto.LoginRequest;
 import com.guanyu.haigui.pojo.vo.CustomUserDetails;
-import com.guanyu.haigui.Strategy.LoginStrategy;
 import com.guanyu.haigui.pojo.vo.LogVO;
 import com.guanyu.haigui.utils.JwtTokenUtil;
 import com.guanyu.haigui.utils.RedisServiceUtil;
@@ -15,6 +14,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Component;
+
 import javax.annotation.Resource;
 import javax.security.sasl.AuthenticationException;
 
@@ -49,7 +49,7 @@ public class PasswordLoginStrategy implements LoginStrategy {
             redisServiceUtil.updateOnlineStatus(customUserDetails.getUserId(), token);
             LogVO loginVO = new LogVO();
             BeanUtils.copyProperties(customUserDetails, loginVO);
-            System.out.println("用户"+ BaseContext.getCurrentId() +"具有以下权限"+ loginVO.getAuthorities());
+            System.out.println("用户"+ username+"具有以下权限"+ loginVO.getAuthorities());
             return loginVO;
         } catch (BadCredentialsException e) {
             throw new AuthenticationException("密码错误");

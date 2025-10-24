@@ -32,12 +32,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Resource
     private final JwtTokenUtil jwtTokenUtil;
 
+    // @Value("${spring.profiles.active}")
+    // private String activeProfile; // 直接注入值
+
     @Override
     protected void doFilterInternal(
             @NotNull HttpServletRequest request,
             @NotNull HttpServletResponse response,
             @NotNull FilterChain filterChain
     ) throws ServletException, IOException {
+        // if(activeProfile.equals("dev")){
+        //     log.info("当前环境为开发环境，跳过JWT认证");
+        //     filterChain.doFilter(request, response);
+        // }
+        String requestURI = request.getRequestURI();
+        if (requestURI.startsWith("/ws/")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
         // 1. 从请求头提取Token（去除"Bearer "前缀）
         String token = resolveToken(request);
         if (StringUtils.hasText(token)) {

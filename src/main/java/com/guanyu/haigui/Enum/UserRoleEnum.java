@@ -16,4 +16,12 @@ public enum UserRoleEnum {
         this.roleName = roleName;
     }
 
+    public static UserRoleEnum getRoleByRoleId(String authority) {
+        for (UserRoleEnum role : UserRoleEnum.values()) {
+            if (role.getRoleName().equals(authority)) {
+                return role;
+            }
+        }
+        return null;
+    }
 }

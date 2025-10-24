@@ -5,6 +5,7 @@ import com.guanyu.haigui.mapper.UserDetailsMapper;
 import com.guanyu.haigui.pojo.model.UserInfo;
 import com.guanyu.haigui.pojo.vo.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -32,13 +33,13 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
-public class SecurityConfig{
+public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
-
 
     // 全局配置 BCrypt 密码编码器
     @Bean
@@ -50,6 +51,8 @@ public class SecurityConfig{
     @Bean
     public UserDetailsService userDetailsService(UserDetailsMapper userDetailsMapper) {
         return username -> {
+            log.info("正在查询用户：" + username);
+
             UserInfo userInfo = userDetailsMapper.selectUserInfoByUsername(username);
 
             if (userInfo == null) {
@@ -102,6 +105,8 @@ public class SecurityConfig{
                         .requestMatchers("/webjars/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/doc.html").permitAll()
                         .requestMatchers("/ws/**").permitAll()
+                        .requestMatchers("/ws").permitAll()
+                        .requestMatchers("/ws/**/**").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -137,7 +142,4 @@ public class SecurityConfig{
 
         return source;
     }
-
-
-
 }

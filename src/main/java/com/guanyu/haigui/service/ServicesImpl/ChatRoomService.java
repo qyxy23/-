@@ -26,7 +26,7 @@ public class ChatRoomService {
 
 
     // 1. 创建聊天室
-    public void createChatRoom(String roomName, Integer requiredMembers, Long creatorId) {
+    public String createChatRoom(String roomName, Integer requiredMembers, Long creatorId) {
         // 校验人数
         if (requiredMembers < 2) throw new IllegalArgumentException("所需人数至少2人");
         // 检查创建者是否存在
@@ -50,6 +50,7 @@ public class ChatRoomService {
         member.setMember(creator);
         member.setChatRoom(savedRoom);
         chatRoomMemberMapper.joinRoomMember(member);
+        return roomId;
     }
 
     // 2. 加入聊天室（核心：人数达标触发AI初始化）

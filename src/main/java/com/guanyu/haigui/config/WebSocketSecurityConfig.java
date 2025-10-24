@@ -1,32 +1,48 @@
 // package com.guanyu.haigui.config;
 //
+// import org.springframework.context.annotation.Bean;
 // import org.springframework.context.annotation.Configuration;
-// import org.springframework.security.config.annotation.web.messaging.MessageSecurityMetadataSourceRegistry;
-// import org.springframework.security.config.annotation.web.socket.AbstractSecurityWebSocketMessageBrokerConfigurer;
+// import org.springframework.messaging.Message;
+// import org.springframework.security.authorization.AuthorizationManager;
+// import org.springframework.security.config.annotation.web.socket.EnableWebSocketSecurity;
+// import org.springframework.security.messaging.access.intercept.MessageMatcherDelegatingAuthorizationManager;
+//
+// import static org.springframework.messaging.simp.SimpMessageType.*;
 //
 // @Configuration
-// public class WebSocketSecurityConfig extends AbstractSecurityWebSocketMessageBrokerConfigurer {
+// @EnableWebSocketSecurity
+// public class WebSocketSecurityConfig {
 //
 //     /**
-//      * 配置STOMP消息的安全规则：
-//      * - /app/chat.sendMessage：需要认证
-//      * - /app/chat.addUser：需要认证（加入聊天室）
-//      * - /topic/** /queue/**：允许匿名（或根据需求调整）
+//      * 配置STOMP消息的安全规则
+//      * 关键：允许CONNECT帧通过，在CONNECT帧处理时设置Principal和SecurityContext
 //      */
-//     @Override
-//     protected void configureInbound(MessageSecurityMetadataSourceRegistry messages) {
-//         messages
-//                 .simpDestMatchers("/app/chat.sendMessage").authenticated() // 发送消息需认证
-//                 .simpDestMatchers("/app/chat.addUser").authenticated() // 加入聊天室需认证
-//                 .simpSubscribeDestMatchers("/topic/**", "/queue/**").permitAll() // 订阅允许匿名
-//                 .anyMessage().denyAll(); // 其他消息拒绝
+//     @Bean
+//     public MessageMatcherDelegatingAuthorizationManager.Builder
+//     customWebSocketAuthorizationManagerBuilder() {
+//         MessageMatcherDelegatingAuthorizationManager.Builder messages =
+//                 MessageMatcherDelegatingAuthorizationManager
+//                         .builder();
+//
+// // 允许认证用户访问所有应用消息
+//         messages.simpDestMatchers("/app/**", "/createLobby").authenticated();
+//
+// // 关键：首先允许所有STOMP命令类型通过，包括CONNECT
+//         messages.simpTypeMatchers(CONNECT, SUBSCRIBE, UNSUBSCRIBE, DISCONNECT,
+//                 MESSAGE).permitAll();
+//
+// // 允许订阅广播和队列主题
+//         messages.simpSubscribeDestMatchers("/topic/**", "/queue/**").permitAll();
+//
+//         return messages;
 //     }
 //
 //     /**
-//      * 允许握手时使用HTTP Session（可选，若用Session存储用户信息）
+//      * 创建并返回实际的AuthorizationManager Bean
 //      */
-//     @Override
-//     protected boolean sameOriginDisabled() {
-//         return false; // 生产环境建议开启CSRF保护，设为false
+//     @Bean
+//     public AuthorizationManager<Message<?>> authorizationManager() {
+//         return customWebSocketAuthorizationManagerBuilder().build();
 //     }
+//
 // }
