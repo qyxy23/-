@@ -2,7 +2,7 @@ package com.guanyu.haigui.config;
 
 import com.guanyu.haigui.interceptor.JwtWebSocketInterceptor;
 import com.guanyu.haigui.interceptor.WebSocketSecurityInterceptor;
-import com.guanyu.haigui.pojo.model.UserInfo;
+import com.guanyu.haigui.pojo.vo.CustomUserDetails;
 import jakarta.annotation.Resource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -41,7 +41,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     }
 
     @Bean
-    public ConcurrentHashMap<String, UserInfo> sessionUserMap() {
+    public ConcurrentHashMap<String, CustomUserDetails> sessionUserMap() {
         return new ConcurrentHashMap<>();
     }
 
@@ -76,7 +76,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         // 启用简单消息代理，用于广播消息和点对点消息
         registry.enableSimpleBroker("/topic", "/queue")
                 // 配置心跳机制：保持WebSocket连接活跃
-                .setHeartbeatValue(new long[] {20000, 20000}) // 客户端和服务器心跳间隔均为10秒
+                .setHeartbeatValue(new long[] {60000, 60000}) // 客户端和服务器心跳间隔均为10秒
                 .setTaskScheduler(taskScheduler()); // 设置任务调度器用于心跳任务
 
         // 设置应用程序消息前缀

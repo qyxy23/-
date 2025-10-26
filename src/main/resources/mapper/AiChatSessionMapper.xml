@@ -40,6 +40,11 @@
         VALUES (#{sessionId}, #{userId}, #{createTime}, #{updateTime}, #{isDeleted});
     </insert>
 
+    <insert id="insertGroupSession">
+        INSERT INTO ai_chat_sessions (session_id , create_time, update_time, is_deleted)
+        VALUES (#{sessionId} , #{createTime}, #{updateTime}, #{isDeleted});
+    </insert>
+
     <update id="updateById">
         UPDATE ai_chat_sessions
         SET

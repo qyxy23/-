@@ -2,7 +2,6 @@ package com.guanyu.haigui.interceptor;
 
 import com.guanyu.haigui.pojo.vo.CustomUserDetails;
 import com.guanyu.haigui.tracker.SessionActivityTracker;
-import com.guanyu.haigui.utils.JwtTokenUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
@@ -36,8 +35,6 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
 
     @Resource
     private SessionActivityTracker sessionActivityTracker;
-    @Resource
-    private JwtTokenUtil jwtTokenUtil;
     // 注入全局Map（存储sessionId -> 用户信息）
     @Resource
     private ConcurrentHashMap<String, CustomUserDetails> sessionUserMap;

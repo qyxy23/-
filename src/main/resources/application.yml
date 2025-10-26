@@ -62,7 +62,12 @@ spring:
         ddl-auto: update  # 自动根据实体更新表结构
         show-sql: true    # 可选：打印SQL语句便于调试
 
-
+# PageHelper 分页插件配置
+pagehelper:
+  helper-dialect: mysql # 数据库方言（必选）
+  reasonable: true       # 自动调整分页参数（如pageNum≤0时设为1）
+  support-methods-arguments: true # 支持通过Mapper接口参数传递分页参数
+  params: count=countSql # 分页查询时自动执行count查询（统计总记录数）
 
 mybatis:
   # 若有XML映射文件，配置路径（可选）

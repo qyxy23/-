@@ -4,5 +4,6 @@ package com.guanyu.haigui.Enum;
 public enum RoomStatus {
     WAITING, // 等待人数集齐
     ACTIVE,  // 已激活（可对话）
-    FINISHED // 已结束
+    FINISHED, // 已结束
+    CANCELLED
 }

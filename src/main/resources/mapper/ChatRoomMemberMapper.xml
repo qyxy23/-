@@ -8,7 +8,7 @@
 
     <insert id="joinRoomMember">
         insert into chat_room_members(room_id, member_id, join_time)
-        values (#{roomId}, #{memberId}, #{joinTime})
+        values (#{id.roomId}, #{id.memberId}, #{joinTime})
     </insert>
     <insert id="addMember">
         insert into chat_room_members(room_id, member_id, join_time)

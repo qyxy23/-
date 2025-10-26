@@ -3,16 +3,22 @@ package com.guanyu.haigui.pojo.model;
 import com.guanyu.haigui.Enum.RoomStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 @Data
 @Entity
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
 @Table(name = "chat_rooms")
 public class ChatRoom {
 
@@ -50,5 +56,5 @@ public class ChatRoom {
     // 成员列表（可选，用于查询）
     @OneToMany(mappedBy = "chatRoom", cascade = CascadeType.ALL, orphanRemoval = true)
     @Schema(hidden = true) // 在OpenAPI文档中隐藏此字段
-    private List<ChatRoomMember> members = new ArrayList<>();
+    private Set<ChatRoomMember> members = new HashSet<>();
 }

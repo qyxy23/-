@@ -1,11 +1,15 @@
 package com.guanyu.haigui.mapper;
 
 import com.guanyu.haigui.Enum.RoomStatus;
+import com.guanyu.haigui.pojo.dto.LobbyListDTO;
 import com.guanyu.haigui.pojo.model.ChatRoom;
+import com.guanyu.haigui.pojo.vo.LobbyListVO;
+
+import java.util.List;
 
 public interface ChatRoomMapper {
 
-    ChatRoom createChatRoom(ChatRoom room);
+    Integer createChatRoom(ChatRoom room);
 
     ChatRoom checkByRoomIdAndStatus(String roomId, RoomStatus roomStatus);
 
@@ -14,4 +18,11 @@ public interface ChatRoomMapper {
     void updateRoomStatus(ChatRoom room);
 
     ChatRoom checkByRoomId(String roomId);
+
+    /**
+     * 动态查询聊天室（返回LobbyListVO，含关联对象）
+     * @param dto 查询参数（可选字段）
+     * @return 符合条件的聊天室VO列表（PageHelper会自动分页）
+     */
+    List<LobbyListVO> searchLobbies(LobbyListDTO dto);
 }

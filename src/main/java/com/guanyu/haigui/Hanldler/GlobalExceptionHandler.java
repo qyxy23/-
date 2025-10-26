@@ -1,7 +1,6 @@
 package com.guanyu.haigui.Hanldler;
 
-import com.guanyu.haigui.Exception.NoBeginRequest;
-import com.guanyu.haigui.Exception.UserAlreadyExistsException;
+import com.guanyu.haigui.Exception.*;
 import com.guanyu.haigui.result.Result;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +12,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import javax.security.sasl.AuthenticationException;
+import java.util.Map;
 
 
 /**
@@ -62,6 +62,12 @@ public class GlobalExceptionHandler {
         return Result.error("无权限访问该资源");
     }
 
+    @ExceptionHandler(RoomException.class)
+    public Result<?> handleAccessDenied(RoomException ex) {
+        return Result.error(ex.getMessage());
+    }
+
+
     @ExceptionHandler(RuntimeException.class)
     public Result<?> handleRuntimeException(RuntimeException ex) {
         ex.printStackTrace();
@@ -77,5 +83,20 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AuthenticationException.class)
     public Result<?> handleThrowable(Throwable ex) {
         return Result.error(ex.getMessage());
+    }
+
+    @ExceptionHandler(RoomNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleRoomNotFound(RoomNotFoundException e) {
+        return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+    }
+
+    @ExceptionHandler(UserNotInRoomException.class)
+    public ResponseEntity<Map<String, String>> handleUserNotInRoom(UserNotInRoomException e) {
+        return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+    }
+
+    @ExceptionHandler(RoomFullException.class)
+    public ResponseEntity<Map<String, String>> handleRoomFull(RoomFullException e) {
+        return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
     }
 }

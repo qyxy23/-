@@ -18,4 +18,5 @@ public class ChatRoomMemberId implements Serializable {
     private Long memberId;
     @Column(name = "room_id",length = 36)
     private String roomId;
+
 }

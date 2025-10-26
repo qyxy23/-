@@ -1,21 +1,22 @@
 package com.guanyu.haigui.controller;
 
-import com.guanyu.haigui.context.BaseContext;
-import com.guanyu.haigui.pojo.dto.CreateRoomRequest;
-import com.guanyu.haigui.pojo.dto.JoinChatRoomRequest;
-import com.guanyu.haigui.service.ServicesImpl.ChatRoomService;
+import com.guanyu.haigui.pojo.dto.*;
+import com.guanyu.haigui.pojo.model.GroupMessage;
 import com.guanyu.haigui.websocket.LobbyService;
-import com.volcengine.ark.runtime.model.completion.chat.ChatMessage;
-import com.volcengine.ark.runtime.model.completion.chat.ChatMessageRole;
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.messaging.handler.annotation.Header;
-import org.springframework.messaging.handler.annotation.MessageMapping;
-import org.springframework.messaging.handler.annotation.Payload;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.data.domain.Page;
+import org.springframework.messaging.handler.annotation.*;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
+import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.stereotype.Controller;
+
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -23,54 +24,18 @@ import java.util.Map;
 @Controller
 public class ChatWithFriendsController {
     private final LobbyService lobbyService;
-    private final SimpMessagingTemplate messagingTemplate; // 用于向客户端推送消息
-    private final ChatRoomService chatRoomService;
 
-    // 处理用户加入大厅的请求（前端发送到/app/chat.joinLobby）
-    @Operation(summary = "处理用户加入大厅的请求")
-    @MessageMapping("/ws/joinRoom")
-    public void joinRoom(@Payload JoinChatRoomRequest request) {
-        String userId = BaseContext.getCurrentId().toString(); // 从认证信息获取用户ID
-        String roomId = request.getChatRoomId();
-
-        log.info("用户{}加入大厅{}", userId, roomId);
-        // 加入大厅
-        lobbyService.joinLobby(roomId, userId);
-
-        // 订阅大厅的广播主题（客户端需自动订阅，或服务器通知前端订阅）
-        // 前端需主动订阅：/topic/chat/{lobbyId}
-        // 可选：通知大厅内其他成员“用户X加入”
-        ChatMessage chatMessage = new ChatMessage();
-        chatMessage.setRole(ChatMessageRole.valueOf("system"));
-        chatMessage.setContent(userId + " 加入了大厅");
-        messagingTemplate.convertAndSend("/topic/chat/" + roomId, chatMessage);
-    }
-
-    // 处理发送聊天消息的请求（前端发送到/app/chat.sendMessage）
-    @Operation(summary = "处理发送聊天消息的请求")
-    @MessageMapping("/ws/sendMessage")
-    public void sendMessage(@Payload ChatMessage message ) {
-        String lobbyId = message.getToolCallId();
-        String senderId = BaseContext.getCurrentId().toString();
-        log.info("用户{}发送消息到大厅{}", senderId, lobbyId);
-        ChatMessage chatMessage = new ChatMessage();
-        chatMessage.setRole(ChatMessageRole.valueOf("user"));
-        chatMessage.setContent(message.getContent());
-
-        // 广播消息到大厅的所有成员（/topic/chat/{lobbyId}）
-        messagingTemplate.convertAndSend("/topic/chat/" + lobbyId, chatMessage);
-    }
-
+    /**
+     * 创建游戏房间
+     * @param request 创建房间请求参数
+     * @param sessionId WebSocket会话ID（用于获取创建者）
+     * @return 创建成功返回房间ID和会话ID
+     */
     @Operation(summary = "创建大厅")
     @MessageMapping("/createLobby")
     public Map<String, String> createLobby(@Payload CreateRoomRequest request, @Header("simpSessionId") String sessionId) {
-        String roomName = request.getRoomName();
-        Integer requiredMembers = request.getRequiredMembers();
-        String userId = BaseContext.getCurrentId().toString();
-        log.info("用户{}创建{}人大厅{}，会话ID：{}", userId, requiredMembers, roomName, sessionId);
         // 创建大厅
-        String roomId = chatRoomService.createChatRoom(roomName, requiredMembers, BaseContext.getCurrentId());
-        
+        String roomId = lobbyService.createChatRoom(request, sessionId);
         // 返回房间ID和会话ID
         Map<String, String> result = new HashMap<>();
         result.put("roomId", roomId);
@@ -78,4 +43,90 @@ public class ChatWithFriendsController {
         return result;
     }
 
+
+    /**
+     * 1. 客户端发送消息到：/app/chat/searchLobbies（需与@Configuration中配置的/app前缀匹配）
+     * 2. 消息体为SearchLobbiesMessage（包含dto和page）
+     * 3. 服务端处理后，将分页结果发送到主题：/topic/searchLobbies_result（前端需订阅该主题）
+     */
+    @Operation(summary = "搜索游戏大厅")
+    @MessageMapping("/searchLobbies")
+    public void searchLobbies(@Payload SearchLobbiesMessage message) {
+        // 解析参数
+        LobbyListDTO dto = message.getDto();
+        int page = message.getPage();
+
+        // 调用原分页查询方法
+        lobbyService.searchLobbies(dto, page);
+    }
+
+
+
+    // 处理用户加入大厅的请求（前端发送到/app/chat.joinLobby）
+    @Operation(summary = "处理用户加入大厅的请求")
+    @MessageMapping("/ws/joinRoom")
+    public void joinRoom(SimpMessageHeaderAccessor accessor,@Payload JoinChatRoomRequest request) {
+        String sessionId = accessor.getSessionId();
+        String lobbyId = request.getChatRoomId();
+        // 加入大厅
+        lobbyService.joinChatRoom(lobbyId,sessionId);
+    }
+
+
+    // 获取指定房间的历史消息
+    @Operation(summary = "获取指定房间的历史消息")
+    @SubscribeMapping("/chat.history")
+    public Page<GroupMessage> getRoomChatHistory(@Payload RoomChatHistoryDTO roomChatHistoryDTO) {
+        return lobbyService.getGroupMessages(roomChatHistoryDTO);
+    }
+
+    @Operation(summary = "获取指定房间的最新N条消息")
+    @MessageMapping("/chat.recent/{roomId}/{limit}") // 接收请求：包含roomId和limit
+    @SendTo("/topic/recent/{roomId}") // 广播结果：发送到对应房间的Topic（仅订阅该房间的客户端能收到）
+    public List<GroupMessage> getRecentMessages(
+            @DestinationVariable @NotBlank String roomId, // 从路径变量获取roomId
+            @DestinationVariable
+            @Min(1) @Max(100) int limit) { // 从路径变量获取limit（带校验）
+        return lobbyService.getRecentMessages(roomId, limit);
+    }
+
+
+
+    //处理大厅人数是否达标，若达到要求可开始游戏
+    @Operation(summary = "处理大厅人数是否达标，若达到要求可开始游戏")
+    @MessageMapping
+    public void checkRoomStatus(@Payload String roomId) {
+        log.info("检查房间{}的状态", roomId);
+        lobbyService.checkRoomStatus(roomId);
+    }
+
+
+
+    // 处理发送聊天消息的请求（前端发送到/app/chat.sendMessage）
+    @Operation(summary = "处理发送聊天消息的请求")
+    @MessageMapping("/ws/sendLobbyMessage")
+    public void sendLobbyMessage(@Payload SendMessageRequest message, @Header("simpSessionId") String sessionId) {
+        lobbyService.sendLobbyMessage(message,sessionId);
+    }
+
+    // /**
+    //  * 处理消息发送请求
+    //  * @param request 消息参数
+    //  * @param sessionId WebSocket会话ID（用于获取发送者）
+    //  */
+    // @Operation(summary = "处理发送消息的请求")
+    // @MessageMapping("/ws/sendGameMessage") // 前端发送到/app/ws/sendMessage（需结合WebSocketConfig的applicationDestinationPrefixes）
+    // public void sendGameMessage(
+    //         @Validated SendMessageRequest request,
+    //         @Header("simpSessionId") String sessionId) { // 从WebSocket头获取SessionID
+    //     lobbyService.sendGameMessage(request, sessionId);
+    // }
+
+
+    @Operation(summary = "离开大厅")
+    @MessageMapping("/leaveLobby")
+    public void leaveLobby(@Payload String roomId, @Header("simpSessionId") String sessionId) {
+        // 离开大厅
+        lobbyService.leaveLobby(roomId , sessionId);
+    }
 }
