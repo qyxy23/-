@@ -278,7 +278,7 @@ public class LobbyService {
         GroupMessage messageEntity = GroupMessage.builder()
                 .messageId(UUID.randomUUID().toString())
                 .room(ChatRoom.builder().roomId(roomId).build())
-                .sender(UserInfo.builder().userId(userId).build())
+                .sender(new UserInfo(userId))
                 .content(message.getContent())
                 .messageType(MessageType.TEXT)
                 .status(MessageStatus.SENT)

@@ -31,7 +31,6 @@ import java.security.Principal;
  */
 @Entity
 @Data
-@Builder
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "sys_user")
@@ -56,6 +55,10 @@ public class UserInfo implements Principal {
     private String avatar;
     // 状态
     private boolean enabled;
+
+    public UserInfo(Long userId) {
+        this.userId = userId;
+    }
 
     public boolean getEnabled() {
         return enabled;

@@ -9,7 +9,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.GenericGenerator;
 
 import java.time.LocalDateTime;
 
@@ -25,10 +24,9 @@ import java.time.LocalDateTime;
 public class PrivateMessage {
 
     @Id
-    @GeneratedValue(generator = "uuid2")
-    @GenericGenerator(name = "uuid2", strategy = "org.hibernate.id.UUIDGenerator")
     @Column(name = "message_id", length = 36, nullable = false)
     @Schema(description = "消息唯一ID（UUID）")
+    @GeneratedValue(strategy = GenerationType.UUID)
     private String messageId;
 
     /**

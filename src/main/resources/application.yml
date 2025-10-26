@@ -13,6 +13,8 @@ jwt:
   user-ttl: 86400000
   user-token-name: authorization
 
+
+
 spring:
   profiles:
     active: dev
@@ -61,6 +63,8 @@ spring:
     hibernate:
         ddl-auto: update  # 自动根据实体更新表结构
         show-sql: true    # 可选：打印SQL语句便于调试
+    open-in-view: false
+
 
 # PageHelper 分页插件配置
 pagehelper:

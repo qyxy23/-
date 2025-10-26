@@ -25,9 +25,8 @@ import java.time.LocalDateTime;
 public class GroupMessage {
 
     @Id
-    @GeneratedValue(generator = "uuid2")
-    @GenericGenerator(name = "uuid2", strategy = "org.hibernate.id.UUIDGenerator")
     @Column(name = "message_id", length = 36, nullable = false)
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Schema(description = "消息唯一ID（UUID）")
     private String messageId;
 

@@ -38,8 +38,5 @@ public interface UserInfoRepository extends JpaRepository<UserInfo, Long> {
      */
     List<UserInfo> findByEnabled(boolean enabled);
 
-    /**
-     * 根据昵称模糊查询
-     */
-    List<UserInfo> findByNicknameContaining(String nickname);
+
 }

@@ -3,8 +3,6 @@ package com.guanyu.haigui.listenrer;
 import com.guanyu.haigui.pojo.model.UserInfo;
 import com.guanyu.haigui.pojo.vo.CustomUserDetails;
 import com.guanyu.haigui.websocket.LobbyService;
-import com.volcengine.ark.runtime.model.completion.chat.ChatMessage;
-import com.volcengine.ark.runtime.model.completion.chat.ChatMessageRole;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -121,29 +119,29 @@ public class WebSocketEventListener {
             }
             
             // 如果获取到用户信息，执行大厅清理逻辑
-            if (customUserDetails != null) {
-                String userId = customUserDetails.getUserId().toString();
-                log.info("用户 {} 断开连接，开始清理大厅资源", userId);
-
-                // 遍历所有大厅，移除该用户
-                lobbyService.getLobbies().forEach((lobbyId, members) -> {
-                    if (members.contains(userId)) {
-                        log.info("从大厅 {} 移除用户 {}", lobbyId, userId);
-                        members.remove(userId);
-
-                        // 通知大厅成员"用户离开"
-                        try {
-                            ChatMessage chatMessage = new ChatMessage();
-                            chatMessage.setRole(ChatMessageRole.SYSTEM);
-                            chatMessage.setContent(userId + " 离开了大厅");
-                            messagingTemplate.convertAndSend("/topic/chat/" + lobbyId, chatMessage);
-                            log.info("向大厅 {} 发送离开通知", lobbyId);
-                        } catch (Exception e) {
-                            log.error("发送离开通知失败：{}", e.getMessage(), e);
-                        }
-                    }
-                });
-            }
+            // if (customUserDetails != null) {
+            //     String userId = customUserDetails.getUserId().toString();
+            //     log.info("用户 {} 断开连接，开始清理大厅资源", userId);
+            //
+            //     // 遍历所有大厅，移除该用户
+            //     lobbyService.getLobbies().forEach((lobbyId, members) -> {
+            //         if (members.contains(userId)) {
+            //             log.info("从大厅 {} 移除用户 {}", lobbyId, userId);
+            //             members.remove(userId);
+            //
+            //             // 通知大厅成员"用户离开"
+            //             try {
+            //                 ChatMessage chatMessage = new ChatMessage();
+            //                 chatMessage.setRole(ChatMessageRole.SYSTEM);
+            //                 chatMessage.setContent(userId + " 离开了大厅");
+            //                 messagingTemplate.convertAndSend("/topic/chat/" + lobbyId, chatMessage);
+            //                 log.info("向大厅 {} 发送离开通知", lobbyId);
+            //             } catch (Exception e) {
+            //                 log.error("发送离开通知失败：{}", e.getMessage(), e);
+            //             }
+            //         }
+            //     });
+            // }
             log.info("===== WebSocket断开连接事件处理完毕 =====");
         } catch (Exception e) {
             log.error("处理会话断开异常：{}", e.getMessage(), e);

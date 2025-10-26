@@ -56,5 +56,6 @@ public class ChatRoom {
     // 成员列表（可选，用于查询）
     @OneToMany(mappedBy = "chatRoom", cascade = CascadeType.ALL, orphanRemoval = true)
     @Schema(hidden = true) // 在OpenAPI文档中隐藏此字段
+    @Builder.Default
     private Set<ChatRoomMember> members = new HashSet<>();
 }

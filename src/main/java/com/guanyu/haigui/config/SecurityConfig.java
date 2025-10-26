@@ -10,8 +10,6 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.AuthenticationProvider;
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -75,15 +73,15 @@ public class SecurityConfig {
     }
 
     // 3. 配置DaoAuthenticationProvider（关联PasswordEncoder和UserDetailsService）
-    @Bean
-    public AuthenticationProvider authenticationProvider(
-            UserDetailsService userDetailsService,
-            PasswordEncoder passwordEncoder) {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-        provider.setUserDetailsService(userDetailsService); // 设置用户加载器
-        provider.setPasswordEncoder(passwordEncoder); // 设置密码编码器（关键！）
-        return provider;
-    }
+    // @Bean
+    // public AuthenticationProvider authenticationProvider(
+    //         UserDetailsService userDetailsService,
+    //         PasswordEncoder passwordEncoder) {
+    //     DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+    //     provider.setUserDetailsService(userDetailsService); // 设置用户加载器
+    //     provider.setPasswordEncoder(passwordEncoder); // 设置密码编码器（关键！）
+    //     return provider;
+    // }
 
     // 4. 配置AuthenticationManager（暴露给你的登录策略使用）
     @Bean
