@@ -9,7 +9,7 @@ import java.util.List;
 
 @Data
 public class LogVO {
-    private Long id;
+    private Long userId;
     // 用户名
     private String username;
     // 手机号

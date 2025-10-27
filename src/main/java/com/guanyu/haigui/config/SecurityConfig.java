@@ -53,9 +53,11 @@ public class SecurityConfig {
 
             UserInfo userInfo = userDetailsMapper.selectUserInfoByUsername(username);
 
+
             if (userInfo == null) {
                 throw new UsernameNotFoundException("用户不存在：" + username);
             }
+            log.info("userInfo:{}", userInfo);
             // 2. 查询用户所有角色（从中间表+角色表）
             List<String> roleNames = userDetailsMapper.selectUserRolesByUserId(userInfo.getUserId());
             // 3. 将角色转换为GrantedAuthority（Spring Security要求的权限格式，如"ROLE_ADMIN"）
@@ -65,6 +67,8 @@ public class SecurityConfig {
 
             CustomUserDetails customUserDetails = new CustomUserDetails();
             BeanUtils.copyProperties(userInfo, customUserDetails);
+            log.info("customUserDetails:{}", customUserDetails);
+            log.info("customUserDetails的ID为:{}", customUserDetails.getUserId());
             customUserDetails.setAuthorities(authorities);
 
             // 4. 返回CustomUserDetails（实现了UserDetails接口）
@@ -75,12 +79,12 @@ public class SecurityConfig {
     // 3. 配置DaoAuthenticationProvider（关联PasswordEncoder和UserDetailsService）
     // @Bean
     // public AuthenticationProvider authenticationProvider(
-    //         UserDetailsService userDetailsService,
-    //         PasswordEncoder passwordEncoder) {
-    //     DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-    //     provider.setUserDetailsService(userDetailsService); // 设置用户加载器
-    //     provider.setPasswordEncoder(passwordEncoder); // 设置密码编码器（关键！）
-    //     return provider;
+    // UserDetailsService userDetailsService,
+    // PasswordEncoder passwordEncoder) {
+    // DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+    // provider.setUserDetailsService(userDetailsService); // 设置用户加载器
+    // provider.setPasswordEncoder(passwordEncoder); // 设置密码编码器（关键！）
+    // return provider;
     // }
 
     // 4. 配置AuthenticationManager（暴露给你的登录策略使用）
@@ -104,7 +108,6 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/doc.html").permitAll()
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers("/ws").permitAll()
-                        .requestMatchers("/ws/**/**").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

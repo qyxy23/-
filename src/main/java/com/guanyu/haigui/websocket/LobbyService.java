@@ -70,10 +70,9 @@ public class LobbyService {
      * 创建聊天室
      */
     @Transactional // 事务：保证房间创建+成员添加的原子性
-    public String createChatRoom(CreateRoomRequest request, String sessionId) {
+    public void createChatRoom(CreateRoomRequest request, String sessionId) {
         String roomName = request.getRoomName();
         Integer requiredMembers = request.getRequiredMembers();
-        log.info("用户创建{}人大厅[{}]，会话ID：{}", requiredMembers, roomName, sessionId);
 
         // 1. 校验基础规则：所需人数≥2
         if (requiredMembers < 2) {
@@ -113,9 +112,18 @@ public class LobbyService {
         chatRoomMemberRepository.save(member); // JPA自动保存到数据库
 
         // 7. 更新在线房间缓存
-        redisService.updateOnlineRooms(roomId);
-
-        return roomId; // 返回新创建的房间ID
+        redisService.updateOnlineRoomsAndNumbers(roomId,1);
+        log.info("用户创建{}人大厅[{}]成功，房间ID：{}", requiredMembers, roomName, roomId);
+        // 将房间ID发送到用户的个人主题，以便前端接收
+        // 使用simpSessionId确保消息发送到正确的用户会话
+        // 注意：convertAndSendToUser方法会自动添加/user/前缀，所以路径只需要/queue/lobbyCreated
+        String userId = String.valueOf(creatorId);
+        log.info("userId:{}",userId);
+        messagingTemplate.convertAndSendToUser(
+                userId,  // 目标用户的会话ID
+                "/queue/lobbyCreated",  // 个人队列路径（不需要/user/前缀）
+                roomId  // 发送的内容（房间ID）
+        );
     }
 
 
@@ -183,12 +191,13 @@ public class LobbyService {
         chatRoomMemberRepository.save(member);
 
         // 6. 更新房间当前人数（+1）并保存
-        room.setCurrentMembers(room.getCurrentMembers() + 1);
+        int num = room.getCurrentMembers()+1;
+        room.setCurrentMembers(num);
         chatRoomRepository.save(room);
 
         // 7. 更新Redis在线房间缓存（可选）
-        redisService.updateOnlineRooms(roomId);
-
+        redisService.updateOnlineRoomsAndNumbers(roomId,num);
+        messagingTemplate.convertAndSend("/topic/memberChange", user.getName()+"加入大厅");
         log.info("用户[{}]加入房间[{}]成功", user.getUserId(), roomId);
     }
 
@@ -338,20 +347,22 @@ public class LobbyService {
         chatRoomMemberRepository.delete(member);
 
         // 6. 更新房间当前人数（-1）并保存
-        room.setCurrentMembers(room.getCurrentMembers() - 1);
+        int currentMembers = room.getCurrentMembers()-1;
+        room.setCurrentMembers(currentMembers);
         chatRoomRepository.save(room);
 
         // 7. 可选：若房间无人，更新状态为“已取消”
-        if (room.getCurrentMembers() == 0) {
+        if (currentMembers == 0) {
             room.setStatus(RoomStatus.CANCELLED); // 需在RoomStatus枚举中添加CANCELLED
             chatRoomRepository.save(room);
             log.info("房间[{}]因无成员自动取消", roomId);
         }
 
         // 8. 更新Redis在线房间缓存（可选）
-        redisService.updateOnlineRooms(roomId);
+        redisService.updateOnlineRoomsAndNumbers(roomId,currentMembers);
+        messagingTemplate.convertAndSend("/topic/memberChange", user.getName()+"离开了大厅");
 
-        log.info("用户[{}]离开房间[{}]成功", user.getUserId(), roomId);
+        log.info("用户[{}]离开房间[{}]成功", user.getName(), roomId);
     }
 
 
@@ -425,6 +436,10 @@ public class LobbyService {
 
 
     public Long getUserDetailsBySessionId(String sessionId) {
+        log.info("获取用户ID：{}", sessionId);
+        if (sessionId == null) {
+            throw new RuntimeException("会话ID不能为空");
+        }
         CustomUserDetails userDetails = sessionUserMap.get(sessionId);
         if (userDetails == null) {
             throw new RuntimeException("用户未登录");

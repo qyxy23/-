@@ -66,11 +66,6 @@ public class JwtWebSocketInterceptor implements HandshakeInterceptor {
             boolean tokenValid = jwtTokenUtil.validateToken(token);
             log.info("Token验证结果: {}", tokenValid);
 
-            if (!tokenValid) {
-                log.warn("无效的token，握手失败");
-                return false;
-            }
-
             // 2. Extract user information
             String username = jwtTokenUtil.getUsernameFromToken(token);
             Long userId = jwtTokenUtil.getUserIdFromToken(token);

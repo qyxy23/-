@@ -1,5 +1,6 @@
 package com.guanyu.haigui.utils;
 
+import com.guanyu.haigui.Exception.TokenErrorException;
 import com.guanyu.haigui.pojo.vo.CustomUserDetails;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
@@ -57,11 +58,10 @@ public class JwtTokenUtil {
                     .parseClaimsJws(token);
             return true;
         } catch (ExpiredJwtException e) {
-            log.error("Token已过期: {}", e.getMessage());
+            throw new TokenErrorException("Token认证已过期");
         } catch (JwtException | IllegalArgumentException e) {
-            log.error("Token无效: {}", e.getMessage());
+            throw new TokenErrorException("Token认证无效");
         }
-        return false;
     }
 
     // ------------------------------

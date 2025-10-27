@@ -28,8 +28,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Lazy
     private WebSocketSecurityInterceptor webSocketSecurityInterceptor;
 
-
-
     /**
      * 配置客户端入站通道，用于处理从客户端接收的消息
      */
@@ -44,7 +42,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public ConcurrentHashMap<String, CustomUserDetails> sessionUserMap() {
         return new ConcurrentHashMap<>();
     }
-
 
     /**
      * 注册WebSocket端点（前端连接入口）
@@ -76,12 +73,15 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         // 启用简单消息代理，用于广播消息和点对点消息
         registry.enableSimpleBroker("/topic", "/queue")
                 // 配置心跳机制：保持WebSocket连接活跃
-                .setHeartbeatValue(new long[] {60000, 60000}) // 客户端和服务器心跳间隔均为10秒
+                .setHeartbeatValue(new long[] { 60000, 60000 }) // 客户端和服务器心跳间隔均为10秒
                 .setTaskScheduler(taskScheduler()); // 设置任务调度器用于心跳任务
 
         // 设置应用程序消息前缀
         // 前端发送到/app/**的消息会被路由到带有@MessageMapping注解的方法
         registry.setApplicationDestinationPrefixes("/app");
+
+        // 设置用户目的地前缀，用于点对点消息
+        registry.setUserDestinationPrefix("/user");
     }
 
     /**
@@ -98,28 +98,29 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         return scheduler;
     }
 
-
     /**
      * 配置Redis消息监听：用于集群间的消息广播（分布式）
      */
-    /*@Bean
-    public RedisMessageListenerContainer redisMessageListenerContainer(
-            RedisConnectionFactory connectionFactory,
-            MessageListenerAdapter listenerAdapter) {
-        RedisMessageListenerContainer container = new RedisMessageListenerContainer();
-        container.setConnectionFactory(connectionFactory);
-        container.addMessageListener(listenerAdapter, new PatternTopic("/topic/public"));
-        return container;
-    }*/
-
+    /*
+     * @Bean
+     * public RedisMessageListenerContainer redisMessageListenerContainer(
+     * RedisConnectionFactory connectionFactory,
+     * MessageListenerAdapter listenerAdapter) {
+     * RedisMessageListenerContainer container = new
+     * RedisMessageListenerContainer();
+     * container.setConnectionFactory(connectionFactory);
+     * container.addMessageListener(listenerAdapter, new
+     * PatternTopic("/topic/public"));
+     * return container;
+     * }
+     */
 
     // private final ChatWebSocketHandler chatHandler;
 
-
     // @Override
     // public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-    //     registry.addHandler(chatHandler, "/ws")
-    //             .addInterceptors(jwtInterceptor); // 注册JWT拦截器
+    // registry.addHandler(chatHandler, "/ws")
+    // .addInterceptors(jwtInterceptor); // 注册JWT拦截器
     // }
 
 }

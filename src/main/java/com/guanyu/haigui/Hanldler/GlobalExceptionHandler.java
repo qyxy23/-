@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import javax.security.sasl.AuthenticationException;
-import java.util.Map;
 
 
 /**
@@ -86,17 +85,23 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(RoomNotFoundException.class)
-    public ResponseEntity<Map<String, String>> handleRoomNotFound(RoomNotFoundException e) {
-        return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+    public Result<String> handleRoomNotFound(RoomNotFoundException e) {
+        return Result.error(e.getMessage());
     }
 
     @ExceptionHandler(UserNotInRoomException.class)
-    public ResponseEntity<Map<String, String>> handleUserNotInRoom(UserNotInRoomException e) {
-        return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+    public Result<String> handleUserNotInRoom(UserNotInRoomException e) {
+        return Result.error(e.getMessage());
+
     }
 
     @ExceptionHandler(RoomFullException.class)
-    public ResponseEntity<Map<String, String>> handleRoomFull(RoomFullException e) {
-        return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+    public Result<String> handleRoomFull(RoomFullException e) {
+        return Result.error(e.getMessage());
+    }
+
+    @ExceptionHandler(TokenErrorException.class)
+    public Result<String> handleTokenError(TokenErrorException e) {
+        return Result.error(401, e.getMessage());
     }
 }

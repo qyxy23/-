@@ -104,7 +104,7 @@
             </if>
             <!-- 状态精确匹配 -->
             <if test="status != null">
-                AND cr.status = #{status.name()} <!-- 枚举转字符串（如"ACTIVE"） -->
+                AND cr.status = #{status} <!-- 枚举转字符串（如"ACTIVE"） -->
             </if>
             <!-- 所需成员数 ≥ 输入值 -->
             <if test="requiredMembers != null">

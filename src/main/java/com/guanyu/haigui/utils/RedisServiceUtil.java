@@ -61,6 +61,7 @@ public class RedisServiceUtil {
     }
 
     public void updateOnlineRooms(String roomId) {
+
         redisTemplate.opsForValue().set(ROOM_ONLINE_KEY_PREFIX + roomId, "1", 300000000, TimeUnit.MINUTES);
     }
 
@@ -79,4 +80,8 @@ public class RedisServiceUtil {
         redisTemplate.setHashValueSerializer(RedisSerializer.string());
     }
 
+    public void updateOnlineRoomsAndNumbers(String roomId, int num) {
+        redisTemplate.opsForValue().set(ROOM_ONLINE_KEY_PREFIX + roomId + ":survive", "1", 300000000, TimeUnit.MINUTES);
+        redisTemplate.opsForValue().set(ROOM_ONLINE_KEY_PREFIX + roomId + ":num", String.valueOf(num), 300000000, TimeUnit.MINUTES);
+    }
 }
