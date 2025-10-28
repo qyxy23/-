@@ -20,5 +20,19 @@
             where room_id = #{roomId} and member_id = #{memberId}
         )
     </select>
+
+    <select id="selectMembersByRoomIds" resultType="com.guanyu.haigui.pojo.vo.MemberSimpleVO">
+        SELECT
+        cm.room_id,
+        u.user_id,
+        u.username,
+        u.avatar
+        FROM chat_room_members cm
+        LEFT JOIN sys_user u ON cm.member_id = u.user_id
+        WHERE cm.room_id IN
+        <foreach collection="roomIds" item="roomId" open="(" separator="," close=")">
+            #{roomId}
+        </foreach>
+    </select>
 </mapper>
     

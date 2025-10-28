@@ -14,6 +14,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -32,6 +33,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Resource
     private final JwtTokenUtil jwtTokenUtil;
 
+    private static final AntPathMatcher pathMatcher = new AntPathMatcher(); // 声明路径匹配器
+
+
     // @Value("${spring.profiles.active}")
     // private String activeProfile; // 直接注入值
 
@@ -45,10 +49,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         //     log.info("当前环境为开发环境，跳过JWT认证");
         //     filterChain.doFilter(request, response);
         // }
+
         String requestURI = request.getRequestURI();
-        if (requestURI.startsWith("/ws/")) {
+        // 定义需要跳过的路径（必须和SecurityConfig中的放行路径一致！）
+        List<String> excludePaths = List.of(
+                "/ws/**",          // WebSocket相关路径
+                "/user/login",     // 对应登录接口
+                "/user/register"   // 对应注册接口
+        );
+        // 使用AntPathMatcher精准匹配（支持如"/user/login/"这类带斜杠的请求）
+        boolean shouldSkip = excludePaths.stream()
+                .anyMatch(excludePath -> pathMatcher.match(excludePath, requestURI));
+        if (shouldSkip) {
             filterChain.doFilter(request, response);
-            return;
+            return; // 直接返回，不执行后续Token验证
         }
         // 1. 从请求头提取Token（去除"Bearer "前缀）
         String token = resolveToken(request);

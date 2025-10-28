@@ -29,5 +29,6 @@ public class SendMessageRequest {
 }
 
 // 分组校验：用于区分群聊/私聊的校验规则
-interface GroupMessage {}
+interface GroupMessage {
+}
 interface PrivateMessage {}

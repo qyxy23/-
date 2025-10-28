@@ -50,4 +50,10 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, String> {
      */
     @Query("SELECT r FROM ChatRoom r WHERE r.roomId = :roomId")
     Optional<ChatRoom> findByRoomId(@Param("roomId") String roomId);
+
+    /**
+     * 查询用户作为成员的所有聊天室
+     * 路径解析：ChatRoom → members（成员关系） → member（用户） → userId（用户ID）
+     */
+    List<ChatRoom> findByMembers_Member_UserId(Long userId);
 }

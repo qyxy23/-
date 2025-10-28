@@ -53,4 +53,6 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomMember, 
             @Param("roomId") String roomId, 
             @Param("userId") Long userId
     );
+
+
 }

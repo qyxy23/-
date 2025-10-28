@@ -5,35 +5,31 @@
 <!-- namespace等于mapper接口类的全限定名,这样实现对应 -->
 <mapper namespace="com.guanyu.haigui.mapper.ChatRoomMapper">
     <!-- 1. 定义LobbyListVO的结果映射（关联creator和members） -->
+    <!-- LobbyListVO的ResultMap -->
     <resultMap id="LobbyListVOResultMap" type="com.guanyu.haigui.pojo.vo.LobbyListVO">
-        <!-- 1. 映射 LobbyListVO 平级属性 -->
-        <id property="roomId" column="room_id" jdbcType="VARCHAR" />
-        <result property="roomName" column="room_name" jdbcType="VARCHAR" />
-        <result property="requiredMembers" column="required_members" jdbcType="INTEGER" />
-        <result property="currentMembers" column="current_members" jdbcType="INTEGER" />
-        <result property="status" column="status" jdbcType="VARCHAR" />
-        <result property="createTime" column="create_time" jdbcType="TIMESTAMP" />
+        <!-- 1. 映射LobbyListVO平级属性 -->
+        <id property="roomId" column="room_id" />
+        <result property="roomName" column="room_name" />
+        <result property="requiredMembers" column="required_members" />
+        <result property="currentMembers" column="current_members" />
+        <result property="status" column="status" />
+        <result property="createTime" column="create_time" />
 
-        <!-- 2. 映射「创建者」UserInfo（association） -->
+        <!-- 2. 映射「创建者」UserInfo -->
         <association property="creator" javaType="com.guanyu.haigui.pojo.model.UserInfo">
-            <id property="userId" column="creator_user_id" jdbcType="BIGINT" />
-            <result property="username" column="creator_username" jdbcType="VARCHAR" />
-            <result property="avatar" column="creator_avatar" jdbcType="VARCHAR" />
+            <id property="userId" column="creator_user_id" typeHandler="org.apache.ibatis.type.LongTypeHandler" />
+            <result property="username" column="creator_username" />
+            <result property="avatar" column="creator_avatar" />
         </association>
 
-        <!-- 3. 映射「成员列表」Set<ChatRoomMember>（collection） -->
-        <collection property="members" ofType="com.guanyu.haigui.pojo.model.ChatRoomMember">
-            <!-- 映射 ChatRoomMember 的复合主键（ChatRoomMemberId） -->
-            <id property="id.memberId" column="member_id" jdbcType="BIGINT" />
-            <result property="id.roomId" column="room_id" jdbcType="VARCHAR" /> <!-- room_id 来自 chat_rooms 表 -->
-
-            <!-- 映射 ChatRoomMember 关联的 UserInfo（member） -->
-            <association property="member" javaType="com.guanyu.haigui.pojo.model.UserInfo">
-                <id property="userId" column="member_user_id" jdbcType="BIGINT" />
-                <result property="username" column="member_username" jdbcType="VARCHAR" />
-                <result property="avatar" column="member_avatar" jdbcType="VARCHAR" />
-            </association>
-        </collection>
+        <!-- 3. 映射「成员列表」Set<MemberSimpleVO>（子查询避免重复行） -->
+        <collection
+                property="members"
+                javaType="java.util.HashSet"
+        ofType="com.guanyu.haigui.pojo.vo.MemberSimpleVO"
+        select="com.guanyu.haigui.mapper.ChatRoomMemberMapper.selectSimpleMembersByRoomId"
+        column="room_id"
+        />
     </resultMap>
 
     <insert id="createChatRoom">
@@ -72,7 +68,7 @@
 
 
 
-    <!-- 2. 动态查询SQL（支持可选参数 + 分页） -->
+    <!-- 查询聊天室列表（不分页，PageHelper会处理） -->
     <select id="searchLobbies" resultMap="LobbyListVOResultMap">
         SELECT
         cr.room_id,
@@ -81,30 +77,22 @@
         cr.current_members,
         cr.status,
         cr.create_time,
-        -- 创建者（UserInfo）字段
+        <!-- 创建者字段 -->
         u_creator.user_id AS creator_user_id,
         u_creator.username AS creator_username,
-        u_creator.avatar AS creator_avatar,
-        -- 成员（ChatRoomMember + UserInfo）字段
-        cm.member_id,
-        u_member.user_id AS member_user_id,
-        u_member.username AS member_username,
-        u_member.avatar AS member_avatar
+        u_creator.avatar AS creator_avatar
         FROM chat_rooms cr
-        -- 关联创建者（用户表）
+        <!-- 关联创建者（用户表） -->
         LEFT JOIN sys_user u_creator ON cr.creator_id = u_creator.user_id
-        -- 关联成员列表（成员关联表 + 用户表）
-        LEFT JOIN chat_room_members cm ON cr.room_id = cm.room_id
-        LEFT JOIN sys_user u_member ON cm.member_id = u_member.user_id
         <!-- 动态条件：仅非空参数参与过滤 -->
         <where>
             <!-- 聊天室名称模糊查询 -->
             <if test="roomName != null and roomName != ''">
                 AND cr.room_name LIKE CONCAT('%', #{roomName}, '%')
             </if>
-            <!-- 状态精确匹配 -->
+            <!-- 状态精确匹配（枚举转字符串，如"ACTIVE"） -->
             <if test="status != null">
-                AND cr.status = #{status} <!-- 枚举转字符串（如"ACTIVE"） -->
+                AND cr.status = #{status}
             </if>
             <!-- 所需成员数 ≥ 输入值 -->
             <if test="requiredMembers != null">
@@ -120,6 +108,53 @@
             </if>
         </where>
         <!-- 按创建时间倒序 -->
+        ORDER BY cr.create_time DESC
+    </select>
+
+
+    <!-- 在ChatRoomMemberMapper.xml中添加子查询 -->
+    <select id="selectSimpleMembersByRoomId" resultType="com.guanyu.haigui.pojo.vo.MemberSimpleVO">
+        SELECT
+        u.user_id,
+        u.username,
+        u.avatar
+        FROM chat_room_members cm
+        LEFT JOIN sys_user u ON cm.member_id = u.user_id
+        WHERE cm.room_id = #{roomId} <!-- 接收主查询传递的room_id -->
+    </select>
+
+    <select id="searchLobbiesBase" resultType="map">
+        SELECT
+        cr.room_id,
+        cr.room_name,
+        cr.required_members,
+        cr.current_members,
+        cr.status,
+        cr.create_time,
+        <!-- 创建者信息 -->
+        u_creator.user_id AS creator_user_id,
+        u_creator.username AS creator_username,
+        u_creator.avatar AS creator_avatar
+        FROM chat_rooms cr
+        LEFT JOIN sys_user u_creator ON cr.creator_id = u_creator.user_id
+        <where>
+            <!-- 动态条件（保持不变） -->
+            <if test="roomName != null and roomName != ''">
+                AND cr.room_name LIKE CONCAT('%', #{roomName}, '%')
+            </if>
+            <if test="status != null">
+                AND cr.status = #{status}
+            </if>
+            <if test="requiredMembers != null">
+                AND cr.required_members >= #{requiredMembers}
+            </if>
+            <if test="currentMembers != null">
+                AND cr.current_members = #{currentMembers}
+            </if>
+            <if test="createTime != null">
+                AND cr.create_time = #{createTime}
+            </if>
+        </where>
         ORDER BY cr.create_time DESC
     </select>
 </mapper>
