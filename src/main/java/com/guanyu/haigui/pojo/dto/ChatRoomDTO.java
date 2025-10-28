@@ -1,5 +1,6 @@
 package com.guanyu.haigui.pojo.dto;
 
+import com.guanyu.haigui.Enum.RoomStatus;
 import com.guanyu.haigui.pojo.model.ChatRoom;
 import lombok.Data;
 
@@ -8,6 +9,7 @@ import lombok.Data;
 public class ChatRoomDTO {
     private String roomId;
     private String roomName;
+    private RoomStatus status;
     private Integer requiredMembers;
     private Integer currentMembers;
     private UserInfoDTO creator;
@@ -20,6 +22,7 @@ public class ChatRoomDTO {
         dto.setRoomName(chatRoom.getRoomName());
         dto.setRequiredMembers(chatRoom.getRequiredMembers());
         dto.setCurrentMembers(chatRoom.getCurrentMembers());
+        dto.setStatus(chatRoom.getStatus());
 
         // 手动获取creator信息，避免懒加载问题
         if (chatRoom.getCreator() != null) {

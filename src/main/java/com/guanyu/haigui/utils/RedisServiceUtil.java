@@ -84,4 +84,9 @@ public class RedisServiceUtil {
         redisTemplate.opsForValue().set(ROOM_ONLINE_KEY_PREFIX + roomId + ":survive", "1", 300000000, TimeUnit.MINUTES);
         redisTemplate.opsForValue().set(ROOM_ONLINE_KEY_PREFIX + roomId + ":num", String.valueOf(num), 300000000, TimeUnit.MINUTES);
     }
+
+    public void deleteOnlineRoomsAndNumbers(String roomId, int currentMembers) {
+        redisTemplate.delete(ROOM_ONLINE_KEY_PREFIX + roomId + ":survive");
+        redisTemplate.delete(ROOM_ONLINE_KEY_PREFIX + roomId + ":num");
+    }
 }
