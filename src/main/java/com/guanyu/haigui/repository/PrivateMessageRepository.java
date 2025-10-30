@@ -19,6 +19,17 @@ import java.util.Optional;
 @Repository
 public interface PrivateMessageRepository extends JpaRepository<PrivateMessage, String> {
 
+    // 查找两个用户之间的最后一条消息
+    @Query("SELECT m FROM PrivateMessage m WHERE (m.sender.userId = :userId1 AND m.receiver.userId = :userId2) OR (m.sender.userId = :userId2 AND m.receiver.userId = :userId1) ORDER BY m.createTime DESC")
+    Optional<PrivateMessage> findLastMessageBetweenUsers(@Param("userId1") Long userId1, @Param("userId2") Long userId2);
+
+    // 统计未读消息数（接收者为当前用户，发送者为好友）
+    long countByReceiverUserIdAndSenderUserIdAndIsReadFalse(Long receiverId, Long senderId);
+
+    // 分页查询两个用户之间的历史消息
+    @Query("SELECT m FROM PrivateMessage m WHERE (m.sender.userId = :userId1 AND m.receiver.userId = :userId2) OR (m.sender.userId = :userId2 AND m.receiver.userId = :userId1) ORDER BY m.createTime DESC")
+    Page<PrivateMessage> findHistoryMessagesBetweenUsers(@Param("userId1") Long userId1, @Param("userId2") Long userId2, Pageable pageable);
+
     // -------------------------- 基础查询：按用户/对话查找 --------------------------
     /**
      * 根据【发送者+接收者】查找消息（分页，按时间倒序）

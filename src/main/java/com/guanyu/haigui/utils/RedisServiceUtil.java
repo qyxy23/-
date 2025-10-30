@@ -1,5 +1,7 @@
 package com.guanyu.haigui.utils;
 
+import com.guanyu.haigui.pojo.dto.PrivateMessageDTO;
+import com.guanyu.haigui.pojo.model.PrivateMessage;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.stereotype.Service;
@@ -19,10 +21,10 @@ public class RedisServiceUtil {
     private JwtTokenUtil jwtUtil;
     private static final String USER_ONLINE_KEY_PREFIX = "user:online:"; // Redis 在线状态键前缀
     private static final String ROOM_ONLINE_KEY_PREFIX = "room:online:"; // Redis 在线状态键前缀
-    // 存储用户ID→WebSocket Session的映射
-    private static final String SESSION_KEY = "chat:sessions:";
-    // 存储在线用户列表
-    private static final String ONLINE_USERS_KEY = "chat:online_users";
+    private static final String SESSION_KEY = "chat:sessions:";// 存储用户ID→WebSocket Session的映射
+    private static final String ONLINE_USERS_KEY = "chat:online_users";// 存储在线用户列表
+    private static final String CHAT_LAST_KEY = "chat:last";
+    private static final String CHAT_UNREAD_KEY = "chat:unread";
 
 
     public void updateSession(Long userId, WebSocketSession session) {
@@ -88,5 +90,18 @@ public class RedisServiceUtil {
     public void deleteOnlineRoomsAndNumbers(String roomId, int currentMembers) {
         redisTemplate.delete(ROOM_ONLINE_KEY_PREFIX + roomId + ":survive");
         redisTemplate.delete(ROOM_ONLINE_KEY_PREFIX + roomId + ":num");
+    }
+
+    //TODO:设置缓存过期时间
+    public void updateLastMsg(PrivateMessageDTO message,Long userId) {
+        redisTemplate.opsForValue().set(CHAT_LAST_KEY + ":"+ userId +":"+message.getReceiverId(), message.getContent());
+    }
+
+    public void updateUnreadMsgCount(PrivateMessageDTO message,Long userId) {
+        redisTemplate.opsForValue().increment(CHAT_UNREAD_KEY + ":"+ message.getReceiverId()+":"+userId,1);
+    }
+
+    public void deleteUnreadMsgCount(PrivateMessage message) {
+        redisTemplate.delete(CHAT_UNREAD_KEY + ":"+ message.getReceiver().getUserId()+":"+message.getSender().getUserId());
     }
 }

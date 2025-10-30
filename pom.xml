@@ -34,11 +34,11 @@
             <artifactId>hutool-all</artifactId>
             <version>5.7.17</version>
         </dependency>
-        <!-- minio 相关依赖 -->
+        <!-- minio -->
         <dependency>
             <groupId>io.minio</groupId>
             <artifactId>minio</artifactId>
-            <version>8.2.2</version>
+            <version>8.5.7</version>
         </dependency>
         <!-- &lt;!&ndash; Spring Boot 模块依赖 &ndash;&gt; -->
         <!-- <dependency> -->
@@ -86,7 +86,7 @@
         <dependency>
             <groupId>com.github.pagehelper</groupId>
             <artifactId>pagehelper-spring-boot-starter</artifactId>
-            <version>1.4.6</version>
+            <version>2.1.0</version>
         </dependency>
         <!-- lombok -->
         <dependency>
@@ -130,6 +130,12 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <!-- jsqlparser -->
+        <dependency>
+            <groupId>com.github.jsqlparser</groupId>
+            <artifactId>jsqlparser</artifactId>
+            <version>4.9</version>
         </dependency>
         <!-- springdoc-openapi for Spring Boot 3.x -->
         <!-- Jackson JSR310 -->
@@ -213,11 +219,8 @@
         <!--     <artifactId>redisson</artifactId> -->
         <!--     <version>3.41.0</version> -->
         <!-- </dependency> -->
-        <!-- <dependency> -->
-        <!--     <groupId>com.github.jsqlparser</groupId> -->
-        <!--     <artifactId>jsqlparser</artifactId> -->
-        <!--     <version>4.5</version> -->
-        <!-- </dependency> -->
+
+
 
         <!-- pojo -->
         <!-- http -->

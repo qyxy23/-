@@ -1,7 +1,6 @@
 package com.guanyu.haigui.websocket;
 
 import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.lang.Assert;
 import cn.hutool.core.lang.UUID;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
@@ -13,8 +12,6 @@ import com.guanyu.haigui.mapper.AiChatSessionMapper;
 import com.guanyu.haigui.mapper.ChatRoomMapper;
 import com.guanyu.haigui.mapper.ChatRoomMemberMapper;
 import com.guanyu.haigui.pojo.dto.*;
-import com.guanyu.haigui.pojo.model.GroupMessage;
-import com.guanyu.haigui.pojo.model.PrivateMessage;
 import com.guanyu.haigui.pojo.model.*;
 import com.guanyu.haigui.pojo.vo.CustomUserDetails;
 import com.guanyu.haigui.pojo.vo.GroupMessageVO;
@@ -22,7 +19,6 @@ import com.guanyu.haigui.pojo.vo.LobbyListVO;
 import com.guanyu.haigui.pojo.vo.MemberSimpleVO;
 import com.guanyu.haigui.repository.*;
 import com.guanyu.haigui.utils.RedisServiceUtil;
-import jakarta.validation.groups.Default;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.*;
@@ -30,7 +26,6 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-import org.springframework.validation.annotation.Validated;
 
 import java.math.BigInteger;
 import java.time.LocalDateTime;
@@ -398,23 +393,6 @@ public class LobbyService {
     }
 
     /**
-     * 处理消息发送请求（核心入口）
-     * 
-     * @param request   前端传递的消息参数
-     * @param sessionId WebSocket会话ID（用于获取发送者身份）
-     */
-    @Transactional // 事务：保存消息+广播需原子性
-    public void sendGameMessage(@Validated({ Default.class }) SendMessageRequest request, String sessionId) {
-        // 1. 根据chatType区分群聊/私聊
-        if ("GROUP".equalsIgnoreCase(request.getChatType())) {
-            sendGroupMessage(request, sessionId);
-            // }
-            // else if ("PRIVATE".equalsIgnoreCase(request.getChatType())) {
-            // sendPrivateMessage(request, sessionId);
-        } else {
-            throw new IllegalArgumentException("不支持的消息类型：" + request.getChatType());
-        }
-    }
 
     /**
      * 用户离开大厅（群聊房间）
@@ -517,61 +495,8 @@ public class LobbyService {
         }
     }
 
-    /**
-     * 发送群聊消息
-     */
-    private void sendGroupMessage(SendMessageRequest request, String sessionId) {
-        // 2. 获取发送者（从SecurityContext或Session中提取，需结合项目认证方式）
-        UserInfo sender = getCurrentUser(sessionId);
-        Assert.notNull(sender, "发送者未登录");
 
-        // 3. 验证发送者是否为群成员
-        ChatRoom room = chatRoomRepository.findById(request.getRoomId())
-                .orElseThrow(() -> new IllegalArgumentException("群房间不存在：" + request.getRoomId()));
-        Optional<ChatRoomMember> memberOpt = chatRoomMemberRepository.findByChatRoomAndMember(room, sender);
-        Assert.isTrue(memberOpt.isPresent(), "你不是该群成员，无法发送消息");
 
-        // 4. 保存群消息到数据库
-        GroupMessage groupMessage = GroupMessage.builder()
-                .room(room)
-                .sender(sender)
-                .content(request.getContent())
-                .messageType(request.getMessageType())
-                .status(MessageStatus.SENT)
-                .createTime(LocalDateTime.now()) // 或用@CreatedDate自动填充
-                .build();
-        groupMessageRepository.save(groupMessage);
-
-        // 5. 广播消息到群房间Topic（/topic/group/{roomId}）
-        // 前端需订阅该Topic才能收到群消息
-        messagingTemplate.convertAndSend("/topic/group/" + request.getRoomId(), groupMessage);
-    }
-
-    /**
-     * 发送私聊消息
-     */
-    private void sendPrivateMessage(SendMessageRequest request, String sessionId) {
-        // 2. 获取发送者和接收者
-        UserInfo sender = getCurrentUser(sessionId);
-        UserInfo receiver = userInfoRepository.findById(request.getReceiverId())
-                .orElseThrow(() -> new IllegalArgumentException("接收者不存在：" + request.getReceiverId()));
-
-        // 3. 保存私聊消息到数据库
-        PrivateMessage privateMessage = PrivateMessage.builder()
-                .sender(sender)
-                .receiver(receiver)
-                .content(request.getContent())
-                .messageType(request.getMessageType())
-                .status(MessageStatus.SENT)
-                .isRead(false) // 初始未读
-                .createTime(LocalDateTime.now())
-                .build();
-        privateMessageRepository.save(privateMessage);
-
-        // 4. 广播消息到接收者的专属Topic（/topic/private/{receiverId}）
-        // 接收者需订阅该Topic才能收到私聊消息
-        messagingTemplate.convertAndSend("/topic/private/" + receiver.getUserId(), privateMessage);
-    }
 
     /**
      * 从Session中获取当前发送者（需结合项目认证方式实现）

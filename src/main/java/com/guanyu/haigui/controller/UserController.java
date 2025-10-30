@@ -12,11 +12,15 @@ import com.guanyu.haigui.service.UserService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
 import javax.security.sasl.AuthenticationException;
+import java.util.Collections;
 import java.util.Map;
 
 @Slf4j
@@ -33,6 +37,28 @@ public class UserController {
     @Resource
     // @Qualifier("registerStrategyMap")
     private final Map<RegisterType, RegisterStrategy> RegisterstrategyMap; // 策略映射（Spring自动注入所有实现）
+
+
+    /**
+     * 上传用户头像接口
+     * @param avatarFile 头像文件（表单参数，name=avatar）
+     * @return 头像访问URL或错误信息
+     */
+    @PostMapping("/upAvatar")
+    public ResponseEntity<?> uploadAvatar(@RequestParam("avatar") MultipartFile avatarFile) {
+        try {
+            String avatarUrl = userService.uploadUserAvatar(avatarFile);
+            return ResponseEntity.ok(Collections.singletonMap("avatarUrl", avatarUrl));
+        } catch (IllegalArgumentException e) {
+            // 参数错误（如文件过大、类型不对）
+            return ResponseEntity.badRequest().body(Collections.singletonMap("error", e.getMessage()));
+        } catch (RuntimeException e) {
+            // 系统错误（如上传失败、用户不存在）
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Collections.singletonMap("error", "服务器内部错误，请稍后重试"));
+        }
+    }
+
 
     /**
      * 执行登录验证

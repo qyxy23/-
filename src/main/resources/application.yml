@@ -48,8 +48,8 @@ spring:
         max-attempts: 3
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 10MB
+      max-file-size: 10MB # 文件上传最大限制
+      max-request-size: 10MB # 请求上传文件最大限制
   data:
     redis:
       host: ${qingyou.redis.host}
@@ -87,6 +87,8 @@ minio:
   endpoint: ${qingyou.minio.endpoint}
   accesskey: ${qingyou.minio.accesskey}
   secretKey: ${qingyou.minio.secretKey}
+  bucket:
+    avatars: user-avatars
 
 
 
