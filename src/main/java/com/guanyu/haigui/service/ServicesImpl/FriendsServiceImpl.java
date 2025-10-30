@@ -60,29 +60,8 @@ public class FriendsServiceImpl implements FriendsService {
         List<FriendSearchListVO> potentialFriends = userRepository.findFriendInfoWithMessages(currentUserId);
 
         // 1.2 过滤：排除已有好友、已发/已收pending申请的用户
-        // List<FriendSearchListVO> filteredFriends = potentialFriends.stream()
-        //         // 排除已经是ACCEPTED好友的用户
-        //         .filter(user -> !friendRelationRepository.hasRelationBetweenUsers(currentUserId, user.getUserId(), FriendStatus.ACCEPTED))
-        //         // 排除当前用户已向对方发送pending申请的情况
-        //         .filter(user -> !friendRelationRepository.hasSentPendingApply(currentUserId, user.getUserId(), FriendStatus.PENDING))
-        //         // 排除对方已向当前用户发送pending申请的情况
-        //         .filter(user -> !friendRelationRepository.hasReceivedPendingApply(user.getUserId(), currentUserId, FriendStatus.PENDING))
-        //         .toList();
         log.info("搜索好友列表{}",potentialFriends);
         return potentialFriends;
-        // 1.3 构造结果：包含最后一条消息和未读数
-        // return filteredFriends.stream().map(user -> {
-        //     // 查询与当前用户的最后一条消息
-        //     Optional<PrivateMessage> lastMsg = messageRepository.findLastMessageBetweenUsers(currentUserId, user.getUserId());
-        //     // 统计当前用户未读的消息数（接收者为当前用户，发送者为该好友）
-        //     Long unread = messageRepository.countByReceiverUserIdAndSenderUserIdAndIsReadFalse(currentUserId, user.getUserId());
-        //     // 转换为VO
-        //     return FriendSearchResultVO.builder()
-        //             .userInfo(user)
-        //             .lastMessage(lastMsg.orElse(null))
-        //             .unreadCount(unread)
-        //             .build();
-        // }).collect(Collectors.toList());
     }
 
 

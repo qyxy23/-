@@ -37,40 +37,12 @@ public interface UserInfoRepository extends JpaRepository<UserInfo, Long> {
      * @param currentUserId 当前用户ID
      * @return 好友信息DTO列表
      */
-    @Query(nativeQuery = true, value = """
-        WITH FriendIds AS (
-            SELECT DISTINCT
-                IF(fr.user_id = :currentUserId, fr.friend_id, fr.user_id) AS friendId
-            FROM friend_relations fr
-            WHERE fr.status = 'ACCEPTED'
-              AND (fr.user_id = :currentUserId OR fr.friend_id = :currentUserId)
-        )
-        SELECT
-            fi.friendId AS friendId,
-            u.nickname AS nickname,
-            u.avatar AS avatar,
-            (SELECT COUNT(*)
-             FROM chat_private_messages m
-             WHERE m.receiver_id = :currentUserId
-               AND m.sender_id = fi.friendId
-               AND m.is_read = 0) AS unreadCount,
-            (SELECT m.content
-             FROM chat_private_messages m
-             WHERE (m.sender_id = :currentUserId AND m.receiver_id = fi.friendId)
-                OR (m.sender_id = fi.friendId AND m.receiver_id = :currentUserId)
-             ORDER BY m.create_time DESC
-             LIMIT 1) AS lastMessageContent,
-            (SELECT m.create_time
-             FROM chat_private_messages m
-             WHERE (m.sender_id = :currentUserId AND m.receiver_id = fi.friendId)
-                OR (m.sender_id = fi.friendId AND m.receiver_id = :currentUserId)
-             ORDER BY m.create_time DESC
-             LIMIT 1) AS lastMessageTime
-        FROM FriendIds fi
-        INNER JOIN sys_user u ON fi.friendId = u.user_id
-        GROUP BY fi.friendId, u.nickname, u.avatar
-        """)
+    @Query(nativeQuery = true, name = "UserInfo.findFriendInfoWithMessages")
     List<FriendSearchListVO> findFriendInfoWithMessages(@Param("currentUserId") Long currentUserId);
+
+
+
+
     /**
      * 根据用户名查找用户（唯一，用于登录）
      */
