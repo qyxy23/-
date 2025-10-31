@@ -4,6 +4,8 @@ import com.guanyu.haigui.Enum.FriendStatus;
 import com.guanyu.haigui.pojo.model.UserInfo;
 import com.guanyu.haigui.pojo.vo.FriendSearchListVO;
 import com.guanyu.haigui.pojo.vo.FriendSearchResultVO;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -19,12 +21,36 @@ import java.util.Optional;
 public interface UserInfoRepository extends JpaRepository<UserInfo, Long> {
 
     // 根据用户名/昵称搜索用户（排除自己和已有好友）
-    @Query("SELECT NEW com.guanyu.haigui.pojo.vo.FriendSearchResultVO(u.userId, u.username, u.avatar,u.enabled) " +
+    /**
+     * 搜索潜在好友（分页+过滤）
+     * @param keyword 搜索关键字
+     * @param currentUserId 当前用户ID
+     * @param pageable 分页参数
+     * @return 分页后的好友结果
+     */
+    @Query("SELECT NEW com.guanyu.haigui.pojo.vo.FriendSearchResultVO(u.userId, u.username, u.avatar, u.enabled) " +
             "FROM UserInfo u " +
-            "WHERE (u.username LIKE CONCAT('%', :keyword, '%')) AND u.userId != :currentUserId")
-    List<FriendSearchResultVO> searchPotentialFriends(
+            "WHERE " +
+            "   u.username LIKE CONCAT('%', :keyword, '%') " + // 匹配关键字
+            "   AND u.userId != :currentUserId " + // 排除自己
+            "   AND NOT EXISTS ( " + // 排除已是好友的情况
+            "       SELECT fr FROM FriendRelation fr " +
+            "       WHERE ((fr.user.userId = :currentUserId AND fr.friend.userId = u.userId AND fr.status = 'ACCEPTED') " +
+            "              OR (fr.user.userId = u.userId AND fr.friend.userId = :currentUserId AND fr.status = 'ACCEPTED'))" +
+            "   ) " +
+            "   AND NOT EXISTS ( " + // 排除当前用户已发的pending申请
+            "       SELECT fr FROM FriendRelation fr " +
+            "       WHERE fr.user.userId = :currentUserId AND fr.friend.userId = u.userId AND fr.status = 'PENDING'" +
+            "   ) " +
+            "   AND NOT EXISTS ( " + // 排除对方已发的pending申请
+            "       SELECT fr FROM FriendRelation fr " +
+            "       WHERE fr.user.userId = u.userId AND fr.friend.userId = :currentUserId AND fr.status = 'PENDING'" +
+            "   )"
+    )
+    Page<FriendSearchResultVO> searchPotentialFriendsWithFilters(
             @Param("keyword") String keyword,
-            @Param("currentUserId") Long currentUserId
+            @Param("currentUserId") Long currentUserId,
+            Pageable pageable
     );
 
     // 检查是否已经是好友（双向）

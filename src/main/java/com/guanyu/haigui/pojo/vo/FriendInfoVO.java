@@ -6,16 +6,26 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 // 好友信息DTO
 @Data
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
 public class FriendInfoVO {
+    // 好友id
     private Long friendId;
-    private String nickname;
+    // 用户名
+    private String username;
+    // 头像
     private String avatar;
-    private String remark; // 申请时的备注
+    // 好友状态
     private FriendStatus status; // 好友状态
-    private Long unreadCount; // 未读消息数
+    // 手机号
+    private String phone;
+    // 邮箱
+    private String email;
+    // 创建时间
+    private LocalDateTime createTime;
 }

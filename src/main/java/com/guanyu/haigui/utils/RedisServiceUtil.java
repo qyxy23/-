@@ -97,8 +97,12 @@ public class RedisServiceUtil {
         redisTemplate.opsForValue().set(CHAT_LAST_KEY + ":"+ userId +":"+message.getReceiverId(), message.getContent());
     }
 
-    public void updateUnreadMsgCount(PrivateMessageDTO message,Long userId) {
-        redisTemplate.opsForValue().increment(CHAT_UNREAD_KEY + ":"+ message.getReceiverId()+":"+userId,1);
+    public void updateUnreadMsgCount(Long receiverId,Long userId) {
+        redisTemplate.opsForValue().increment(CHAT_UNREAD_KEY + ":"+ receiverId+":"+userId,1);
+    }
+
+    public void clearUnreadMsgCount(Long receiverId,Long userId) {
+        redisTemplate.opsForValue().set(CHAT_UNREAD_KEY + ":"+ receiverId+":"+userId,"0");
     }
 
     public void deleteUnreadMsgCount(PrivateMessage message) {

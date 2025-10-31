@@ -95,9 +95,6 @@ public class UserController {
     @PostMapping("/register")
     public Result<LogVO> register(
             @RequestBody RegisterRequest request) throws Exception {
-        log.info("进入 register 方法");
-        System.out.println("进入 register 方法");
-        System.out.println("request: " + request);
         RegisterStrategy strategy = RegisterstrategyMap.get(request.getType());
 
         if (strategy == null) {

@@ -2,9 +2,11 @@ package com.guanyu.haigui.service.ServicesImpl;
 
 import cn.hutool.core.lang.Assert;
 import com.guanyu.haigui.Enum.FriendStatus;
+import com.guanyu.haigui.Exception.FriendsException;
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.model.FriendRelation;
 import com.guanyu.haigui.pojo.model.UserInfo;
+import com.guanyu.haigui.pojo.vo.FriendApplicationVO;
 import com.guanyu.haigui.pojo.vo.FriendInfoVO;
 import com.guanyu.haigui.pojo.vo.FriendSearchListVO;
 import com.guanyu.haigui.pojo.vo.FriendSearchResultVO;
@@ -14,9 +16,14 @@ import com.guanyu.haigui.repository.UserInfoRepository;
 import com.guanyu.haigui.service.FriendsService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
+
 @Slf4j
 @AllArgsConstructor
 @Service
@@ -26,29 +33,75 @@ public class FriendsServiceImpl implements FriendsService {
     private final FriendRelationRepository friendRelationRepository;
     private final PrivateMessageRepository messageRepository;
 
+    /** 获取当前用户收到的好友申请列表（待处理） */
+    public List<FriendApplicationVO> getReceivedApplications() {
+        Long currentUserId = BaseContext.getCurrentId();
+        // 只查询PENDING状态的申请
+        List<FriendStatus> statuses = Collections.singletonList(FriendStatus.PENDING);
+        List<FriendRelation> relations = friendRelationRepository.findReceivedApplications(currentUserId, statuses);
+        return relations.stream().map(this::convertToVO).collect(Collectors.toList());
+    }
 
-    // 1. 搜索潜在的好友
-    public List<FriendSearchResultVO> searchFriends(String keyword) {
-        if (keyword == null) {
-            throw new RuntimeException("搜索关键字不能为空");
+    /** 获取当前用户发送的好友申请列表（待处理） */
+    public List<FriendApplicationVO> getSentApplications() {
+        Long currentUserId = BaseContext.getCurrentId();
+        List<FriendStatus> statuses = Collections.singletonList(FriendStatus.PENDING);
+        List<FriendRelation> relations = friendRelationRepository.findSentApplications(currentUserId, statuses);
+        return relations.stream().map(this::convertToVO2).collect(Collectors.toList());
+    }
+
+    /** 将FriendRelation实体转换为VO */
+    private FriendApplicationVO convertToVO(FriendRelation relation) {
+        FriendApplicationVO vo = new FriendApplicationVO();
+        vo.setApplicationId(relation.getId());
+        vo.setRemark(relation.getRemark());
+        vo.setStatus(relation.getStatus());
+        vo.setCreateTime(relation.getApplyTime());
+
+        // 查询申请人（主动方）的信息（sys_user表）
+        userRepository.findById(relation.getUser().getUserId())
+                .ifPresentOrElse(applicant -> {
+                    vo.setApplicantId(applicant.getUserId());
+                    vo.setApplicantName(applicant.getUsername());
+                    vo.setApplicantAvatar(applicant.getAvatar());
+                }, () -> log.warn("申请人不存在：{}", relation.getFriend().getUsername()));
+
+        return vo;
+    }
+
+    /** 将FriendRelation实体转换为VO（查询被申请方信息） */
+    private FriendApplicationVO convertToVO2(FriendRelation relation) {
+        FriendApplicationVO vo = new FriendApplicationVO();
+        vo.setApplicationId(relation.getId());
+        vo.setRemark(relation.getRemark());
+        vo.setStatus(relation.getStatus());
+        vo.setCreateTime(relation.getApplyTime());
+
+        // 关键修正：查询「被申请方」（friend_id对应的用户）的信息！！！
+        userRepository.findById(relation.getFriend().getUserId()) // 不是getUserId()！
+                .ifPresentOrElse(targetUser -> {
+                    vo.setApplicantId(targetUser.getUserId()); // 被申请方ID
+                    vo.setApplicantName(targetUser.getUsername()); // 被申请方昵称
+                    vo.setApplicantAvatar(targetUser.getAvatar()); // 被申请方头像
+                }, () -> log.warn("被申请方不存在：{}", relation.getFriend().getUsername()));
+
+        return vo;
+    }
+
+
+    /**
+     * 搜索好友（分页+过滤）
+     * @param keyword 搜索关键字
+     * @param pageable 分页参数
+     * @return 分页结果
+     */
+    public Page<FriendSearchResultVO> searchFriends(String keyword, Pageable pageable) {
+        if (keyword == null || keyword.trim().isEmpty()) {
+            throw new FriendsException("搜索关键字不能为空");
         }
         Long currentUserId = BaseContext.getCurrentId();
-        // 1.1 搜索潜在好友（排除自己）
-        List<FriendSearchResultVO> potentialFriends = userRepository.searchPotentialFriends(keyword, currentUserId);
-
-        // 1.2 过滤：排除已有好友、已发/已收pending申请的用户
-        List<FriendSearchResultVO> filteredFriends = potentialFriends.stream()
-                // 排除已经是ACCEPTED好友的用户
-                .filter(user -> !friendRelationRepository.hasRelationBetweenUsers(currentUserId, user.getUserId(), FriendStatus.ACCEPTED))
-                // 排除当前用户已向对方发送pending申请的情况
-                .filter(user -> !friendRelationRepository.hasSentPendingApply(currentUserId, user.getUserId(), FriendStatus.PENDING))
-                // 排除对方已向当前用户发送pending申请的情况
-                .filter(user -> !friendRelationRepository.hasReceivedPendingApply(user.getUserId(), currentUserId, FriendStatus.PENDING))
-                .toList();
-        log.info("搜索好友：{}", keyword);
-
-        // 1.3 构造结果：包含最后一条消息和未读数
-        return filteredFriends;
+        // 直接调用分页查询方法（已包含所有过滤条件）
+        return userRepository.searchPotentialFriendsWithFilters(keyword, currentUserId, pageable);
     }
 
     /**
@@ -70,15 +123,21 @@ public class FriendsServiceImpl implements FriendsService {
     public void sendFriendApply(Long currentUserId, Long targetUserId, String remark) {
         // 2.1 检查目标用户是否存在
         UserInfo targetUser = userRepository.findById(targetUserId)
-                .orElseThrow(() -> new RuntimeException("目标用户不存在"));
+                .orElseThrow(() -> new FriendsException("目标用户不存在"));
+        if (!targetUser.getEnabled()) {
+            throw new FriendsException("目标用户已禁用");
+        }
+        if (currentUserId.equals(targetUserId)) {
+            throw new FriendsException("不能添加自己为好友");
+        }
         // 2.2 检查是否已经是好友或有pending申请
         if (friendRelationRepository.hasRelationBetweenUsers(currentUserId, targetUserId, FriendStatus.ACCEPTED)) {
-            throw new RuntimeException("已经是好友，无需重复申请");
+            throw new FriendsException("已经是好友，无需重复申请");
         }
 
         if (friendRelationRepository.hasSentPendingApply(currentUserId, targetUserId, FriendStatus.PENDING) ||
                 friendRelationRepository.hasReceivedPendingApply(targetUserId, currentUserId, FriendStatus.PENDING)) {
-            throw new RuntimeException("已存在未处理的申请");
+            throw new FriendsException("已存在未处理的申请");
         }
         // 2.3 创建pending申请
         FriendRelation application = FriendRelation.builder()
@@ -95,7 +154,7 @@ public class FriendsServiceImpl implements FriendsService {
     public void acceptFriendApply(Long applicationId, Long currentUserId) {
         // 1. 根据applicationId获取好友关系实体（申请记录）
         FriendRelation application = friendRelationRepository.findById(applicationId)
-                .orElseThrow(() -> new RuntimeException("好友申请不存在"));
+                .orElseThrow(() -> new FriendsException("好友申请不存在"));
 
         // 2. 验证权限：当前用户必须是申请的「被动方」（即申请的接收者）
         UserInfo passiveUser = application.getFriend(); // FriendRelation的friend是被动方
@@ -119,7 +178,7 @@ public class FriendsServiceImpl implements FriendsService {
         // 4.1 检查是否存在好友关系
         if (!friendRelationRepository.hasSentPendingApply(currentUserId, friendId, FriendStatus.ACCEPTED) &&
                 !friendRelationRepository.hasReceivedPendingApply(friendId, currentUserId, FriendStatus.ACCEPTED)) {
-            throw new RuntimeException("未添加该好友");
+            throw new FriendsException("未添加该好友");
         }
         // 4.2 删除双向关系
         friendRelationRepository.deleteFriendship(currentUserId, friendId);
@@ -130,20 +189,21 @@ public class FriendsServiceImpl implements FriendsService {
     // 5. 获取好友信息（含未读数）
     public FriendInfoVO getFriendInfo(Long currentUserId, Long friendId) {
         // 5.1 查找好友关系
-        FriendRelation relation = friendRelationRepository.findByUserUserIdAndFriendUserIdAndStatus(currentUserId, friendId, FriendStatus.ACCEPTED)
-                .orElseThrow(() -> new RuntimeException("未添加该好友"));
+        if (!friendRelationRepository.hasRelationBetweenUsers(currentUserId, friendId, FriendStatus.ACCEPTED)){
+            throw new FriendsException("未添加该好友");
+        }
         // 5.2 获取好友基本信息
         UserInfo friend = userRepository.findById(friendId).orElseThrow();
         // 5.3 统计未读数
-        Long unread = messageRepository.countByReceiverUserIdAndSenderUserIdAndIsReadFalse(currentUserId, friendId);
         log.info("获取好友信息：{} -> {}", currentUserId, friendId);
         return FriendInfoVO.builder()
                 .friendId(friendId)
-                .nickname(friend.getUsername())
+                .username(friend.getUsername())
                 .avatar(friend.getAvatar())
-                .remark(relation.getRemark())
-                .status(relation.getStatus())
-                .unreadCount(unread)
+                .email(friend.getEmail())
+                .phone(friend.getPhone())
+                .createTime(friend.getCreateTime())
+                .status(FriendStatus.ACCEPTED)
                 .build();
     }
 

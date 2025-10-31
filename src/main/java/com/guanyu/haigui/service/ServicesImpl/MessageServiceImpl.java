@@ -1,12 +1,15 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
 import cn.hutool.core.lang.UUID;
+import com.guanyu.haigui.Enum.FriendStatus;
 import com.guanyu.haigui.Enum.MessageStatus;
+import com.guanyu.haigui.Exception.FriendsException;
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.dto.PrivateMessageDTO;
 import com.guanyu.haigui.pojo.model.PrivateMessage;
 import com.guanyu.haigui.pojo.model.UserInfo;
 import com.guanyu.haigui.pojo.vo.PrivateMessageVO;
+import com.guanyu.haigui.repository.FriendRelationRepository;
 import com.guanyu.haigui.repository.PrivateMessageRepository;
 import com.guanyu.haigui.repository.UserInfoRepository;
 import com.guanyu.haigui.service.MessageService;
@@ -28,20 +31,22 @@ public class MessageServiceImpl implements MessageService {
     private final UserInfoRepository userRepository;
     private final SimpMessagingTemplate simpMessagingTemplate; // WebSocket模板
     private final RedisServiceUtil redisServiceUtil;
+    private final FriendRelationRepository friendRelationRepository;
+
 
 
     // 获取两个用户之间的历史消息（分页）
-    public Page<PrivateMessageVO> getHistoryMessages(Long userId1, Long userId2, int page, int size) {
+    public Page<PrivateMessageVO> getHistoryMessages(Long userId, Long receiverId, int page, int size) {
+        redisServiceUtil.clearUnreadMsgCount(receiverId, userId);
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createTime"));
-        Page<PrivateMessage> messages = messageRepository.findHistoryMessagesBetweenUsers(userId1, userId2, pageable);
+        Page<PrivateMessage> messages = messageRepository.findHistoryMessagesBetweenUsers(userId, receiverId, pageable);
         return messages.map(PrivateMessageVO::fromEntity);
     }
 
     // 统计未读消息数（接收者为当前用户，发送者为好友）
-    public Long countUnreadMessages(Long receiverId, Long senderId) {
-        return messageRepository.countByReceiverUserIdAndSenderUserIdAndIsReadFalse(receiverId, senderId);
-    }
-
+    // public Long countUnreadMessages(Long receiverId, Long senderId) {
+    //     return messageRepository.countByReceiverUserIdAndSenderUserIdAndIsReadFalse(receiverId, senderId);
+    // }
 
 
     @Override
@@ -54,6 +59,9 @@ public class MessageServiceImpl implements MessageService {
                 .orElseThrow(() -> new RuntimeException("发送者不存在"));
         UserInfo receiver = userRepository.findById(message.getReceiverId())
                 .orElseThrow(() -> new RuntimeException("接收者不存在"));
+        if (!friendRelationRepository.hasRelationBetweenUsers(senderId, receiver.getUserId(), FriendStatus.ACCEPTED)) {
+            throw new FriendsException("你和对方还不是好友");
+        }
         privateMessage.setSender(sender);
         privateMessage.setReceiver(receiver);
         privateMessage.setContent(message.getContent());
@@ -69,7 +77,7 @@ public class MessageServiceImpl implements MessageService {
                 "/queue/messages", // 订阅路径
                 PrivateMessageVO.fromEntity(privateMessage) // 消息内容
         );
-        return null;
+        return PrivateMessageVO.fromEntity(privateMessage);
     }
 
 
@@ -80,7 +88,7 @@ public class MessageServiceImpl implements MessageService {
         redisServiceUtil.updateLastMsg(message,userId);
         // 如果是发送给好友的消息，更新好友的未读计数
         if (!userId.equals(message.getReceiverId())) {
-            redisServiceUtil.updateUnreadMsgCount(message,userId);
+            redisServiceUtil.updateUnreadMsgCount(message.getReceiverId(),userId);
         }
     }
 

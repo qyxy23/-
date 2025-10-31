@@ -104,4 +104,9 @@ public class GlobalExceptionHandler {
     public Result<String> handleTokenError(TokenErrorException e) {
         return Result.error(401, e.getMessage());
     }
+
+    @ExceptionHandler(FriendsException.class)
+    public Result<String> handleFriendsException(FriendsException e) {
+        return Result.error(e.getMessage());
+    }
 }

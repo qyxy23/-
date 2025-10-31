@@ -50,7 +50,7 @@ public class FriendRelation {
     @Schema(description = "关系状态：PENDING-申请中/ACCEPTED-已同意/REJECTED-已拒绝/BLOCKED-已拉黑")
     private FriendStatus status;
 
-    @Column(name = "remark", length = 255)
+    @Column(name = "remark")
     @Schema(description = "申请备注（主动方填写的验证信息）")
     private String remark;
 

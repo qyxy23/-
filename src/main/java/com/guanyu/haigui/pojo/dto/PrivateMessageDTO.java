@@ -15,10 +15,16 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @NoArgsConstructor
 public class PrivateMessageDTO {
+    // 接收者ID
     private Long receiverId;
+    // 发送者ID
     private String content;
+    // 消息类型
     private MessageType messageType;
+    // 消息状态
     private MessageStatus status;
+    // 是否已读
     private Boolean isRead;
+    // 创建时间
     private LocalDateTime createTime;
 }

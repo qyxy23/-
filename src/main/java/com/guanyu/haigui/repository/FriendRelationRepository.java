@@ -8,10 +8,37 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository // 确保添加Repository注解，让Spring扫描到
 public interface FriendRelationRepository extends JpaRepository<FriendRelation, Long> {
+
+    /**
+     * 查询当前用户【收到的】好友申请（被动方：friend_id = 当前用户ID）
+     * @param currentUserId 当前用户ID
+     * @param statuses 过滤的状态（如PENDING待处理）
+     */
+    @Query("SELECT fr FROM FriendRelation fr " +
+            "WHERE fr.friend.userId = :currentUserId " +  // 自己是被动方（被添加的人）
+            "AND fr.status IN :statuses " +
+            "ORDER BY fr.applyTime DESC")           // 按申请时间倒序
+    List<FriendRelation> findReceivedApplications(
+            @Param("currentUserId") Long currentUserId,
+            @Param("statuses") List<FriendStatus> statuses);
+
+    /**
+     * 查询当前用户【发送的】好友申请（主动方：user_id = 当前用户ID）
+     * @param currentUserId 当前用户ID
+     * @param statuses 过滤的状态（如PENDING待处理）
+     */
+    @Query("SELECT fr FROM FriendRelation fr " +
+            "WHERE fr.user.userId = :currentUserId " +   // 自己是主动方（添加别人的人）
+            "AND fr.status IN :statuses " +
+            "ORDER BY fr.applyTime DESC")
+    List<FriendRelation> findSentApplications(
+            @Param("currentUserId") Long currentUserId,
+            @Param("statuses") List<FriendStatus> statuses);
 
     /**
      * 检查两个用户之间是否存在指定状态的双向好友关系

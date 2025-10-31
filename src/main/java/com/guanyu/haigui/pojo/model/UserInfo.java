@@ -35,7 +35,7 @@ import java.time.LocalDateTime;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-@NamedNativeQuery(  // ✅ 正确位置：实体类上
+@NamedNativeQuery(
         name = "UserInfo.findFriendInfoWithMessages", // 命名查询唯一标识
         query = """
             WITH FriendIds AS (
@@ -47,7 +47,7 @@ import java.time.LocalDateTime;
             )
             SELECT
                 fi.friendId AS userId,          -- 别名匹配VO的userId
-                u.nickname AS username,         -- 别名匹配VO的username
+                u.username AS username,         -- 别名匹配VO的username
                 u.avatar AS avatar,             -- 别名匹配VO的avatar
                 (SELECT COUNT(*) 
                  FROM chat_private_messages m
@@ -68,7 +68,7 @@ import java.time.LocalDateTime;
                  LIMIT 1) AS lastMessageTime     -- 别名匹配VO的lastMessageTime
             FROM FriendIds fi
             INNER JOIN sys_user u ON fi.friendId = u.user_id
-            GROUP BY fi.friendId, u.nickname, u.avatar
+            GROUP BY fi.friendId, u.username, u.avatar
             """,
         resultSetMapping = "FriendSearchListMapping" // ✅ 关联结果映射
 )
@@ -101,7 +101,7 @@ public class UserInfo implements Principal {
     // 邮箱
     private String email;
     // 创建时间
-    private String createTime;
+    private LocalDateTime createTime;
     // 头像
     @Schema(description = "头像")
     private String avatar;
