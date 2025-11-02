@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.guanyu.haigui.mapper.ChatGameMapper">
+    <resultMap id="LobbyListVOResultMap" type="com.guanyu.haigui.pojo.vo.LobbyListVO">
+        <id property="roomId" column="room_id"/>
+        <result property="roomName" column="room_name"/>
+        <result property="requiredMembers" column="required_members"/>
+        <result property="currentMembers" column="current_members"/>
+        <result property="status" column="status"/>
+        <result property="createTime" column="create_time"/>
+
+        <association property="creator" javaType="com.guanyu.haigui.pojo.model.UserInfo">
+            <id property="userId" column="creator_user_id" typeHandler="org.apache.ibatis.type.LongTypeHandler"/>
+            <result property="username" column="creator_username"/>
+            <result property="avatar" column="creator_avatar"/>
+        </association>
+
+        <collection
+                property="members"
+                javaType="java.util.HashSet"
+                ofType="com.guanyu.haigui.pojo.vo.MemberSimpleVO"
+                select="com.guanyu.haigui.mapper.ChatGameMemberMapper.selectSimpleMembersByRoomId"
+                column="room_id"/>
+    </resultMap>
+
+    <insert id="createChatGame">
+        INSERT INTO chat_games(room_id, room_name, creator_id, required_members, current_members, status, group_avatar)
+        VALUES (#{roomId}, #{roomName}, #{creator.userId}, #{requiredMembers}, #{currentMembers}, #{status}, #{groupAvatar})
+    </insert>
+
+    <update id="updateRoom">
+        UPDATE chat_games
+        <set>
+            <if test="roomName != null">room_name = #{roomName},</if>
+            <if test="creator != null">creator_id = #{creator.id},</if>
+            <if test="requiredMembers != null">required_members = #{requiredMembers},</if>
+            <if test="currentMembers != null">current_members = #{currentMembers},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="groupAvatar != null">group_avatar = #{groupAvatar},</if>
+        </set>
+    </update>
+
+    <update id="updateRoomStatus">
+        UPDATE chat_games SET status = #{status} WHERE room_id = #{roomId}
+    </update>
+
+    <select id="checkByRoomIdAndStatus" resultType="com.guanyu.haigui.pojo.model.ChatGame">
+        SELECT * FROM chat_games WHERE room_id = #{roomId} AND status = #{status}
+    </select>
+
+    <select id="checkByRoomId" resultType="com.guanyu.haigui.pojo.model.ChatGame">
+        SELECT * FROM chat_games WHERE room_id = #{roomId}
+    </select>
+
+    <select id="searchLobbies" resultMap="LobbyListVOResultMap">
+        SELECT
+        cr.room_id, cr.room_name, cr.required_members, cr.current_members, cr.status, cr.create_time,
+        u_creator.user_id AS creator_user_id, u_creator.username AS creator_username, u_creator.avatar AS creator_avatar
+        FROM chat_games cr
+        LEFT JOIN sys_user u_creator ON cr.creator_id = u_creator.user_id
+        <where>
+            <if test="roomName != null and roomName != ''">AND cr.room_name LIKE CONCAT('%', #{roomName}, '%')</if>
+            <if test="status != null">AND cr.status = #{status}</if>
+            <if test="requiredMembers != null">AND cr.required_members >= #{requiredMembers}</if>
+            <if test="currentMembers != null">AND cr.current_members = #{currentMembers}</if>
+            <if test="createTime != null">AND cr.create_time = #{createTime}</if>
+        </where>
+        ORDER BY cr.create_time DESC
+    </select>
+
+    <select id="selectSimpleMembersByRoomId" resultType="com.guanyu.haigui.pojo.vo.MemberSimpleVO">
+        SELECT u.user_id, u.username, u.avatar
+        FROM chat_game_members cm
+        LEFT JOIN sys_user u ON cm.member_id = u.user_id
+        WHERE cm.room_id = #{roomId}
+    </select>
+
+    <select id="searchLobbiesBase" resultType="map">
+        SELECT
+        cr.room_id, cr.room_name, cr.required_members, cr.current_members, cr.status, cr.create_time,
+        u_creator.user_id AS creator_user_id, u_creator.username AS creator_username, u_creator.avatar AS creator_avatar
+        FROM chat_games cr
+        LEFT JOIN sys_user u_creator ON cr.creator_id = u_creator.user_id
+        <where>
+            <if test="roomName != null and roomName != ''">AND cr.room_name LIKE CONCAT('%', #{roomName}, '%')</if>
+            <if test="status != null">AND cr.status = #{status}</if>
+            <if test="requiredMembers != null">AND cr.required_members >= #{requiredMembers}</if>
+            <if test="currentMembers != null">AND cr.current_members = #{currentMembers}</if>
+            <if test="createTime != null">AND cr.create_time = #{createTime}</if>
+        </where>
+        ORDER BY cr.create_time DESC
+    </select>
+</mapper>

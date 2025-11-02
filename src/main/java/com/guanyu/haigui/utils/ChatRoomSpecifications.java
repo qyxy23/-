@@ -1,7 +1,7 @@
 package com.guanyu.haigui.utils;
 
 import com.guanyu.haigui.pojo.dto.LobbyListDTO;
-import com.guanyu.haigui.pojo.model.ChatRoom;
+import com.guanyu.haigui.pojo.model.ChatGame;
 import jakarta.persistence.criteria.*;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
@@ -15,8 +15,8 @@ public class ChatRoomSpecifications {
     /**
      * 根据LobbyListDTO生成动态查询条件（含关联对象预加载）
      */
-    public static Specification<ChatRoom> filterByLobbyListDTO(LobbyListDTO dto) {
-        return (Root<ChatRoom> root, CriteriaQuery<?> query, CriteriaBuilder cb) -> {
+    public static Specification<ChatGame> filterByLobbyListDTO(LobbyListDTO dto) {
+        return (Root<ChatGame> root, CriteriaQuery<?> query, CriteriaBuilder cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
             // 1. 预加载关联对象（避免懒加载异常）

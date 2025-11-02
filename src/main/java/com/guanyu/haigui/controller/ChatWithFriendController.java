@@ -8,6 +8,7 @@ import com.guanyu.haigui.service.MessageService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
@@ -26,8 +27,8 @@ public class ChatWithFriendController {
     处理客户端发送的消息
      */
     @MessageMapping("/chat.sendMessage")
-    public PrivateMessageVO sendMessage(@Payload PrivateMessageDTO message) {
-        return messageService.sendMessage(message);
+    public PrivateMessageVO sendMessage(@Payload PrivateMessageDTO message,@Header("simpSessionId") String sessionId) {
+        return messageService.sendMessage(message,sessionId);
     }
 
 

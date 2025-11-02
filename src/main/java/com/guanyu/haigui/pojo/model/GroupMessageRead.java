@@ -11,7 +11,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 /**
- * 群消息已读记录表（记录每个成员对每条群消息的已读时间）
+ * 群聊消息已读记录实体（对应chat_group_message_reads表）
  */
 @Data
 @Entity
@@ -21,22 +21,25 @@ import java.time.LocalDateTime;
 @Table(name = "chat_group_message_reads")
 public class GroupMessageRead {
 
-    /**
-     * 复合主键（消息ID + 成员ID）
-     */
+    /** 复合主键（message_id + member_id） */
     @EmbeddedId
-    @Schema(hidden = true) // Swagger中隐藏复合主键
-    private ChatGroupMessageReadId id;
+    private GroupMessageReadId id;
 
-    /**
-     * 已读成员（关联用户）
-     */
+    /** 已读成员（关联UserInfo） */
+    @MapsId("memberId") // 映射复合主键的memberId
     @ManyToOne(fetch = FetchType.LAZY)
-    @MapsId("memberId") // 映射复合主键中的memberId
     @JoinColumn(name = "member_id", nullable = false)
     @Schema(description = "已读成员")
     private UserInfo member;
 
+    /** 关联的消息（关联GroupMessage） */
+    @MapsId("messageId") // 映射复合主键的messageId
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "message_id", nullable = false)
+    @Schema(description = "关联的消息")
+    private GroupMessage groupMessage;
+
+    /** 已读时间（数据库自动生成，对应read_time） */
     @CreationTimestamp
     @Column(name = "read_time", nullable = false)
     @Schema(description = "已读时间")

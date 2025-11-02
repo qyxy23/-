@@ -1,8 +1,8 @@
 package com.guanyu.haigui.controller;
 
 import com.guanyu.haigui.pojo.dto.JoinChatRoomRequest;
-import com.guanyu.haigui.pojo.dto.SendGroupMessageRequest;
-import com.guanyu.haigui.pojo.vo.GroupMessageVO;
+import com.guanyu.haigui.pojo.dto.SendGameRoomMsgRequest;
+import com.guanyu.haigui.pojo.vo.GameRoomMessageVO;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.websocket.TestLobbyService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -71,17 +71,17 @@ public class TestChatWithFriendsController {
 
     @Operation(summary = "处理用户加入大厅的请求")
     @PostMapping("/joinRoom")
-    public String joinRoom(@RequestBody JoinChatRoomRequest request) {
+    public void joinRoom(@RequestBody JoinChatRoomRequest request) {
         String lobbyId = request.getChatRoomId();
         // 加入大厅
-        return lobbyService.joinChatRoom(lobbyId);
+        lobbyService.joinChatRoom(lobbyId);
     }
 
 
 
     @Operation(summary = "获取指定房间的最新N条消息")
     @PostMapping("/chat.recent/{roomId}/{limit}") // 接收请求：包含roomId和limit
-    public List<GroupMessageVO> getRecentMessages(
+    public List<GameRoomMessageVO> getRecentMessages(
             @PathVariable String roomId, // 从路径变量获取roomId
             @PathVariable int limit) { // 从路径变量获取limit
 
@@ -91,7 +91,7 @@ public class TestChatWithFriendsController {
 
     @Operation(summary = "处理发送聊天消息的请求")
     @PostMapping("/sendLobbyMessage")
-    public Result<GroupMessageVO> sendLobbyMessage(@RequestBody SendGroupMessageRequest message) {
+    public Result<GameRoomMessageVO> sendLobbyMessage(@RequestBody SendGameRoomMsgRequest message) {
         return Result.success(lobbyService.sendLobbyMessage(message));
     }
 

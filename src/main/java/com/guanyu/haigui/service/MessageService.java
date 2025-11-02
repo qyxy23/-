@@ -6,6 +6,8 @@ import org.springframework.data.domain.Page;
 
 public interface MessageService {
 
+    PrivateMessageVO sendMessage(PrivateMessageDTO message,String sessionId);
+
     PrivateMessageVO sendMessage(PrivateMessageDTO message);
 
     Page<PrivateMessageVO> getHistoryMessages(Long userId1, Long userId2, int page, int size);

@@ -16,7 +16,7 @@
 
 package com.guanyu.haigui.pojo.model;
 
-import com.guanyu.haigui.pojo.vo.FriendSearchListVO;
+import com.guanyu.haigui.pojo.vo.FriendBasicInfoVO;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -35,8 +35,9 @@ import java.time.LocalDateTime;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
+// 原有的@NamedNativeQuery保留，新增一个仅查基础信息的查询 👇
 @NamedNativeQuery(
-        name = "UserInfo.findFriendInfoWithMessages", // 命名查询唯一标识
+        name = "UserInfo.findFriendBasicInfos", // 新查询唯一标识
         query = """
             WITH FriendIds AS (
                 SELECT DISTINCT
@@ -48,41 +49,21 @@ import java.time.LocalDateTime;
             SELECT
                 fi.friendId AS userId,          -- 别名匹配VO的userId
                 u.username AS username,         -- 别名匹配VO的username
-                u.avatar AS avatar,             -- 别名匹配VO的avatar
-                (SELECT COUNT(*) 
-                 FROM chat_private_messages m
-                 WHERE m.receiver_id = :currentUserId
-                   AND m.sender_id = fi.friendId
-                   AND m.is_read = 0) AS unreadCount,  -- 别名匹配VO的unreadCount
-                (SELECT m.content
-                 FROM chat_private_messages m
-                 WHERE (m.sender_id = :currentUserId AND m.receiver_id = fi.friendId)
-                    OR (m.sender_id = fi.friendId AND m.receiver_id = :currentUserId)
-                 ORDER BY m.create_time DESC
-                 LIMIT 1) AS lastMessageContent,  -- 别名匹配VO的lastMessageContent
-                (SELECT m.create_time
-                 FROM chat_private_messages m
-                 WHERE (m.sender_id = :currentUserId AND m.receiver_id = fi.friendId)
-                    OR (m.sender_id = fi.friendId AND m.receiver_id = :currentUserId)
-                 ORDER BY m.create_time DESC
-                 LIMIT 1) AS lastMessageTime     -- 别名匹配VO的lastMessageTime
+                u.avatar AS avatar              -- 别名匹配VO的avatar
             FROM FriendIds fi
             INNER JOIN sys_user u ON fi.friendId = u.user_id
-            GROUP BY fi.friendId, u.username, u.avatar
             """,
-        resultSetMapping = "FriendSearchListMapping" // ✅ 关联结果映射
+        resultSetMapping = "FriendBasicInfoMapping" // ✅ 关联新的结果映射
 )
-@SqlResultSetMapping(  // ✅ 正确位置：实体类上
-        name = "FriendSearchListMapping",
+// 新增基础信息的结果映射 👇
+@SqlResultSetMapping(
+        name = "FriendBasicInfoMapping",
         classes = @ConstructorResult(
-                targetClass = FriendSearchListVO.class,
+                targetClass = FriendBasicInfoVO.class,
                 columns = {
                         @ColumnResult(name = "userId", type = Long.class),
                         @ColumnResult(name = "username", type = String.class),
-                        @ColumnResult(name = "avatar", type = String.class),
-                        @ColumnResult(name = "unreadCount", type = Long.class),
-                        @ColumnResult(name = "lastMessageContent", type = String.class),
-                        @ColumnResult(name = "lastMessageTime", type = LocalDateTime.class)
+                        @ColumnResult(name = "avatar", type = String.class)
                 }
         )
 )

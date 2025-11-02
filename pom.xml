@@ -22,6 +22,7 @@
         <!--     <artifactId>core</artifactId> -->
         <!--     <version>3.5.3</version> -->
         <!-- </dependency> -->
+        <!-- pom.xml -->
         <!-- qrcode -->
         <dependency>
             <groupId>com.google.zxing</groupId>

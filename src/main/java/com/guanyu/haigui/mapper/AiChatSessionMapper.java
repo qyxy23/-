@@ -34,7 +34,7 @@ public interface AiChatSessionMapper {
     void insertSession(AiChatSession newSession);
 
 
-    void insertGroupSession(AiChatSession newSession);
+    void insertAISession(AiChatSession newSession);
 
 
     void insertMsg(AiChatMessage chatMessage);

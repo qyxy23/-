@@ -9,7 +9,6 @@ import lombok.Getter;
 @Getter
 public enum MessageStatus {
     SENT("已发送"),
-    READ("已读"),
     FAILED("发送失败"),
     RETRACTED("已撤回");
 

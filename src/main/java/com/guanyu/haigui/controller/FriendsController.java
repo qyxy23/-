@@ -67,7 +67,7 @@ public class FriendsController {
     @GetMapping("/list")
     @Operation(summary = "获取好友列表")
     public Result<List<FriendSearchListVO>> FriendsList() {
-        List<FriendSearchListVO> result = friendService.searchFriendsList();
+        List<FriendSearchListVO> result = friendService.getFriendListWithMessages();
         return Result.success(result);
     }
 

@@ -1,0 +1,29 @@
+package com.guanyu.haigui.pojo.model;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Embeddable;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+
+import java.io.Serializable;
+
+/**
+ * 群聊成员复合主键（必须实现Serializable）
+ */
+@Embeddable
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+@EqualsAndHashCode
+public class ChatGroupMemberId implements Serializable {
+
+    /** 成员ID（对应member_id） */
+    @Column(name = "member_id", nullable = false)
+    private Long memberId;
+
+    /** 群聊ID（对应group_id） */
+    @Column(name = "group_id", length = 36, nullable = false)
+    private String groupId;
+}

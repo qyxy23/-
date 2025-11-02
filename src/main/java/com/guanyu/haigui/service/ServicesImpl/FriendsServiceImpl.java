@@ -1,28 +1,33 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
 import cn.hutool.core.lang.Assert;
+import com.github.xiaoymin.knife4j.core.util.CollectionUtils;
 import com.guanyu.haigui.Enum.FriendStatus;
 import com.guanyu.haigui.Exception.FriendsException;
 import com.guanyu.haigui.context.BaseContext;
+import com.guanyu.haigui.pojo.dto.PrivateMsgDTO;
 import com.guanyu.haigui.pojo.model.FriendRelation;
 import com.guanyu.haigui.pojo.model.UserInfo;
-import com.guanyu.haigui.pojo.vo.FriendApplicationVO;
-import com.guanyu.haigui.pojo.vo.FriendInfoVO;
-import com.guanyu.haigui.pojo.vo.FriendSearchListVO;
-import com.guanyu.haigui.pojo.vo.FriendSearchResultVO;
+import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.repository.FriendRelationRepository;
 import com.guanyu.haigui.repository.PrivateMessageRepository;
 import com.guanyu.haigui.repository.UserInfoRepository;
 import com.guanyu.haigui.service.FriendsService;
+import com.guanyu.haigui.utils.RedisServiceUtil;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Slf4j
 @AllArgsConstructor
@@ -32,6 +37,7 @@ public class FriendsServiceImpl implements FriendsService {
     private final UserInfoRepository userRepository;
     private final FriendRelationRepository friendRelationRepository;
     private final PrivateMessageRepository messageRepository;
+    private final RedisServiceUtil redisServiceUtil;
 
     /** 获取当前用户收到的好友申请列表（待处理） */
     public List<FriendApplicationVO> getReceivedApplications() {
@@ -104,17 +110,113 @@ public class FriendsServiceImpl implements FriendsService {
         return userRepository.searchPotentialFriendsWithFilters(keyword, currentUserId, pageable);
     }
 
-    /**
-     * 搜索好友列表
-     */
-    public List<FriendSearchListVO> searchFriendsList(){
-        // 1.1 搜索好友
-        long currentUserId = BaseContext.getCurrentId();
-        List<FriendSearchListVO> potentialFriends = userRepository.findFriendInfoWithMessages(currentUserId);
 
-        // 1.2 过滤：排除已有好友、已发/已收pending申请的用户
-        log.info("搜索好友列表{}",potentialFriends);
-        return potentialFriends;
+    /**
+     * 获取好友列表（含未读消息数、最后一条消息）
+     * @return 好友完整信息列表
+     */
+    public List<FriendSearchListVO> getFriendListWithMessages() {
+        long currentUserId = BaseContext.getCurrentId();
+        // 1. 查询好友基础信息（仅昵称、头像、ID）
+        List<FriendBasicInfoVO> basicInfos = userRepository.findFriendBasicInfos(currentUserId);
+        if (CollectionUtils.isEmpty(basicInfos)) return Collections.emptyList();
+
+        // 提取好友ID列表（批量操作）
+        List<Long> friendIds = basicInfos.stream()
+                .map(FriendBasicInfoVO::getUserId)
+                .toList();
+
+        // 2. 优先从Redis查询未读数和最后一条消息
+        Map<Long, Long> unreadMap = new HashMap<>();       // 好友ID → 未读数
+        Map<Long, PrivateMsgDTO> lastMsgMap = new HashMap<>();// 好友ID → 最后一条消息
+
+        // 批量查Redis（避免循环单查）
+        for (Long friendId : friendIds) {
+            // 查未读数
+            Long unreadCount = redisServiceUtil.selectUnreadMsgCountFromRedis(currentUserId, friendId);
+            if (unreadCount != null) unreadMap.put(friendId, unreadCount);
+
+            // 查最后一条消息
+            PrivateMsgDTO lastMsg = redisServiceUtil.selectLastMessageFromRedis(currentUserId, friendId);
+            if (lastMsg != null) lastMsgMap.put(friendId, lastMsg);
+        }
+
+        // 3. 收集Redis中缺失的好友ID（需要查数据库）
+        List<Long> missingUnreadIds = friendIds.stream()
+                .filter(id -> !unreadMap.containsKey(id))
+                .collect(Collectors.toList());
+        List<Long> missingLastMsgIds = friendIds.stream()
+                .filter(id -> !lastMsgMap.containsKey(id))
+                .collect(Collectors.toList());
+
+        // 4. 批量查数据库（未读数）
+        Map<Long, Long> unreadFromDb = new HashMap<>();
+        if (!missingUnreadIds.isEmpty()) {
+            List<Object[]> unreadResults = userRepository.countUnreadMessagesByFriendIds(currentUserId, missingUnreadIds);
+            unreadFromDb = unreadResults.stream()
+                    .collect(Collectors.toMap(
+                            arr -> (Long) arr[0],  // friendId
+                            arr -> (Long) arr[1]   // unreadCount
+                    ));
+            // 回写Redis（带过期时间）
+            unreadFromDb.forEach((friendId, count) ->
+                    redisServiceUtil.updateUnreadMsgCount(currentUserId, friendId, count)
+            );
+        }
+
+        // 5. 批量查数据库（最后一条消息）
+        Map<Long, PrivateMsgDTO> lastMsgFromDb = new HashMap<>();
+        if (!missingLastMsgIds.isEmpty()) {
+            List<Object[]> lastMsgResults = userRepository.findLastMessageByFriendIds(currentUserId, missingLastMsgIds);
+            lastMsgFromDb = lastMsgResults.stream()
+                    .collect(Collectors.toMap(
+                            arr -> (Long) arr[0],                  // friendId
+                            arr -> {
+                                LocalDateTime localDateTime = null;
+                                if (arr[2] != null) {
+                                    localDateTime = ((Timestamp) arr[2]).toLocalDateTime();
+                                }
+                                return new PrivateMsgDTO(          // 内容+时间
+                                        (String) arr[1],
+                                        localDateTime
+                                );
+                            }
+                    ));
+            // 回写Redis（带过期时间）
+            lastMsgFromDb.forEach((friendId, msg) ->
+                    redisServiceUtil.updateLastMsg(msg, currentUserId, friendId)
+            );
+        }
+
+        // 6. 合并Redis和数据库的结果
+        Map<Long, Long> finalUnreadMap = Stream.concat(unreadMap.entrySet().stream(), unreadFromDb.entrySet().stream())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Map<Long, PrivateMsgDTO> finalLastMsgMap = Stream.concat(lastMsgMap.entrySet().stream(), lastMsgFromDb.entrySet().stream())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        // 7. 组装最终VO（好友基础信息 + 未读数 + 最后消息）
+        return basicInfos.stream()
+                .map(basic -> {
+                    FriendSearchListVO vo = new FriendSearchListVO();
+                    vo.setUserId(basic.getUserId());
+                    vo.setUsername(basic.getUsername());
+                    vo.setAvatar(basic.getAvatar());
+
+                    // 未读数（默认0）
+                    vo.setUnreadCount(finalUnreadMap.getOrDefault(basic.getUserId(), 0L));
+
+                    // 最后一条消息（默认空）
+                    PrivateMsgDTO lastMsg = finalLastMsgMap.get(basic.getUserId());
+                    if (lastMsg != null) {
+                        vo.setLastMessageContent(lastMsg.getContent());
+                        vo.setLastMessageTime(lastMsg.getTime());
+                    } else {
+                        vo.setLastMessageContent("");
+                        vo.setLastMessageTime(null);
+                    }
+                    return vo;
+                })
+                .collect(Collectors.toList());
     }
 
 
@@ -206,5 +308,6 @@ public class FriendsServiceImpl implements FriendsService {
                 .status(FriendStatus.ACCEPTED)
                 .build();
     }
+
 
 }

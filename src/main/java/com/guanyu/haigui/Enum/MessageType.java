@@ -13,9 +13,9 @@ public enum MessageType {
     VOICE("语音"),
     VIDEO("视频");
 
-    private final String desc;
+    private final String description;
 
-    MessageType(String desc) {
-        this.desc = desc;
+    MessageType(String description) {
+        this.description = description;
     }
 }

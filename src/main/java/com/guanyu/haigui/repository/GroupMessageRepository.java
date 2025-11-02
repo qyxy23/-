@@ -12,24 +12,25 @@ import org.springframework.stereotype.Repository;
 public interface GroupMessageRepository extends JpaRepository<GroupMessage, String> {
 
     /**
-     * 查询指定房间的历史消息，并加载关联的room和sender（避免延迟加载）
-     * @param roomId 房间ID
+     * 查询指定群聊的历史消息，并加载关联的chatGroup和sender（避免延迟加载）
+     * @param groupId 群聊ID（对应ChatGroup.groupId）
      * @param pageable 分页参数
-     * @return 分页后的GroupMessage（含完整room/sender数据）
+     * @return 分页后的GroupMessage（含完整chatGroup/sender数据）
      */
     @Query("SELECT gm FROM GroupMessage gm " +
-            "JOIN FETCH gm.sender " + // 加载sender关联
-            "WHERE gm.room.roomId = :roomId")
-    Page<GroupMessage> findByRoomWithAssociations(
-            @Param("roomId") String roomId,
+            "JOIN FETCH gm.chatGroup " + // 加载群聊关联（避免延迟加载）
+            "JOIN FETCH gm.sender " +   // 加载发送者关联
+            "WHERE gm.chatGroup.groupId = :groupId") // 条件：群聊ID匹配
+    Page<GroupMessage> findByChatGroupWithAssociations(
+            @Param("groupId") String groupId,
             Pageable pageable
     );
 
     /**
-     * 根据群房间ID倒序查询消息（最新在前），支持分页限制数量
-     * @param roomId 群房间ID
-     * @param pageable 分页参数（页码0开始，按createTime倒序）
-     * @return 分页后的群消息
+     * 根据群聊ID分页查询消息（按发送时间降序）
+     * @param groupId 群聊ID（对应ChatGroup.groupId）
+     * @param pageable 分页参数
+     * @return 分页后的消息列表
      */
-    Page<GroupMessage> findByRoom_RoomIdOrderByCreateTimeDesc(String roomId, Pageable pageable);
+    Page<GroupMessage> findByChatGroup_GroupIdOrderByCreateTimeDesc(String groupId, Pageable pageable);
 }

@@ -6,10 +6,10 @@ import lombok.Getter;
 // 房间状态
 @Getter
 public enum RoomStatus {
-    WAITING, // 等待人数集齐
-    ACTIVE,  // 已激活（可对话）
-    FINISHED, // 已结束
-    CANCELLED;
+    WAITING("等待集齐"),
+    ACTIVE("进行中"),
+    FINISHED("已结束"),
+    CANCELLED("已取消");
 
     @JsonCreator
     public static RoomStatus fromString(String value) {
@@ -17,5 +17,11 @@ public enum RoomStatus {
             return WAITING;
         }
         return RoomStatus.valueOf(value.toUpperCase());
+    }
+
+    private final String description;
+
+    RoomStatus(String description) {
+        this.description = description;
     }
 }

@@ -20,7 +20,7 @@ public interface FriendsService {
 
     FriendInfoVO getFriendInfo(Long currentUserId, Long friendId);
 
-    List<FriendSearchListVO> searchFriendsList();
+    List<FriendSearchListVO> getFriendListWithMessages();
 
 
     List<FriendApplicationVO> getReceivedApplications();

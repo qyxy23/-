@@ -1,33 +1,23 @@
-<?xml version="1.0" encoding="UTF-8" ?>
-<!DOCTYPE mapper
-        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
-        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<!-- namespace等于mapper接口类的全限定名,这样实现对应 -->
-<mapper namespace="com.guanyu.haigui.mapper.ChatRoomMemberMapper">
-
-
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.guanyu.haigui.mapper.ChatGameMemberMapper">
     <insert id="joinRoomMember">
-        insert into chat_room_members(room_id, member_id, join_time)
-        values (#{id.roomId}, #{id.memberId}, #{joinTime})
+        INSERT INTO chat_game_members(room_id, member_id, join_time)
+        VALUES (#{id.roomId}, #{id.memberId}, #{joinTime})
     </insert>
+
     <insert id="addMember">
-        insert into chat_room_members(room_id, member_id, join_time)
-        values (#{roomId}, #{memberId}, #{joinTime})
+        INSERT INTO chat_game_members(room_id, member_id, join_time)
+        VALUES (#{roomId}, #{memberId}, #{joinTime})
     </insert>
+
     <select id="existsByRoomIdAndMemberId" resultType="java.lang.Boolean">
-        select exists(
-            select 1 from chat_room_members
-            where room_id = #{roomId} and member_id = #{memberId}
-        )
+        SELECT EXISTS(SELECT 1 FROM chat_game_members WHERE room_id = #{roomId} AND member_id = #{memberId})
     </select>
 
     <select id="selectMembersByRoomIds" resultType="com.guanyu.haigui.pojo.vo.MemberSimpleVO">
-        SELECT
-        cm.room_id,
-        u.user_id,
-        u.username,
-        u.avatar
-        FROM chat_room_members cm
+        SELECT cm.room_id, u.user_id, u.username, u.avatar
+        FROM chat_game_members cm
         LEFT JOIN sys_user u ON cm.member_id = u.user_id
         WHERE cm.room_id IN
         <foreach collection="roomIds" item="roomId" open="(" separator="," close=")">
@@ -35,4 +25,3 @@
         </foreach>
     </select>
 </mapper>
-    

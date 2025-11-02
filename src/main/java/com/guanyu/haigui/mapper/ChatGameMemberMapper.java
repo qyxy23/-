@@ -1,22 +1,15 @@
 package com.guanyu.haigui.mapper;
 
-import com.guanyu.haigui.pojo.model.ChatRoomMember;
+import com.guanyu.haigui.pojo.model.ChatGameMember;
 import com.guanyu.haigui.pojo.vo.MemberSimpleVO;
-import org.springframework.data.repository.query.Param;
+import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 import java.util.Set;
 
-public interface ChatRoomMemberMapper {
-
-    void joinRoomMember(ChatRoomMember member);
-
+public interface ChatGameMemberMapper {
+    void joinRoomMember(ChatGameMember member);
     boolean existsByRoomIdAndMemberId(String roomId, Long userId);
-
-    void addMember(ChatRoomMember member);
-
-
-    // 修复后的注解位置
+    void addMember(ChatGameMember member);
     List<MemberSimpleVO> selectMembersByRoomIds(@Param("roomIds") Set<String> roomIds);
-
 }

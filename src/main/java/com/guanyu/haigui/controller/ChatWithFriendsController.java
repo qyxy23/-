@@ -1,10 +1,10 @@
 package com.guanyu.haigui.controller;
 
 import com.guanyu.haigui.pojo.dto.*;
-import com.guanyu.haigui.pojo.vo.GroupMessageVO;
+import com.guanyu.haigui.pojo.vo.GameRoomMessageVO;
 import com.guanyu.haigui.pojo.vo.LobbyListVO;
 import com.guanyu.haigui.result.Result;
-import com.guanyu.haigui.websocket.LobbyService;
+import com.guanyu.haigui.websocket.RoomService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
@@ -26,7 +26,7 @@ import java.util.List;
 @AllArgsConstructor
 @Controller
 public class ChatWithFriendsController {
-    private final LobbyService lobbyService;
+    private final RoomService roomService;
 
     /**
      * 创建游戏房间
@@ -38,15 +38,18 @@ public class ChatWithFriendsController {
     @PostMapping("/createLobby")
     public Result<String> createLobby(@RequestBody CreateRoomRequest request) {
         // 创建大厅并获取生成的房间ID
-        return Result.success(lobbyService.createChatRoom(request));
+        return Result.success(roomService.createChatRoom(request));
     }
 
+    /**
+     * 获取自己已经加入的大厅
+     */
     @Operation(summary = "搜索自己已经加入的大厅")
     @GetMapping("/mineLobby")
     @ResponseBody
-    public Result<List<ChatRoomDTO>> getMineLobbies() {
+    public Result<List<ChatGameDTO>> getMineLobbies() {
         // 获取当前用户创建的大厅
-        return Result.success(lobbyService.getMineLobbies());
+        return Result.success(roomService.getMineLobbies());
     }
 
     /**
@@ -63,7 +66,7 @@ public class ChatWithFriendsController {
         int page = message.getPage();
 
         // 调用原分页查询方法
-        return lobbyService.searchLobbies(dto, page);
+        return roomService.searchLobbies(dto, page);
     }
 
 
@@ -71,12 +74,9 @@ public class ChatWithFriendsController {
     @Operation(summary = "获取指定房间的历史消息")
     @PostMapping("/chat.history")
     @ResponseBody
-    public Page<GroupMessageVO> getRoomChatHistory(@RequestBody RoomChatHistoryDTO roomChatHistoryDTO) {
-        return lobbyService.getGroupMessages(roomChatHistoryDTO);
+    public Page<GameRoomMessageVO> getRoomChatHistory(@RequestBody RoomChatHistoryDTO roomChatHistoryDTO) {
+        return roomService.getGameMessages(roomChatHistoryDTO);
     }
-
-
-
 
 
 
@@ -88,25 +88,25 @@ public class ChatWithFriendsController {
         String sessionId = accessor.getSessionId();
         String lobbyId = request.getChatRoomId();
         // 加入大厅
-        lobbyService.joinChatRoom(lobbyId, sessionId);
+        roomService.joinChatRoom(lobbyId, sessionId);
     }
 
 
     @Operation(summary = "获取指定房间的最新N条消息")
     @MessageMapping("/chat.recent/{roomId}/{limit}") // 接收请求：包含roomId和limit
     @SendTo("/topic/recent/{roomId}") // 广播结果：发送到对应房间的Topic（仅订阅该房间的客户端能收到）
-    public List<GroupMessageVO> getRecentMessages(
+    public List<GameRoomMessageVO> getRecentMessages(
             @DestinationVariable String roomId, // 从路径变量获取roomId
             @DestinationVariable int limit) { // 从路径变量获取limit（带校验）
-        return lobbyService.getRecentMessages(roomId, limit);
+        return roomService.getRecentMessages(roomId, limit);
     }
 
 
     // 处理发送聊天消息的请求（前端发送到/app/chat.sendMessage）
     @Operation(summary = "处理发送聊天消息的请求")
     @MessageMapping("/ws/sendLobbyMessage")
-    public void sendLobbyMessage(@Payload SendGroupMessageRequest message, @Header("simpSessionId") String sessionId) {
-        lobbyService.sendLobbyMessage(message, sessionId);
+    public void sendLobbyMessage(@Payload SendGameRoomMsgRequest message, @Header("simpSessionId") String sessionId) {
+        roomService.sendLobbyMessage(message, sessionId);
     }
 
 
@@ -114,7 +114,7 @@ public class ChatWithFriendsController {
     @MessageMapping("/leaveLobby")
     public void leaveLobby(@Payload String roomId, @Header("simpSessionId") String sessionId) {
         // 离开大厅
-        lobbyService.leaveLobby(roomId, sessionId);
+        roomService.leaveLobby(roomId, sessionId);
     }
 
     // 处理大厅人数是否达标，若达到要求可开始游戏
@@ -122,7 +122,7 @@ public class ChatWithFriendsController {
     // @MessageMapping("/checkRoomStatus")
     // public void checkRoomStatus(@Payload String roomId) {
     //     log.info("检查房间{}的状态", roomId);
-    //     lobbyService.checkRoomStatus(roomId);
+    //     roomService.checkRoomStatus(roomId);
     // }
 
     // /**
@@ -136,7 +136,7 @@ public class ChatWithFriendsController {
     // public void sendGameMessage(
     //         @Validated SendMessageRequest request,
     //         @Header("simpSessionId") String sessionId) { // 从WebSocket头获取SessionID
-    //     lobbyService.sendGameMessage(request, sessionId);
+    //     roomService.sendGameMessage(request, sessionId);
     // }
 
 

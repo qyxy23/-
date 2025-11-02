@@ -2,7 +2,7 @@ package com.guanyu.haigui.listenrer;
 
 import com.guanyu.haigui.pojo.model.UserInfo;
 import com.guanyu.haigui.pojo.vo.CustomUserDetails;
-import com.guanyu.haigui.websocket.LobbyService;
+import com.guanyu.haigui.websocket.RoomService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,7 +28,7 @@ public class WebSocketEventListener {
     private String active;
 
     @Resource
-    private LobbyService lobbyService;
+    private RoomService roomService;
     @Resource
     private SimpMessagingTemplate messagingTemplate;
     // 注入全局Map（存储sessionId -> 用户信息）
@@ -124,7 +124,7 @@ public class WebSocketEventListener {
             //     log.info("用户 {} 断开连接，开始清理大厅资源", userId);
             //
             //     // 遍历所有大厅，移除该用户
-            //     lobbyService.getLobbies().forEach((lobbyId, members) -> {
+            //     roomService.getLobbies().forEach((lobbyId, members) -> {
             //         if (members.contains(userId)) {
             //             log.info("从大厅 {} 移除用户 {}", lobbyId, userId);
             //             members.remove(userId);
