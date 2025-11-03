@@ -25,7 +25,7 @@ import java.util.List;
 @Slf4j
 @AllArgsConstructor
 @Controller
-public class ChatWithFriendsController {
+public class ChatRoomController {
     private final RoomService roomService;
 
     /**

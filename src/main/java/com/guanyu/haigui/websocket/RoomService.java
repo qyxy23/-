@@ -12,10 +12,7 @@ import com.guanyu.haigui.mapper.ChatGameMapper;
 import com.guanyu.haigui.mapper.ChatGameMemberMapper;
 import com.guanyu.haigui.pojo.dto.*;
 import com.guanyu.haigui.pojo.model.*;
-import com.guanyu.haigui.pojo.vo.CustomUserDetails;
-import com.guanyu.haigui.pojo.vo.GameRoomMessageVO;
-import com.guanyu.haigui.pojo.vo.LobbyListVO;
-import com.guanyu.haigui.pojo.vo.MemberSimpleVO;
+import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.repository.ChatGameMemberRepository;
 import com.guanyu.haigui.repository.ChatGameMsgRepository;
 import com.guanyu.haigui.repository.ChatGameRepository;
@@ -160,7 +157,7 @@ public class RoomService {
             vo.setCreateTime((LocalDateTime) map.get("create_time"));
 
             // 填充创建者
-            UserInfo creator = new UserInfo();
+            CreatorInfoVO creator = new CreatorInfoVO();
             creator.setUserId(safeConvertToLong(map.get("creator_user_id")));
             creator.setUsername((String) map.get("creator_username"));
             creator.setAvatar((String) map.get("creator_avatar"));
@@ -175,9 +172,6 @@ public class RoomService {
                 List<MemberSimpleVO> newMembers = membersMap.getOrDefault(vo.getRoomId(), Collections.emptyList());
                 vo.setMembers(new HashSet<>(newMembers));
             }
-            // List<MemberSimpleVO> memberList = membersMap.getOrDefault(vo.getRoomId(),
-            // Collections.emptyList());
-            // vo.setMembers(new HashSet<>(memberList));
 
             return vo;
         }).collect(Collectors.toList());
@@ -257,7 +251,7 @@ public class RoomService {
 
         // 构造分页请求（页码从 0 开始，按 createTime 倒序）
         Pageable pageable = PageRequest.of(
-                dto.getPage() - 1,  // 若前端页码从 1 开始，需减 1（Spring Data 分页从 0 开始）
+                dto.getPage(),
                 dto.getSize(),
                 Sort.by(Sort.Direction.DESC, "createTime")
         );

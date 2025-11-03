@@ -12,6 +12,7 @@ import com.guanyu.haigui.mapper.ChatGameMapper;
 import com.guanyu.haigui.mapper.ChatGameMemberMapper;
 import com.guanyu.haigui.pojo.dto.*;
 import com.guanyu.haigui.pojo.model.*;
+import com.guanyu.haigui.pojo.vo.CreatorInfoVO;
 import com.guanyu.haigui.pojo.vo.GameRoomMessageVO;
 import com.guanyu.haigui.pojo.vo.LobbyListVO;
 import com.guanyu.haigui.pojo.vo.MemberSimpleVO;
@@ -157,7 +158,7 @@ public class TestLobbyService {
             vo.setCreateTime((LocalDateTime) map.get("create_time"));
 
             // 填充创建者
-            UserInfo creator = new UserInfo();
+            CreatorInfoVO creator = new CreatorInfoVO();
             creator.setUserId(safeConvertToLong(map.get("creator_user_id")));
             creator.setUsername((String) map.get("creator_username"));
             creator.setAvatar((String) map.get("creator_avatar"));

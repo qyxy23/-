@@ -1,7 +1,6 @@
 package com.guanyu.haigui.pojo.vo;
 
 import com.guanyu.haigui.Enum.RoomStatus;
-import com.guanyu.haigui.pojo.model.UserInfo;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -15,7 +14,7 @@ public class LobbyListVO {
     // 聊天室名称
     private String roomName;
 
-    private UserInfo creator; // 关联用户表
+    private CreatorInfoVO creator; // 关联用户表
 
     private Long requiredMembers;
 
