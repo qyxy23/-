@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- namespace等于mapper接口类的全限定名,这样实现对应 -->
+<mapper namespace="com.guanyu.haigui.mapper.SessionStickyMapper">
+
+
+    <update id="updateGroupSticky">
+        update session_group_sticky
+        set sticky = #{sticky}
+        where group_id = #{groupId}
+        and user_id = #{userId}
+    </update>
+    <update id="updatePrivateSticky">
+        update user_private_chat_sticky
+        set sticky = #{sticky}
+        where private_id = #{privateId}
+        and user_id = #{userId}
+    </update>
+    <select id="selectPrivateSticky" resultType="java.lang.Boolean">
+        select sticky
+        from user_private_chat_sticky
+        where private_id = #{privateId}
+        and user_id = #{userId}
+    </select>
+</mapper>
+    

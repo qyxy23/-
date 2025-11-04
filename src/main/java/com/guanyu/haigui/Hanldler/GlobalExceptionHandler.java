@@ -102,11 +102,21 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(TokenErrorException.class)
     public Result<String> handleTokenError(TokenErrorException e) {
-        return Result.error(401, e.getMessage());
+        return Result.error(401,e.getMessage());
     }
 
     @ExceptionHandler(FriendsException.class)
     public Result<String> handleFriendsException(FriendsException e) {
+        return Result.error(e.getMessage());
+    }
+
+    @ExceptionHandler(BusinessException.class)
+    public Result<String> handleBusinessException(BusinessException e) {
+        return Result.error(e.getMessage());
+    }
+
+    @ExceptionHandler(UnauthorizedException.class)
+    public Result<String> handleUnauthorizedException(UnauthorizedException e) {
         return Result.error(e.getMessage());
     }
 }

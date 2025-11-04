@@ -3,7 +3,9 @@ package com.guanyu.haigui.service.ServicesImpl;
 import cn.hutool.core.lang.UUID;
 import com.guanyu.haigui.Enum.FriendStatus;
 import com.guanyu.haigui.Enum.MessageStatus;
+import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.Exception.FriendsException;
+import com.guanyu.haigui.Exception.UnauthorizedException;
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.dto.PrivateMessageDTO;
 import com.guanyu.haigui.pojo.dto.PrivateMsgDTO;
@@ -12,6 +14,7 @@ import com.guanyu.haigui.pojo.model.UserInfo;
 import com.guanyu.haigui.pojo.vo.ChatSessionVO;
 import com.guanyu.haigui.pojo.vo.FriendBasicInfoVO;
 import com.guanyu.haigui.pojo.vo.PrivateMessageVO;
+import com.guanyu.haigui.repository.ChatGroupMemberRepository;
 import com.guanyu.haigui.repository.FriendRelationRepository;
 import com.guanyu.haigui.repository.PrivateMessageRepository;
 import com.guanyu.haigui.repository.UserInfoRepository;
@@ -28,6 +31,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -44,6 +48,92 @@ public class MessageServiceImpl implements MessageService {
     private final RedisServiceUtil redisServiceUtil;
     private final FriendRelationRepository friendRelationRepository;
     private final SessionMapUtil sessionMapUtil;
+    private final ChatGroupMemberRepository chatGameMemberRepository;
+
+    /**
+     * 置顶/取消置顶单个会话
+     * @param sessionId 会话ID
+     * @param chatType 会话类型（PRIVATE/GROUP）
+     * @param isSticky 是否置顶（null时默认true）
+     */
+    public void topSingleSession(String sessionId, String chatType, Boolean isSticky) {
+        // 1. 参数校验
+        if (!StringUtils.hasText(sessionId) || !StringUtils.hasText(chatType)) {
+            throw new IllegalArgumentException("会话ID和类型不能为空");
+        }
+        Long currentUserId = BaseContext.getCurrentId();
+        if (currentUserId == null) {
+            throw new UnauthorizedException("未登录");
+        }
+        isSticky = isSticky != null ? isSticky : true; // 默认置顶
+
+        // 2. 根据会话类型处理
+        switch (chatType.toUpperCase()) {
+            case "PRIVATE" -> topPrivateSession(sessionId, currentUserId, isSticky);
+            case "GROUP" -> topGroupSession(sessionId, currentUserId, isSticky);
+            default -> throw new IllegalArgumentException("不支持的会话类型：" + chatType);
+        }
+    }
+
+    /**
+     * 置顶/取消置顶私聊会话（核心逻辑）
+     * @param sessionId 私聊对方用户ID
+     * @param currentUserId 当前用户ID
+     * @param isSticky 是否置顶（true=置顶，false=取消）
+     */
+    public void topPrivateSession(String sessionId, Long currentUserId, boolean isSticky) {
+        // 1. 校验权限：必须是好友
+        Long otherUserId = parseUserId(sessionId); // sessionId转Long（对方用户ID）
+        if (!friendRelationRepository.hasRelationBetweenUsers(currentUserId, otherUserId, FriendStatus.ACCEPTED)) {
+            throw new BusinessException("非好友，无法操作该私聊");
+        }
+
+        // 2. 根据isSticky执行不同操作
+        if (isSticky) {
+            // 置顶：执行UPSERT（存在则更新为true，不存在则插入）
+            userRepository.insertOrUpdatePrivateSticky(currentUserId, otherUserId, true);
+        } else {
+            // 取消置顶：删除记录（若存在则删，不存在不影响）
+            userRepository.deletePrivateSticky(currentUserId, otherUserId);
+        }
+
+        // 3. 同步更新Redis中的置顶状态
+        redisServiceUtil.updateUserPrivateSticky(currentUserId, sessionId, isSticky);
+    }
+
+    /**
+     * 置顶/取消置顶群聊会话
+     */
+    private void topGroupSession(String sessionId, Long currentUserId, boolean isSticky) {
+        // 2.1 校验是群成员
+        if (!chatGameMemberRepository.existsByChatGroupGroupIdAndMemberUserId(sessionId, currentUserId)) {
+            throw new BusinessException("非群成员，无法置顶该群聊");
+        }
+
+
+        // 2. 根据isSticky执行不同操作
+        if (isSticky) {
+            // 置顶：执行UPSERT（存在则更新为true，不存在则插入）
+            userRepository.insertOrUpdateGroupSticky(currentUserId, sessionId, true);
+        } else {
+            // 取消置顶：删除记录（若存在则删，不存在不影响）
+            userRepository.deleteGroupSticky(currentUserId, sessionId);
+        }
+
+        // 2.2 更新Redis中的置顶状态
+        redisServiceUtil.updateUserGroupSticky(currentUserId, sessionId, isSticky);
+    }
+
+    /**
+     * 辅助方法：将sessionId（字符串）转为Long（用户ID）
+     */
+    private Long parseUserId(String sessionId) {
+        try {
+            return Long.parseLong(sessionId);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("私聊会话ID格式错误（需为对方用户ID）");
+        }
+    }
 
     /**
      * 获取所有会话列表（私聊+群聊，支持置顶排序）
@@ -61,11 +151,15 @@ public class MessageServiceImpl implements MessageService {
         sessions.addAll(groupSessions);
 
         // 3. 排序：置顶优先 → 最新消息时间倒序
-        sessions.sort((s1, s2) -> {
-            int stickyCompare = Boolean.compare(s2.getIsSticky(), s1.getIsSticky()); // 置顶降序
-            if (stickyCompare != 0) return stickyCompare;
-            return s2.getLastMessageTime().compareTo(s1.getLastMessageTime()); // 时间降序
-        });
+        sessions.sort(Comparator
+                // 第一步：按「是否置顶」降序（置顶在前）
+                .comparing(ChatSessionVO::getIsSticky, Comparator.reverseOrder())
+                // 第二步：按「最后消息时间」降序，null值放在最后（避免NPE）
+                .thenComparing(
+                        ChatSessionVO::getLastMessageTime,
+                        Comparator.nullsLast(Comparator.reverseOrder()) // 关键：处理null
+                )
+        );
 
         return sessions;
     }
@@ -103,7 +197,6 @@ public class MessageServiceImpl implements MessageService {
             if (lastMsg != null) {
                 vo.setLastMessageContent(lastMsg.getContent());
                 vo.setLastMessageTime(lastMsg.getTime());
-                vo.setLastSenderId(basic.getUserId()); // 最后发送者是对方
             }
 
             vo.setIsSticky(stickyMap.getOrDefault(basic.getUserId(), false));
@@ -128,9 +221,11 @@ public class MessageServiceImpl implements MessageService {
             if (lastMsg != null) lastMsgMap.put(friendId, lastMsg);
 
             // 是否置顶
-            List<Object[]> stickyRes = userRepository.isPrivateSticky(currentUserId, friendId);
-            if (!stickyRes.isEmpty()) {
-                stickyMap.put(friendId, (Boolean) stickyRes.get(0)[0]);
+            Object stickyObj = redisServiceUtil.selectUserPrivateSticky(currentUserId, friendId);
+            if (stickyObj != null) {
+                // 从Redis获取到值，转换为Boolean
+                boolean isSticky = redisServiceUtil.convertToBoolean(stickyObj);
+                stickyMap.put(friendId, isSticky);
             }
         }
     }
@@ -194,9 +289,6 @@ public class MessageServiceImpl implements MessageService {
         }
     }
 
-    /**
-     * 处理群聊会话
-     */
     private List<ChatSessionVO> processGroupChats(Long currentUserId) {
         List<Object[]> groupChats = userRepository.findActiveGroupChatsByUserId(currentUserId);
         if (CollectionUtils.isEmpty(groupChats)) return Collections.emptyList();
@@ -210,30 +302,70 @@ public class MessageServiceImpl implements MessageService {
             vo.setSessionId(roomId);
             vo.setChatType("GROUP");
             vo.setChatName(roomName);
-            vo.setChatAvatar(groupAvatar); // 设置群头像
+            vo.setChatAvatar(groupAvatar);
 
-            // 1. 是否置顶
+            // 1. 是否置顶（保持原有逻辑，或改为先查Redis）
             List<Object[]> stickyRes = userRepository.isGroupSticky(currentUserId, roomId);
             vo.setIsSticky(!stickyRes.isEmpty() && (Boolean) stickyRes.get(0)[0]);
 
-            // 2. 最后一条消息
-            List<Object[]> lastMsgRes = userRepository.findLastGroupMessage(roomId);
-            if (!lastMsgRes.isEmpty()) {
-                String content = (String) lastMsgRes.get(0)[0];
-                LocalDateTime time = ((Timestamp) lastMsgRes.get(0)[1]).toLocalDateTime();
-                vo.setLastMessageContent(content);
-                vo.setLastMessageTime(time);
-                // 最后发送者ID
-                List<Object[]> senderRes = userRepository.findLastGroupMessageSenderId(roomId);
-                if (!senderRes.isEmpty()) {
-                    vo.setLastSenderId((Long) senderRes.get(0)[0]);
+            // 2. 从Redis查询群聊未读数
+            String unreadCount =redisServiceUtil.selectGroupUnreadCount(currentUserId, roomId);
+
+            if (unreadCount != null) {
+                Long unreadNum =Long.parseLong(unreadCount);
+                vo.setUnreadCount(unreadNum);
+            } else {
+                // Redis无数据，查数据库
+                List<Object[]> unreadRes = userRepository.countGroupUnreadMessages(currentUserId, roomId);
+                if (!unreadRes.isEmpty()) {
+                    Object unreadValue = unreadRes.get(0)[0];
+                    // 正确处理 Long 类型返回值
+                    if (unreadValue instanceof Long) {
+                        unreadCount = String.valueOf(unreadValue);
+                    } else if (unreadValue instanceof Integer) {
+                        unreadCount = String.valueOf(unreadValue);
+                    } else {
+                        unreadCount = unreadValue.toString(); // 兜底处理
+                    }
+                    vo.setUnreadCount(Long.valueOf(unreadCount));
+                    // 回写Redis
+                    redisServiceUtil.updateGroupUnreadCount(currentUserId, roomId, unreadCount);
+                } else {
+                    vo.setUnreadCount(0L); // 默认未读数为0
                 }
             }
 
-            // 3. 未读消息数
-            List<Object[]> unreadRes = userRepository.countGroupUnreadMessages(currentUserId, roomId);
-            vo.setUnreadCount(unreadRes.isEmpty() ? 0L : (Long) unreadRes.get(0)[0]);
+            // 3. 从Redis查询群聊最后一条消息和发送者
+            PrivateMsgDTO lastMsg = redisServiceUtil.selectLastGroupMessage(roomId);
+            Long lastSenderId = redisServiceUtil.selectLastGroupSenderId(roomId);
 
+            if (lastMsg != null && lastSenderId != null) {
+                // Redis有缓存，直接赋值
+                vo.setLastMessageContent(lastMsg.getContent());
+                vo.setLastMessageTime(lastMsg.getTime());
+                UserInfo senderInfo = userRepository.findById(lastSenderId)
+                        .orElseThrow(() -> new BusinessException("发送者信息不存在"));
+                vo.setLastSenderName(senderInfo.getName());
+            } else {
+                // Redis无数据，查数据库
+                List<Object[]> lastMsgRes = userRepository.findLastGroupMessage(roomId);
+                if (!lastMsgRes.isEmpty()) {
+                    String content = (String) lastMsgRes.get(0)[0];
+                    LocalDateTime time = ((Timestamp) lastMsgRes.get(0)[1]).toLocalDateTime();
+                    vo.setLastMessageContent(content);
+                    vo.setLastMessageTime(time);
+
+                    // 查最后发送者ID
+                    List<Object[]> senderRes = userRepository.findLastGroupMessageSenderId(roomId);
+                    if (!senderRes.isEmpty()) {
+                        lastSenderId = (Long) senderRes.get(0)[0];
+
+                        // 回写Redis（最后一条消息+发送者ID）
+                        redisServiceUtil.updateLastGroupMessage(roomId, new PrivateMsgDTO(content, time));
+                        redisServiceUtil.updateLastGroupSenderId(roomId, lastSenderId);
+                    }
+                }
+            }
             return vo;
         }).collect(Collectors.toList());
     }
@@ -301,7 +433,7 @@ public class MessageServiceImpl implements MessageService {
         privateMessage.setIsRead(false);
         privateMessage.setCreateTime(LocalDateTime.now());
         messageRepository.save(privateMessage);
-        afterSendMessage(message,senderId);
+        asyncAfterSendMessage(message,senderId);
         // 2. 推送给接收者
         simpMessagingTemplate.convertAndSendToUser(
                 receiver.getUserId().toString(), // 目标用户ID
@@ -331,7 +463,7 @@ public class MessageServiceImpl implements MessageService {
         privateMessage.setIsRead(false);
         privateMessage.setCreateTime(LocalDateTime.now());
         messageRepository.save(privateMessage);
-        afterSendMessage(message,senderId);
+        asyncAfterSendMessage(message,senderId);
         // 2. 推送给接收者
         simpMessagingTemplate.convertAndSendToUser(
                 receiver.getUserId().toString(), // 目标用户ID
@@ -344,7 +476,8 @@ public class MessageServiceImpl implements MessageService {
 
 
     // 发送消息后更新缓存
-    private void afterSendMessage(PrivateMessageDTO message,Long userId) {
+    @Async("taskExecutor") // 指定使用配置的"taskExecutor"线程池
+    public void asyncAfterSendMessage(PrivateMessageDTO message,Long userId) {
         // 更新最后一条消息缓存
         redisServiceUtil.updateLastMsg(message,userId);
         // 如果是发送给好友的消息，更新好友的未读计数

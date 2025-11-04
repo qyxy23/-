@@ -6,7 +6,6 @@ import com.guanyu.haigui.pojo.model.PrivateMessage;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.stereotype.Service;
-import org.springframework.web.socket.WebSocketSession;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
@@ -25,25 +24,16 @@ public class RedisServiceUtil {
     private static final String CHAT_LAST_TIME_KEY = "chat:lastTime";
     private static final String USER_ONLINE_KEY_PREFIX = "user:online"; // Redis 在线状态键前缀
     private static final String ROOM_ONLINE_KEY_PREFIX = "room:online"; // Redis 在线状态键前缀
-    private static final String SESSION_KEY = "chat:sessions";// 存储用户ID→WebSocket Session的映射
-    private static final String ONLINE_USERS_KEY = "chat:online_users";// 存储在线用户列表
     private static final String CHAT_LAST_MSG_KEY = "chat:lastMsg";
     private static final String CHAT_UNREAD_KEY = "chat:unread";
+    private static final String USER_GROUP_STICKY_KEY = "chat:grpSticky";
+    private static final String USER_PRIVATE_STICKY_KEY = "chat:privateSticky";
+    private static final String GROUP_LAST_MSG_KEY = "chat:grpLastMsg";
+    private static final String GROUP_LAST_TIME_KEY = "chat:grpLastTime";
+    private static final String GROUP_UNREAD_KEY = "chat:grpUnread";
+    private static final String GROUP_LAST_SENDER_ID_KEY = "chat:grpLastSenderId";
 
 
-    public void updateSession(Long userId, WebSocketSession session) {
-        // 存储会话ID而不是整个session对象
-        redisTemplate.opsForHash().put(SESSION_KEY + userId, "sessionId", session.getId());
-        // 存储其他需要的会话信息
-        redisTemplate.opsForHash().put(SESSION_KEY + userId, "connectedAt", System.currentTimeMillis());
-
-        redisTemplate.opsForSet().add(ONLINE_USERS_KEY , String.valueOf(userId));
-    }
-
-    public void deleteSession(Long userId) {
-        redisTemplate.delete(SESSION_KEY + userId);
-        redisTemplate.opsForSet().remove(ONLINE_USERS_KEY, userId);
-    }
 
     public void updateOnlineStatus(Long id, String token) {
         Date tokenExpiration = jwtUtil.getExpirationDateFromToken(token); // 需要 JwtUtil 支持
@@ -189,5 +179,68 @@ public class RedisServiceUtil {
 
     public void deleteUnreadMsgCount(PrivateMessage message) {
         redisTemplate.delete(CHAT_UNREAD_KEY + ":"+ message.getReceiver().getUserId()+":"+message.getSender().getUserId());
+    }
+
+    public void updateUserPrivateSticky(Long currentUserId, String sessionId, boolean isSticky) {
+        redisTemplate.opsForValue().set(USER_PRIVATE_STICKY_KEY + ":" + currentUserId + ":" + sessionId, String.valueOf(isSticky));
+    }
+
+    public void updateUserGroupSticky(Long currentUserId, String sessionId, boolean isSticky) {
+        redisTemplate.opsForValue().set(USER_GROUP_STICKY_KEY + ":" + currentUserId + ":" + sessionId, String.valueOf(isSticky));
+    }
+
+    public Object selectUserPrivateSticky(Long currentUserId, Long friendId) {
+        return redisTemplate.opsForValue().get(USER_PRIVATE_STICKY_KEY + ":" + currentUserId + ":" + friendId);
+    }
+
+    /**
+     * 工具方法：将Redis/数据库返回的Object转换为Boolean
+     * 支持Boolean、Integer、Long、String类型
+     */
+    public boolean convertToBoolean(Object obj) {
+        if (obj instanceof Boolean) {
+            return (Boolean) obj;
+        } else if (obj instanceof Integer) {
+            return (Integer) obj == 1; // 数据库存1→true，0→false
+        } else if (obj instanceof Long) {
+            return (Long) obj == 1L;
+        } else if (obj instanceof String) {
+            return Boolean.parseBoolean((String) obj); // 字符串"true"→true，其他→false
+        }
+        // 其他未知类型默认false
+        return false;
+    }
+
+    public String selectGroupUnreadCount(Long currentUserId, String roomId) {
+        return redisTemplate.opsForValue().get(GROUP_UNREAD_KEY + ":" + currentUserId + ":" + roomId);
+    }
+
+    public void updateGroupUnreadCount(Long currentUserId, String roomId, String unreadCount) {
+        redisTemplate.opsForValue().set(GROUP_UNREAD_KEY + ":" + currentUserId + ":" + roomId, unreadCount);
+    }
+
+    public PrivateMsgDTO selectLastGroupMessage(String roomId) {
+        String contentKey = GROUP_LAST_MSG_KEY + ":" + roomId;
+        String timeKey = GROUP_LAST_TIME_KEY + ":" + roomId;
+        String time = redisTemplate.opsForValue().get(timeKey);
+        String content = redisTemplate.opsForValue().get(contentKey);
+        if (time == null || time.isEmpty() || content == null || content.isEmpty()) {return null;}
+        return new PrivateMsgDTO(content, LocalDateTime.parse(time));
+    }
+
+    public Long selectLastGroupSenderId(String roomId) {
+        String senderIdKey = GROUP_LAST_SENDER_ID_KEY + ":" + roomId;
+        String senderId = redisTemplate.opsForValue().get(senderIdKey);
+        if (senderId == null) {return null;}
+        return Long.parseLong(senderId);
+    }
+
+    public void updateLastGroupMessage(String roomId, PrivateMsgDTO privateMsgDTO) {
+        redisTemplate.opsForValue().set(GROUP_LAST_MSG_KEY + ":" + roomId, privateMsgDTO.getContent());
+        redisTemplate.opsForValue().set(GROUP_LAST_TIME_KEY + ":" + roomId, privateMsgDTO.getTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+    }
+
+    public void updateLastGroupSenderId(String roomId, Long lastSenderId) {
+        redisTemplate.opsForValue().set(GROUP_LAST_SENDER_ID_KEY + ":" + roomId, String.valueOf(lastSenderId));
     }
 }

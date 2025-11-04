@@ -26,7 +26,7 @@ public class UserGroupSticky {
 
     /** 是否置顶（0-否，1-是，对应is_sticky） */
     @Column(name = "is_sticky", nullable = false)
-    private Integer isSticky;
+    private Boolean isSticky;
 
     /** 置顶时间（数据库自动生成，对应sticky_time） */
     @CreationTimestamp

@@ -63,7 +63,10 @@ spring:
     hibernate:
       ddl-auto: validate  # 自动根据实体更新表结构
       show-sql: true    # 可选：打印SQL语句便于调试
-
+#    show-sql: true
+#    properties:
+#      hibernate:
+#              format_sql: true # 格式化 SQL，便于阅读
 
 
 

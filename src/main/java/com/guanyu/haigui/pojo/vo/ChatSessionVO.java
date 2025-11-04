@@ -25,6 +25,6 @@ public class ChatSessionVO {
     private LocalDateTime lastMessageTime;
     /** 是否置顶（前端根据此字段排序） */
     private Boolean isSticky;
-    /** 最后一条消息的发送者ID（用于显示头像） */
-    private Long lastSenderId;
+    /** 最后一条消息的发送者头像URL */
+    private String lastSenderName;
 }

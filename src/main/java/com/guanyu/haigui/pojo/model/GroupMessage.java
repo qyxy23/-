@@ -21,6 +21,10 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "chat_group_messages")
+@NamedEntityGraph(
+        name = "GroupMessage.withChatGroup",
+        attributeNodes = @NamedAttributeNode("chatGroup") // 预加载chatGroup
+)
 public class GroupMessage {
 
     /** 消息唯一ID（UUID，对应message_id） */

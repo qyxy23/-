@@ -15,6 +15,14 @@ import java.util.Optional;
 public interface FriendRelationRepository extends JpaRepository<FriendRelation, Long> {
 
     /**
+     * 根据用户ID和好友ID列表查询好友关系
+     * @param userId 当前用户ID
+     * @param friendIds 待验证的好友ID列表
+     * @return 符合条件的好友关系列表
+     */
+    List<FriendRelation> findByUserUserIdAndFriendUserIdIn(Long userId, List<Long> friendIds);
+
+    /**
      * 查询当前用户【收到的】好友申请（被动方：friend_id = 当前用户ID）
      * @param currentUserId 当前用户ID
      * @param statuses 过滤的状态（如PENDING待处理）

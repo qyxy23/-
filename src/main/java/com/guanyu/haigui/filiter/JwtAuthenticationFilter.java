@@ -1,5 +1,8 @@
 package com.guanyu.haigui.filiter;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.guanyu.haigui.Exception.TokenErrorException;
+import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.utils.JwtTokenUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -8,6 +11,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -18,26 +22,18 @@ import org.springframework.util.AntPathMatcher;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import javax.annotation.Resource;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * JWT认证过滤器
- */
 @Slf4j
 @Component
-@RequiredArgsConstructor // Lombok自动生成final字段的构造器
+@RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
-    @Resource
+
     private final JwtTokenUtil jwtTokenUtil;
-
-    private static final AntPathMatcher pathMatcher = new AntPathMatcher(); // 声明路径匹配器
-
-
-    // @Value("${spring.profiles.active}")
-    // private String activeProfile; // 直接注入值
+    private final ObjectMapper objectMapper; // 注入JSON序列化工具
+    private static final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     @Override
     protected void doFilterInternal(
@@ -45,62 +41,62 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NotNull HttpServletResponse response,
             @NotNull FilterChain filterChain
     ) throws ServletException, IOException {
-        // if(activeProfile.equals("dev")){
-        //     log.info("当前环境为开发环境，跳过JWT认证");
-        //     filterChain.doFilter(request, response);
-        // }
-
         String requestURI = request.getRequestURI();
-        // 定义需要跳过的路径（必须和SecurityConfig中的放行路径一致！）
-        List<String> excludePaths = List.of(
-                "/ws/**",          // WebSocket相关路径
-                "/user/login",     // 对应登录接口
-                "/user/register"   // 对应注册接口
-        );
-        // 使用AntPathMatcher精准匹配（支持如"/user/login/"这类带斜杠的请求）
+        // 跳过不需要认证的路径（需与SecurityConfig一致）
+        List<String> excludePaths = List.of("/ws/**", "/user/login", "/user/register");
         boolean shouldSkip = excludePaths.stream()
                 .anyMatch(excludePath -> pathMatcher.match(excludePath, requestURI));
+
         if (shouldSkip) {
             filterChain.doFilter(request, response);
-            return; // 直接返回，不执行后续Token验证
+            return;
         }
-        // 1. 从请求头提取Token（去除"Bearer "前缀）
+
         String token = resolveToken(request);
         if (StringUtils.hasText(token)) {
-            // 2. 验证Token有效性（签名+过期）
-            if (jwtTokenUtil.validateToken(token)) {
-                try {
-                    // 3. 解析Token中的身份信息
-                    String username = jwtTokenUtil.getUsernameFromToken(token);
-                    List<String> roles = jwtTokenUtil.getRolesFromToken(token);
-                    log.debug("用户{}的Token验证通过，角色：{}", username, roles);
-
-                    // 4. 构造Spring Security的Authentication对象（携带角色权限）
-                    List<GrantedAuthority> authorities = roles.stream()
-                            .map(role -> new SimpleGrantedAuthority("ROLE_" + role)) // 必须加ROLE_前缀！
-                            .collect(Collectors.toList());
-
-                    Authentication authentication = new UsernamePasswordAuthenticationToken(
-                            username, // 用户名（对应UserDetails的username）
-                            null,     // 密码（JWT无需密码）
-                            authorities // 用户权限（角色）
-                    );
-
-                    // 5. 将Authentication注入SecurityContext（后续流程可通过SecurityContextHolder获取）
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
-                    log.debug("用户{}的Token验证通过，角色：{}", username, roles);
-                } catch (Exception e) {
-                    log.error("解析Token身份失败: {}", e.getMessage());
-                    // 可选：清除SecurityContext，避免脏数据
-                    SecurityContextHolder.clearContext();
+            try {
+                // 1. 验证Token有效性（签名+过期）—— 此处会抛TokenErrorException
+                if (!jwtTokenUtil.validateToken(token)) {
+                    log.warn("无效或过期的Token: {}", token);
+                    sendUnauthorizedResponse(response, "Token认证已过期");
+                    return;
                 }
-            } else {
-                log.warn("无效或过期的Token: {}", token);
-                // 可选：返回401 Unauthorized（需结合全局异常处理）
+
+                // 2. 解析Token中的身份信息（此时Token有效，不会抛TokenErrorException）
+                String username = jwtTokenUtil.getUsernameFromToken(token);
+                List<String> roles = jwtTokenUtil.getRolesFromToken(token);
+                log.debug("用户{}的Token验证通过，角色：{}", username, roles);
+
+                // 3. 构造Spring Security的Authentication对象（携带角色权限）
+                List<GrantedAuthority> authorities = roles.stream()
+                        .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                        .collect(Collectors.toList());
+
+                Authentication authentication = new UsernamePasswordAuthenticationToken(
+                        username,
+                        null,
+                        authorities
+                );
+
+                // 4. 将Authentication注入SecurityContext
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+                log.debug("用户{}的Token已注入SecurityContext", username);
+
+            } catch (TokenErrorException e) {
+                // 捕获Token验证异常（如签名错误、过期）
+                log.error("Token验证失败: {}", e.getMessage());
+                sendUnauthorizedResponse(response, e.getMessage());
+                return;
+            } catch (Exception e) {
+                // 捕获其他异常（如解析失败、IO异常）
+                log.error("解析Token身份失败: {}", e.getMessage());
+                SecurityContextHolder.clearContext(); // 清除脏数据
+                sendUnauthorizedResponse(response, "Token解析失败");
+                return;
             }
         }
 
-        // 6. 继续执行后续过滤器链
+        // Token有效或无Token时，继续执行后续过滤器链
         filterChain.doFilter(request, response);
     }
 
@@ -110,7 +106,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private String resolveToken(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
         return StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")
-                ? bearerToken.substring(7).trim() // 去除"Bearer "前缀并 trim 空格
+                ? bearerToken.substring(7).trim()
                 : null;
+    }
+
+    /**
+     * 发送401 Unauthorized响应（统一错误格式）
+     */
+    private void sendUnauthorizedResponse(HttpServletResponse response, String message) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); // 401状态码
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE); // JSON格式
+        response.setCharacterEncoding("UTF-8");
+        // 写入自定义错误响应
+        response.getWriter().write(objectMapper.writeValueAsString(Result.error(401, message)));
     }
 }

@@ -23,6 +23,12 @@
         <!--     <version>3.5.3</version> -->
         <!-- </dependency> -->
         <!-- pom.xml -->
+        <!-- modelMapper 实体类转换-->
+        <dependency>
+            <groupId>org.modelmapper</groupId>
+            <artifactId>modelmapper</artifactId>
+            <version>3.1.1</version>
+        </dependency>
         <!-- qrcode -->
         <dependency>
             <groupId>com.google.zxing</groupId>

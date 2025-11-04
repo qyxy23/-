@@ -10,7 +10,6 @@ import com.guanyu.haigui.pojo.model.FriendRelation;
 import com.guanyu.haigui.pojo.model.UserInfo;
 import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.repository.FriendRelationRepository;
-import com.guanyu.haigui.repository.PrivateMessageRepository;
 import com.guanyu.haigui.repository.UserInfoRepository;
 import com.guanyu.haigui.service.FriendsService;
 import com.guanyu.haigui.utils.RedisServiceUtil;
@@ -36,7 +35,6 @@ public class FriendsServiceImpl implements FriendsService {
 
     private final UserInfoRepository userRepository;
     private final FriendRelationRepository friendRelationRepository;
-    private final PrivateMessageRepository messageRepository;
     private final RedisServiceUtil redisServiceUtil;
 
     /** 获取当前用户收到的好友申请列表（待处理） */
