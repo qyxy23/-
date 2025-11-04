@@ -17,10 +17,10 @@ public interface FriendRelationRepository extends JpaRepository<FriendRelation, 
     /**
      * 根据用户ID和好友ID列表查询好友关系
      * @param userId 当前用户ID
-     * @param friendIds 待验证的好友ID列表
+     * @param friendId 待验证的好友ID列表
      * @return 符合条件的好友关系列表
      */
-    List<FriendRelation> findByUserUserIdAndFriendUserIdIn(Long userId, List<Long> friendIds);
+    List<FriendRelation> findByUserUserIdOrFriendUserId(Long userId, Long friendId);
 
     /**
      * 查询当前用户【收到的】好友申请（被动方：friend_id = 当前用户ID）

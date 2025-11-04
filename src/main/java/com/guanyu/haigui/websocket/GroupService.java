@@ -12,6 +12,7 @@ import com.guanyu.haigui.pojo.vo.ChatGroupVo;
 import com.guanyu.haigui.pojo.vo.GroupMessageVO;
 import com.guanyu.haigui.pojo.vo.GroupRoomListVO;
 import com.guanyu.haigui.repository.*;
+import com.guanyu.haigui.utils.RedisServiceUtil;
 import io.micrometer.common.util.StringUtils;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -29,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -50,13 +52,15 @@ public class GroupService {
     private final UserInfoRepository userInfoRepository;
     @PersistenceContext
     private EntityManager entityManager;
+    private final RedisServiceUtil redisServiceUtil;
+    private static final int LATEST_MESSAGES_LIMIT = 20;
 
 
     /**
      * 用户申请加入群聊
      */
     @Transactional
-    public void applyJoinGroup(JoinGroupRoomRequest request) {
+    public GroupJoinNotification applyJoinGroup(JoinGroupRoomRequest request) {
         Long userId = BaseContext.getCurrentId();
         String groupId = request.getGroupRoomId();
         String description = request.getDescription();
@@ -80,50 +84,14 @@ public class GroupService {
         joinRequestRepo.save(joinRequest);
 
         // 4. 通知群主（WebSocket推送）
-        sendJoinNotificationToOwner(group, joinRequest);
+        return sendJoinNotificationToOwner(group, joinRequest);
     }
 
-    /**
-     * 群主处理加群申请
-     */
-    @Transactional
-    public void processJoinRequest(dealJoinGroupRoomRequest joinGroupRoomRequest) {
-        Long processorId = BaseContext.getCurrentId();
-        Long requestId = joinGroupRoomRequest.getRequestId();
-        // 1. 查询申请记录
-        GroupJoinRequest request = joinRequestRepo.findById(requestId)
-                .orElseThrow(() -> new BusinessException("申请不存在"));
-
-        // 2. 验证处理人是否是群主
-        ChatGroup group = request.getGroup();
-        if (!group.getCreator().getUserId().equals(processorId)) {
-            throw new BusinessException("您不是群主，无权处理此申请");
-        }
-
-        // 3. 更新申请状态
-        request.setStatus(RequestStatus.ACCEPTED);
-        request.setProcessTime(LocalDateTime.now());
-        request.setProcessor(userInfoRepository.findById(processorId).orElseThrow(() -> new BusinessException("处理人不存在")));
-        joinRequestRepo.save(request);
-
-        // 4. 将用户加入群成员表
-        ChatGroupMember member = ChatGroupMember.builder()
-            .id(new ChatGroupMemberId(request.getUser().getUserId(), group.getGroupId()))
-            .member(request.getUser())
-            .chatGroup(group)
-            .joinTime(LocalDateTime.now())
-            .build();
-
-        chatGroupMemberRepository.save(member);
-
-        // 5. （可选）通知申请人入群成功
-        // sendJoinSuccessToApplicant(request.getUser());
-    }
 
     /**
      * 向群主推送加群申请通知（WebSocket）
      */
-    private void sendJoinNotificationToOwner(ChatGroup group, GroupJoinRequest request) {
+    private GroupJoinNotification sendJoinNotificationToOwner(ChatGroup group, GroupJoinRequest request) {
         // 构建通知消息
         GroupJoinNotification notification = new GroupJoinNotification();
         notification.setRequestId(request.getId());
@@ -133,6 +101,7 @@ public class GroupService {
 
         // 发送给群主（群主订阅此主题：/topic/group/{groupId}/join-requests）
         simpMessagingTemplate.convertAndSend("/topic/group/" + group.getGroupId() + "/join-requests", notification);
+        return notification;
     }
 
 
@@ -161,30 +130,49 @@ public class GroupService {
         return newGroup.getGroupId();
     }
 
-    /**
-     * 验证好友关系有效性（必须是ACCEPTED状态）
-     */
     private void validateFriendRelations(Long userId, List<Long> friendIds) {
         if (CollectionUtils.isEmpty(friendIds)) {
             throw new BusinessException("好友列表不能为空");
         }
 
-        // 查询当前用户与好友的关系
-        List<FriendRelation> relations = friendRelationsRepository.findByUserUserIdAndFriendUserIdIn(userId, friendIds);
+        // 查询「所有与当前用户相关的好友关系」（包括主动添加和被添加）
+        List<FriendRelation> relations = friendRelationsRepository
+                .findByUserUserIdOrFriendUserId(userId, userId); // 获取当前用户参与的所有关系
 
-        // 提取有效好友ID（状态为ACCEPTED）
-        Set<Long> validFriendIds = relations.stream()
-                .filter(rel -> rel.getStatus() == FriendStatus.ACCEPTED)
+        // 提取有效好友ID：当前用户与friendIds中的用户是「双向ACCEPTED」关系
+        Set<Long> validFriendIds = new HashSet<>();
+
+        // 场景1：当前用户是「发起方」（user_user_id=userId），好友是friend_user_id
+        List<Long> initiatedFriendIds = relations.stream()
+                .filter(rel ->
+                        rel.getUser().getUserId().equals(userId) && // 当前用户是发起方
+                                rel.getStatus() == FriendStatus.ACCEPTED && // 关系已接受
+                                friendIds.contains(rel.getFriend().getUserId()) // 好友在请求列表中
+                )
                 .map(rel -> rel.getFriend().getUserId())
-                .collect(Collectors.toSet());
+                .toList();
 
-        // 检查是否有无效好友
+        // 场景2：当前用户是「被添加方」（friend_user_id=userId），好友是user_user_id
+        List<Long> receivedFriendIds = relations.stream()
+                .filter(rel ->
+                        rel.getFriend().getUserId().equals(userId) && // 当前用户是被添加方
+                                rel.getStatus() == FriendStatus.ACCEPTED && // 关系已接受
+                                friendIds.contains(rel.getUser().getUserId()) // 好友在请求列表中
+                )
+                .map(rel -> rel.getUser().getUserId())
+                .toList();
+
+        // 合并两种场景的有效ID（去重）
+        validFriendIds.addAll(initiatedFriendIds);
+        validFriendIds.addAll(receivedFriendIds);
+
+        // 检查请求的好友ID是否都在有效集合中
         List<Long> invalidIds = friendIds.stream()
                 .filter(id -> !validFriendIds.contains(id))
                 .toList();
 
         if (!invalidIds.isEmpty()) {
-            throw new BusinessException("以下用户不是您的好友或已拒绝请求：" + invalidIds);
+            throw new BusinessException("以下用户不是您的好友：" + invalidIds);
         }
     }
 
@@ -399,7 +387,7 @@ public class GroupService {
                 .collect(Collectors.toList());
     }
 
-    public void sendGroupRoomMessage(SendGroupMessageRequest request) {
+    public GroupMessageVO sendGroupRoomMessage(SendGroupMessageRequest request) {
         Long userID = BaseContext.getCurrentId();
         // 1. 验证发送者是否为群成员
         boolean isMember = chatGroupMemberRepository.existsByChatGroupGroupIdAndMemberUserId(
@@ -423,13 +411,15 @@ public class GroupService {
         message.setCreateTime(LocalDateTime.now());
         message.setStatus(MessageStatus.SENT);
         chatGroupMessageRepository.save(message);
-
+        redisServiceUtil.updateLastGroupMessage1(request.getGroupId(),message.getContent(),message.getCreateTime());
+        redisServiceUtil.updateLastGroupSenderId(request.getGroupId(),message.getSender().getUserId());
         // 4. 转换为VO并广播给群成员
         GroupMessageVO vo = GroupMessageVO.from(message);
         simpMessagingTemplate.convertAndSend(
                 "/topic/group/" + request.getGroupId() + "/messages", // 群消息主题
                 vo
         );
+        return vo;
     }
 
     public void leaveGroupRoom(String groupId) {
@@ -450,5 +440,62 @@ public class GroupService {
         } else {
             throw new BusinessException("您未加入该群，无法退出");
         }
+    }
+
+    public void RefuseJoinRequest(dealJoinGroupRoomRequest dealJoinGroupRoomRequest) {
+        Long processorId = BaseContext.getCurrentId();
+        Long requestId = dealJoinGroupRoomRequest.getRequestId();
+        // 1. 查询申请记录
+        GroupJoinRequest request = joinRequestRepo.findById(requestId)
+                .orElseThrow(() -> new BusinessException("申请不存在"));
+
+        // 2. 验证处理人是否是群主
+        ChatGroup group = request.getGroup();
+        if (!group.getCreator().getUserId().equals(processorId)) {
+            throw new BusinessException("您不是群主，无权处理此申请");
+        }
+
+        // 3. 更新申请状态
+        request.setStatus(RequestStatus.REJECTED);
+        request.setProcessTime(LocalDateTime.now());
+        request.setProcessor(userInfoRepository.findById(processorId).orElseThrow(() -> new BusinessException("处理人不存在")));
+        joinRequestRepo.save(request);
+    }
+
+    /**
+     * 群主处理加群申请
+     */
+    @Transactional
+    public void agreeJoinRequest(dealJoinGroupRoomRequest joinGroupRoomRequest) {
+        Long processorId = BaseContext.getCurrentId();
+        Long requestId = joinGroupRoomRequest.getRequestId();
+        // 1. 查询申请记录
+        GroupJoinRequest request = joinRequestRepo.findById(requestId)
+                .orElseThrow(() -> new BusinessException("申请不存在"));
+
+        // 2. 验证处理人是否是群主
+        ChatGroup group = request.getGroup();
+        if (!group.getCreator().getUserId().equals(processorId)) {
+            throw new BusinessException("您不是群主，无权处理此申请");
+        }
+
+        // 3. 更新申请状态
+        request.setStatus(RequestStatus.ACCEPTED);
+        request.setProcessTime(LocalDateTime.now());
+        request.setProcessor(userInfoRepository.findById(processorId).orElseThrow(() -> new BusinessException("处理人不存在")));
+        joinRequestRepo.save(request);
+
+        // 4. 将用户加入群成员表
+        ChatGroupMember member = ChatGroupMember.builder()
+                .id(new ChatGroupMemberId(request.getUser().getUserId(), group.getGroupId()))
+                .member(request.getUser())
+                .chatGroup(group)
+                .joinTime(LocalDateTime.now())
+                .build();
+
+        chatGroupMemberRepository.save(member);
+
+        // 5. （可选）通知申请人入群成功
+        // sendJoinSuccessToApplicant(request.getUser());
     }
 }

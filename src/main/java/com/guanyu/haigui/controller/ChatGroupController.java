@@ -86,18 +86,25 @@ public class ChatGroupController {
     //     groupService.joinChatRoom(GroupRoomId, sessionId);
     // }
 
-    @Operation(summary = "用户加入群聊")
+    @Operation(summary = "用户申请加入群聊")
     @PostMapping("/joinGroupRoom")
-    public void joinRoom(@RequestBody JoinGroupRoomRequest request) {
+    public GroupJoinNotification joinRoom(@RequestBody JoinGroupRoomRequest request) {
         // 加入群聊
-        groupService.applyJoinGroup(request);
+        return groupService.applyJoinGroup(request);
     }
 
-    @Operation(summary = "群主处理用户加入群聊的请求")
-    @PostMapping("/dealJoinGroupRoom")
-    public void dealJoinRoom(@RequestBody dealJoinGroupRoomRequest request) {
+    @Operation(summary = "群主同意用户加入群聊的请求")
+    @PostMapping("/AgreeJoinGroupRoom")
+    public void agreeJoinRoom(@RequestBody dealJoinGroupRoomRequest request) {
         // 加入群聊
-        groupService.processJoinRequest(request);
+        groupService.agreeJoinRequest(request);
+    }
+
+    @Operation(summary = "群主拒绝用户加入群聊的请求")
+    @PostMapping("/RefuseJoinGroupRoom")
+    public void refuseJoinRoom(@RequestBody dealJoinGroupRoomRequest request) {
+        // 加入群聊
+        groupService.RefuseJoinRequest(request);
     }
 
 
@@ -115,8 +122,8 @@ public class ChatGroupController {
     // 处理发送聊天消息的请求（前端发送到/app/chat.sendMessage）
     @Operation(summary = "处理发送聊天消息的请求")
     @PostMapping("/sendGroupRoomMessage")
-    public void sendGroupRoomMessage(@RequestBody SendGroupMessageRequest message) {
-        groupService.sendGroupRoomMessage(message);
+    public GroupMessageVO sendGroupRoomMessage(@RequestBody SendGroupMessageRequest message) {
+        return groupService.sendGroupRoomMessage(message);
     }
 
 

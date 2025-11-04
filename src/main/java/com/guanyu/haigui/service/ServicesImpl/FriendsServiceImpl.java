@@ -5,7 +5,7 @@ import com.github.xiaoymin.knife4j.core.util.CollectionUtils;
 import com.guanyu.haigui.Enum.FriendStatus;
 import com.guanyu.haigui.Exception.FriendsException;
 import com.guanyu.haigui.context.BaseContext;
-import com.guanyu.haigui.pojo.dto.PrivateMsgDTO;
+import com.guanyu.haigui.pojo.dto.MsgDTO;
 import com.guanyu.haigui.pojo.model.FriendRelation;
 import com.guanyu.haigui.pojo.model.UserInfo;
 import com.guanyu.haigui.pojo.vo.*;
@@ -126,7 +126,7 @@ public class FriendsServiceImpl implements FriendsService {
 
         // 2. 优先从Redis查询未读数和最后一条消息
         Map<Long, Long> unreadMap = new HashMap<>();       // 好友ID → 未读数
-        Map<Long, PrivateMsgDTO> lastMsgMap = new HashMap<>();// 好友ID → 最后一条消息
+        Map<Long, MsgDTO> lastMsgMap = new HashMap<>();// 好友ID → 最后一条消息
 
         // 批量查Redis（避免循环单查）
         for (Long friendId : friendIds) {
@@ -135,7 +135,7 @@ public class FriendsServiceImpl implements FriendsService {
             if (unreadCount != null) unreadMap.put(friendId, unreadCount);
 
             // 查最后一条消息
-            PrivateMsgDTO lastMsg = redisServiceUtil.selectLastMessageFromRedis(currentUserId, friendId);
+            MsgDTO lastMsg = redisServiceUtil.selectLastMessageFromRedis(currentUserId, friendId);
             if (lastMsg != null) lastMsgMap.put(friendId, lastMsg);
         }
 
@@ -163,7 +163,7 @@ public class FriendsServiceImpl implements FriendsService {
         }
 
         // 5. 批量查数据库（最后一条消息）
-        Map<Long, PrivateMsgDTO> lastMsgFromDb = new HashMap<>();
+        Map<Long, MsgDTO> lastMsgFromDb = new HashMap<>();
         if (!missingLastMsgIds.isEmpty()) {
             List<Object[]> lastMsgResults = userRepository.findLastMessageByFriendIds(currentUserId, missingLastMsgIds);
             lastMsgFromDb = lastMsgResults.stream()
@@ -174,7 +174,7 @@ public class FriendsServiceImpl implements FriendsService {
                                 if (arr[2] != null) {
                                     localDateTime = ((Timestamp) arr[2]).toLocalDateTime();
                                 }
-                                return new PrivateMsgDTO(          // 内容+时间
+                                return new MsgDTO(          // 内容+时间
                                         (String) arr[1],
                                         localDateTime
                                 );
@@ -189,7 +189,7 @@ public class FriendsServiceImpl implements FriendsService {
         // 6. 合并Redis和数据库的结果
         Map<Long, Long> finalUnreadMap = Stream.concat(unreadMap.entrySet().stream(), unreadFromDb.entrySet().stream())
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        Map<Long, PrivateMsgDTO> finalLastMsgMap = Stream.concat(lastMsgMap.entrySet().stream(), lastMsgFromDb.entrySet().stream())
+        Map<Long, MsgDTO> finalLastMsgMap = Stream.concat(lastMsgMap.entrySet().stream(), lastMsgFromDb.entrySet().stream())
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         // 7. 组装最终VO（好友基础信息 + 未读数 + 最后消息）
@@ -204,7 +204,7 @@ public class FriendsServiceImpl implements FriendsService {
                     vo.setUnreadCount(finalUnreadMap.getOrDefault(basic.getUserId(), 0L));
 
                     // 最后一条消息（默认空）
-                    PrivateMsgDTO lastMsg = finalLastMsgMap.get(basic.getUserId());
+                    MsgDTO lastMsg = finalLastMsgMap.get(basic.getUserId());
                     if (lastMsg != null) {
                         vo.setLastMessageContent(lastMsg.getContent());
                         vo.setLastMessageTime(lastMsg.getTime());

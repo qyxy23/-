@@ -1,7 +1,7 @@
 package com.guanyu.haigui.utils;
 
 import com.guanyu.haigui.pojo.dto.PrivateMessageDTO;
-import com.guanyu.haigui.pojo.dto.PrivateMsgDTO;
+import com.guanyu.haigui.pojo.dto.MsgDTO;
 import com.guanyu.haigui.pojo.model.PrivateMessage;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.RedisSerializer;
@@ -65,7 +65,7 @@ public class RedisServiceUtil {
      * @param receiverId 接收者ID（好友）
      * @return 最后一条消息DTO（不存在返回null）
      */
-    public PrivateMsgDTO selectLastMessageFromRedis(Long senderId, Long receiverId) {
+    public MsgDTO selectLastMessageFromRedis(Long senderId, Long receiverId) {
         String contentKey = CHAT_LAST_MSG_KEY + ":" + senderId + ":" + receiverId;
         String timeKey = CHAT_LAST_TIME_KEY + ":" + senderId + ":" + receiverId;
 
@@ -74,7 +74,7 @@ public class RedisServiceUtil {
 
         if (content == null || timeStr == null) return null;
 
-        return new PrivateMsgDTO(
+        return new MsgDTO(
                 content,
                 LocalDateTime.parse(timeStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
         );
@@ -102,7 +102,7 @@ public class RedisServiceUtil {
      * @param senderId 发送者ID
      * @param receiverId 接收者ID
      */
-    public void updateLastMsg(PrivateMsgDTO message, Long senderId, Long receiverId) {
+    public void updateLastMsg(MsgDTO message, Long senderId, Long receiverId) {
         String contentKey = CHAT_LAST_MSG_KEY + ":" + senderId + ":" + receiverId;
         String timeKey = CHAT_LAST_TIME_KEY + ":" + senderId + ":" + receiverId;
 
@@ -219,13 +219,13 @@ public class RedisServiceUtil {
         redisTemplate.opsForValue().set(GROUP_UNREAD_KEY + ":" + currentUserId + ":" + roomId, unreadCount);
     }
 
-    public PrivateMsgDTO selectLastGroupMessage(String roomId) {
+    public MsgDTO selectLastGroupMessage(String roomId) {
         String contentKey = GROUP_LAST_MSG_KEY + ":" + roomId;
         String timeKey = GROUP_LAST_TIME_KEY + ":" + roomId;
         String time = redisTemplate.opsForValue().get(timeKey);
         String content = redisTemplate.opsForValue().get(contentKey);
         if (time == null || time.isEmpty() || content == null || content.isEmpty()) {return null;}
-        return new PrivateMsgDTO(content, LocalDateTime.parse(time));
+        return new MsgDTO(content, LocalDateTime.parse(time));
     }
 
     public Long selectLastGroupSenderId(String roomId) {
@@ -235,10 +235,15 @@ public class RedisServiceUtil {
         return Long.parseLong(senderId);
     }
 
-    public void updateLastGroupMessage(String roomId, PrivateMsgDTO privateMsgDTO) {
-        redisTemplate.opsForValue().set(GROUP_LAST_MSG_KEY + ":" + roomId, privateMsgDTO.getContent());
-        redisTemplate.opsForValue().set(GROUP_LAST_TIME_KEY + ":" + roomId, privateMsgDTO.getTime().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+    public void updateLastGroupMessage(String roomId, MsgDTO privateMsgDTO) {
+        updateLastGroupMessage1(roomId, privateMsgDTO.getContent(), privateMsgDTO.getTime());
     }
+
+    public void updateLastGroupMessage1(String roomId, String content,LocalDateTime time) {
+        redisTemplate.opsForValue().set(GROUP_LAST_MSG_KEY + ":" + roomId, content);
+        redisTemplate.opsForValue().set(GROUP_LAST_TIME_KEY + ":" + roomId, time.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+    }
+
 
     public void updateLastGroupSenderId(String roomId, Long lastSenderId) {
         redisTemplate.opsForValue().set(GROUP_LAST_SENDER_ID_KEY + ":" + roomId, String.valueOf(lastSenderId));

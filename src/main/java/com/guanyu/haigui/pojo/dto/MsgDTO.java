@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class PrivateMsgDTO {
+public class MsgDTO {
     private String content;    // 消息内容
     private LocalDateTime time;// 消息时间
 }

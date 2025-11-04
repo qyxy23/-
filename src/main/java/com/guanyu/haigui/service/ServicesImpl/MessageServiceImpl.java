@@ -8,7 +8,7 @@ import com.guanyu.haigui.Exception.FriendsException;
 import com.guanyu.haigui.Exception.UnauthorizedException;
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.dto.PrivateMessageDTO;
-import com.guanyu.haigui.pojo.dto.PrivateMsgDTO;
+import com.guanyu.haigui.pojo.dto.MsgDTO;
 import com.guanyu.haigui.pojo.model.PrivateMessage;
 import com.guanyu.haigui.pojo.model.UserInfo;
 import com.guanyu.haigui.pojo.vo.ChatSessionVO;
@@ -174,7 +174,7 @@ public class MessageServiceImpl implements MessageService {
 
         List<Long> friendIds = basicInfos.stream().map(FriendBasicInfoVO::getUserId).toList();
         Map<Long, Long> unreadMap = new HashMap<>(); // 好友ID→未读数
-        Map<Long, PrivateMsgDTO> lastMsgMap = new HashMap<>(); // 好友ID→最后一条消息
+        Map<Long, MsgDTO> lastMsgMap = new HashMap<>(); // 好友ID→最后一条消息
         Map<Long, Boolean> stickyMap = new HashMap<>(); // 好友ID→是否置顶
 
         // 批量查Redis（未读数、最后消息、置顶状态）
@@ -193,7 +193,7 @@ public class MessageServiceImpl implements MessageService {
             vo.setUnreadCount(unreadMap.getOrDefault(basic.getUserId(), 0L));
 
             // 最后一条消息
-            PrivateMsgDTO lastMsg = lastMsgMap.get(basic.getUserId());
+            MsgDTO lastMsg = lastMsgMap.get(basic.getUserId());
             if (lastMsg != null) {
                 vo.setLastMessageContent(lastMsg.getContent());
                 vo.setLastMessageTime(lastMsg.getTime());
@@ -209,7 +209,7 @@ public class MessageServiceImpl implements MessageService {
      */
     private void fetchPrivateChatDataFromRedis(Long currentUserId, List<Long> friendIds,
                                                Map<Long, Long> unreadMap,
-                                               Map<Long, PrivateMsgDTO> lastMsgMap,
+                                               Map<Long, MsgDTO> lastMsgMap,
                                                Map<Long, Boolean> stickyMap) {
         for (Long friendId : friendIds) {
             // 未读数
@@ -217,7 +217,7 @@ public class MessageServiceImpl implements MessageService {
             if (unread != null) unreadMap.put(friendId, unread);
 
             // 最后一条消息
-            PrivateMsgDTO lastMsg = redisServiceUtil.selectLastMessageFromRedis(currentUserId, friendId);
+            MsgDTO lastMsg = redisServiceUtil.selectLastMessageFromRedis(currentUserId, friendId);
             if (lastMsg != null) lastMsgMap.put(friendId, lastMsg);
 
             // 是否置顶
@@ -235,7 +235,7 @@ public class MessageServiceImpl implements MessageService {
      */
     private void fetchPrivateChatDataFromDB(Long currentUserId, List<Long> friendIds,
                                             Map<Long, Long> unreadMap,
-                                            Map<Long, PrivateMsgDTO> lastMsgMap,
+                                            Map<Long, MsgDTO> lastMsgMap,
                                             Map<Long, Boolean> stickyMap) {
         // 补充未读数
         List<Long> missingUnreadIds = friendIds.stream()
@@ -271,7 +271,7 @@ public class MessageServiceImpl implements MessageService {
                 Long friendId = (Long) arr[0];
                 String content = (String) arr[1];
                 LocalDateTime time = ((Timestamp) arr[2]).toLocalDateTime();
-                lastMsgMap.put(friendId, new PrivateMsgDTO(content, time));
+                lastMsgMap.put(friendId, new MsgDTO(content, time));
                 // 补充置顶状态
                 List<Object[]> stickyRes = userRepository.isPrivateSticky(currentUserId, friendId);
                 if (!stickyRes.isEmpty()) {
@@ -279,9 +279,9 @@ public class MessageServiceImpl implements MessageService {
                 }
             });
             // 回写Redis
-            Map<Long, PrivateMsgDTO> lastMsgFromDb = lastMsgResults.stream()
+            Map<Long, MsgDTO> lastMsgFromDb = lastMsgResults.stream()
                     .collect(Collectors.toMap(arr -> (Long) arr[0], arr ->
-                            new PrivateMsgDTO((String) arr[1], ((Timestamp) arr[2]).toLocalDateTime())
+                            new MsgDTO((String) arr[1], ((Timestamp) arr[2]).toLocalDateTime())
                     ));
             lastMsgFromDb.forEach((friendId, msg) ->
                     redisServiceUtil.updateLastMsg(msg, currentUserId, friendId)
@@ -336,7 +336,7 @@ public class MessageServiceImpl implements MessageService {
             }
 
             // 3. 从Redis查询群聊最后一条消息和发送者
-            PrivateMsgDTO lastMsg = redisServiceUtil.selectLastGroupMessage(roomId);
+            MsgDTO lastMsg = redisServiceUtil.selectLastGroupMessage(roomId);
             Long lastSenderId = redisServiceUtil.selectLastGroupSenderId(roomId);
 
             if (lastMsg != null && lastSenderId != null) {
@@ -361,7 +361,7 @@ public class MessageServiceImpl implements MessageService {
                         lastSenderId = (Long) senderRes.get(0)[0];
 
                         // 回写Redis（最后一条消息+发送者ID）
-                        redisServiceUtil.updateLastGroupMessage(roomId, new PrivateMsgDTO(content, time));
+                        redisServiceUtil.updateLastGroupMessage(roomId, new MsgDTO(content, time));
                         redisServiceUtil.updateLastGroupSenderId(roomId, lastSenderId);
                     }
                 }
