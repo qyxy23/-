@@ -172,9 +172,7 @@ public class RedisServiceUtil {
     }
 
     public void clearUnreadMsgCount(Long receiverId,Long userId) {
-        redisTemplate.delete(CHAT_UNREAD_KEY + ":"+ receiverId+":"+userId);
-        redisTemplate.delete(CHAT_LAST_TIME_KEY + ":"+ receiverId+":"+userId);
-        redisTemplate.delete(CHAT_LAST_MSG_KEY + ":"+ receiverId+":"+userId);
+        redisTemplate.opsForValue().set(CHAT_UNREAD_KEY + ":"+ receiverId+":"+userId,"0");
     }
 
     public void deleteUnreadMsgCount(PrivateMessage message) {
@@ -247,5 +245,9 @@ public class RedisServiceUtil {
 
     public void updateLastGroupSenderId(String roomId, Long lastSenderId) {
         redisTemplate.opsForValue().set(GROUP_LAST_SENDER_ID_KEY + ":" + roomId, String.valueOf(lastSenderId));
+    }
+
+    public void clearGroupMsgCount(Long currentId, String groupId) {
+        redisTemplate.opsForValue().set(GROUP_UNREAD_KEY + ":" + currentId + ":" + groupId,"0");
     }
 }

@@ -53,7 +53,7 @@ public class GroupService {
     @PersistenceContext
     private EntityManager entityManager;
     private final RedisServiceUtil redisServiceUtil;
-    private static final int LATEST_MESSAGES_LIMIT = 20;
+    // private static final int LATEST_MESSAGES_LIMIT = 20;
 
 
     /**
@@ -366,6 +366,7 @@ public class GroupService {
             // 过滤条件：消息所属群ID等于目标群
             return cb.equal(root.get("chatGroup").get("groupId"), dto.getGroupId());
         };
+        redisServiceUtil.clearGroupMsgCount(BaseContext.getCurrentId(),dto.getGroupId());
 
         // 构建分页请求（无排序）
         Pageable pageable = PageRequest.of(dto.getPage(), dto.getSize());
