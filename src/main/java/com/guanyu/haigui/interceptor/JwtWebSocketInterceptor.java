@@ -10,9 +10,11 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.http.server.ServletServerHttpRequest;
+import org.springframework.http.server.ServletServerHttpResponse;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Component;
@@ -22,6 +24,8 @@ import org.springframework.web.socket.server.HandshakeInterceptor;
 import org.springframework.web.util.UriComponents;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.List;
 import java.util.Map;
@@ -63,8 +67,20 @@ public class JwtWebSocketInterceptor implements HandshakeInterceptor {
             // 1. Extract and validate Token
             String token = extractToken(request);
 
-            boolean tokenValid = jwtTokenUtil.validateToken(token);
-            log.info("Token验证结果: {}", tokenValid);
+            // 1. 检查Token是否存在
+            if (!StringUtils.hasText(token)) {
+                log.warn("未提取到Token，拒绝握手");
+                sendUnauthorizedResponse(response, "缺少Token");
+                return false;
+            }
+
+            // 2. 验证Token有效性（返回布尔值）
+            boolean tokenValid = jwtTokenUtil.validateToken1(token);
+            if (!tokenValid) {
+                log.warn("Token无效或已过期，拒绝握手");
+                sendUnauthorizedResponse(response, "Token已过期或无效");
+                return false;
+            }
 
             // 2. Extract user information
             String username = jwtTokenUtil.getUsernameFromToken(token);
@@ -130,5 +146,19 @@ public class JwtWebSocketInterceptor implements HandshakeInterceptor {
         // if (exception != null) {
         // log.info("WebSocket 握手出现异常：{}", exception.getMessage());
         // }
+    }
+
+    /**
+     * 向客户端发送401未授权响应（可选，增强客户端提示）
+     */
+    private void sendUnauthorizedResponse(ServerHttpResponse response, String message) {
+        response.setStatusCode(HttpStatus.UNAUTHORIZED);
+        if (response instanceof ServletServerHttpResponse servletResponse) {
+            try {
+                servletResponse.getBody().write(message.getBytes(StandardCharsets.UTF_8));
+            } catch (IOException e) {
+                log.error("写入响应失败: {}", e.getMessage());
+            }
+        }
     }
 }

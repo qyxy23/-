@@ -71,7 +71,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
         // 启用简单消息代理，用于广播消息和点对点消息
-        registry.enableSimpleBroker("/topic", "/queue")
+        registry.enableSimpleBroker("/topic", "/queue", "/user")
                 // 配置心跳机制：保持WebSocket连接活跃
                 .setHeartbeatValue(new long[] { 60000, 60000 }) // 客户端和服务器心跳间隔均为10秒
                 .setTaskScheduler(taskScheduler()); // 设置任务调度器用于心跳任务

@@ -52,9 +52,10 @@ public class MessageServiceImpl implements MessageService {
 
     /**
      * 置顶/取消置顶单个会话
+     * 
      * @param sessionId 会话ID
-     * @param chatType 会话类型（PRIVATE/GROUP）
-     * @param isSticky 是否置顶（null时默认true）
+     * @param chatType  会话类型（PRIVATE/GROUP）
+     * @param isSticky  是否置顶（null时默认true）
      */
     public void topSingleSession(String sessionId, String chatType, Boolean isSticky) {
         // 1. 参数校验
@@ -77,9 +78,10 @@ public class MessageServiceImpl implements MessageService {
 
     /**
      * 置顶/取消置顶私聊会话（核心逻辑）
-     * @param sessionId 私聊对方用户ID
+     * 
+     * @param sessionId     私聊对方用户ID
      * @param currentUserId 当前用户ID
-     * @param isSticky 是否置顶（true=置顶，false=取消）
+     * @param isSticky      是否置顶（true=置顶，false=取消）
      */
     public void topPrivateSession(String sessionId, Long currentUserId, boolean isSticky) {
         // 1. 校验权限：必须是好友
@@ -110,7 +112,6 @@ public class MessageServiceImpl implements MessageService {
             throw new BusinessException("非群成员，无法置顶该群聊");
         }
 
-
         // 2. 根据isSticky执行不同操作
         if (isSticky) {
             // 置顶：执行UPSERT（存在则更新为true，不存在则插入）
@@ -137,6 +138,7 @@ public class MessageServiceImpl implements MessageService {
 
     /**
      * 获取所有会话列表（私聊+群聊，支持置顶排序）
+     * 
      * @return 会话VO列表（按置顶→最新时间排序）
      */
     public List<ChatSessionVO> getChatSessions() {
@@ -158,8 +160,7 @@ public class MessageServiceImpl implements MessageService {
                 .thenComparing(
                         ChatSessionVO::getLastMessageTime,
                         Comparator.nullsLast(Comparator.reverseOrder()) // 关键：处理null
-                )
-        );
+                ));
 
         return sessions;
     }
@@ -170,7 +171,8 @@ public class MessageServiceImpl implements MessageService {
     private List<ChatSessionVO> processPrivateChats(Long currentUserId) {
         // 查询当前用户的好友列表（私聊对象）
         List<FriendBasicInfoVO> basicInfos = userRepository.findFriendBasicInfos(currentUserId);
-        if (CollectionUtils.isEmpty(basicInfos)) return Collections.emptyList();
+        if (CollectionUtils.isEmpty(basicInfos))
+            return Collections.emptyList();
 
         List<Long> friendIds = basicInfos.stream().map(FriendBasicInfoVO::getUserId).toList();
         Map<Long, Long> unreadMap = new HashMap<>(); // 好友ID→未读数
@@ -208,17 +210,19 @@ public class MessageServiceImpl implements MessageService {
      * 从Redis获取私聊数据（未读数、最后消息、置顶状态）
      */
     private void fetchPrivateChatDataFromRedis(Long currentUserId, List<Long> friendIds,
-                                               Map<Long, Long> unreadMap,
-                                               Map<Long, MsgDTO> lastMsgMap,
-                                               Map<Long, Boolean> stickyMap) {
+            Map<Long, Long> unreadMap,
+            Map<Long, MsgDTO> lastMsgMap,
+            Map<Long, Boolean> stickyMap) {
         for (Long friendId : friendIds) {
             // 未读数
             Long unread = redisServiceUtil.selectUnreadMsgCountFromRedis(currentUserId, friendId);
-            if (unread != null) unreadMap.put(friendId, unread);
+            if (unread != null)
+                unreadMap.put(friendId, unread);
 
             // 最后一条消息
             MsgDTO lastMsg = redisServiceUtil.selectLastMessageFromRedis(currentUserId, friendId);
-            if (lastMsg != null) lastMsgMap.put(friendId, lastMsg);
+            if (lastMsg != null)
+                lastMsgMap.put(friendId, lastMsg);
 
             // 是否置顶
             Object stickyObj = redisServiceUtil.selectUserPrivateSticky(currentUserId, friendId);
@@ -234,15 +238,16 @@ public class MessageServiceImpl implements MessageService {
      * 从数据库补充私聊数据（未读数、最后消息、置顶状态）
      */
     private void fetchPrivateChatDataFromDB(Long currentUserId, List<Long> friendIds,
-                                            Map<Long, Long> unreadMap,
-                                            Map<Long, MsgDTO> lastMsgMap,
-                                            Map<Long, Boolean> stickyMap) {
+            Map<Long, Long> unreadMap,
+            Map<Long, MsgDTO> lastMsgMap,
+            Map<Long, Boolean> stickyMap) {
         // 补充未读数
         List<Long> missingUnreadIds = friendIds.stream()
                 .filter(id -> !unreadMap.containsKey(id))
                 .collect(Collectors.toList());
         if (!missingUnreadIds.isEmpty()) {
-            List<Object[]> unreadResults = userRepository.countUnreadMessagesByFriendIds(currentUserId, missingUnreadIds);
+            List<Object[]> unreadResults = userRepository.countUnreadMessagesByFriendIds(currentUserId,
+                    missingUnreadIds);
             unreadResults.forEach(arr -> {
                 Long friendId = (Long) arr[0];
                 Long count = (Long) arr[1];
@@ -256,9 +261,8 @@ public class MessageServiceImpl implements MessageService {
             // 回写Redis
             Map<Long, Long> unreadFromDb = unreadResults.stream()
                     .collect(Collectors.toMap(arr -> (Long) arr[0], arr -> (Long) arr[1]));
-            unreadFromDb.forEach((friendId, count) ->
-                    redisServiceUtil.updateUnreadMsgCount(currentUserId, friendId, count)
-            );
+            unreadFromDb.forEach(
+                    (friendId, count) -> redisServiceUtil.updateUnreadMsgCount(currentUserId, friendId, count));
         }
 
         // 补充最后一条消息
@@ -280,18 +284,16 @@ public class MessageServiceImpl implements MessageService {
             });
             // 回写Redis
             Map<Long, MsgDTO> lastMsgFromDb = lastMsgResults.stream()
-                    .collect(Collectors.toMap(arr -> (Long) arr[0], arr ->
-                            new MsgDTO((String) arr[1], ((Timestamp) arr[2]).toLocalDateTime())
-                    ));
-            lastMsgFromDb.forEach((friendId, msg) ->
-                    redisServiceUtil.updateLastMsg(msg, currentUserId, friendId)
-            );
+                    .collect(Collectors.toMap(arr -> (Long) arr[0],
+                            arr -> new MsgDTO((String) arr[1], ((Timestamp) arr[2]).toLocalDateTime())));
+            lastMsgFromDb.forEach((friendId, msg) -> redisServiceUtil.updateLastMsg(msg, currentUserId, friendId));
         }
     }
 
     private List<ChatSessionVO> processGroupChats(Long currentUserId) {
         List<Object[]> groupChats = userRepository.findActiveGroupChatsByUserId(currentUserId);
-        if (CollectionUtils.isEmpty(groupChats)) return Collections.emptyList();
+        if (CollectionUtils.isEmpty(groupChats))
+            return Collections.emptyList();
 
         return groupChats.stream().map(group -> {
             String roomId = (String) group[0];
@@ -309,10 +311,10 @@ public class MessageServiceImpl implements MessageService {
             vo.setIsSticky(!stickyRes.isEmpty() && (Boolean) stickyRes.get(0)[0]);
 
             // 2. 从Redis查询群聊未读数
-            String unreadCount =redisServiceUtil.selectGroupUnreadCount(currentUserId, roomId);
+            String unreadCount = redisServiceUtil.selectGroupUnreadCount(currentUserId, roomId);
 
             if (unreadCount != null) {
-                Long unreadNum =Long.parseLong(unreadCount);
+                Long unreadNum = Long.parseLong(unreadCount);
                 vo.setUnreadCount(unreadNum);
             } else {
                 // Redis无数据，查数据库
@@ -370,13 +372,13 @@ public class MessageServiceImpl implements MessageService {
         }).collect(Collectors.toList());
     }
 
-
     /**
      * 获取两个用户之间的历史消息（分页）
-     * @param userId 当前用户ID（查看消息的人）
+     * 
+     * @param userId     当前用户ID（查看消息的人）
      * @param receiverId 对话方ID（消息发送者）
-     * @param page 页码
-     * @param size 页大小
+     * @param page       页码
+     * @param size       页大小
      * @return 历史消息分页VO
      */
     public Page<PrivateMessageVO> getHistoryMessages(Long userId, Long receiverId, int page, int size) {
@@ -393,8 +395,9 @@ public class MessageServiceImpl implements MessageService {
 
     /**
      * 异步标记对话为已读（使用预配置线程池）
+     * 
      * @param currentUserId 当前用户ID（接收者）
-     * @param friendId 好友ID（发送者）
+     * @param friendId      好友ID（发送者）
      */
     @Async("taskExecutor") // 指定使用配置的"taskExecutor"线程池
     public void asyncMarkAsRead(Long currentUserId, Long friendId) {
@@ -407,40 +410,6 @@ public class MessageServiceImpl implements MessageService {
         } catch (Exception e) {
             log.error("异步标记已读失败：用户{} -> 好友{}", currentUserId, friendId, e);
         }
-    }
-
-
-
-
-    @Override
-    public PrivateMessageVO sendMessage(PrivateMessageDTO message,String sessionId) {
-        Long senderId = sessionMapUtil.getUserIdBySessionId(sessionId);
-        PrivateMessage privateMessage = new PrivateMessage();
-        privateMessage.setMessageId(UUID.randomUUID().toString());
-        // 获取发送者和接收者实体
-        UserInfo sender = userRepository.findById(senderId)
-                .orElseThrow(() -> new RuntimeException("发送者不存在"));
-        UserInfo receiver = userRepository.findById(message.getReceiverId())
-                .orElseThrow(() -> new RuntimeException("接收者不存在"));
-        if (!friendRelationRepository.hasRelationBetweenUsers(senderId, receiver.getUserId(), FriendStatus.ACCEPTED)) {
-            throw new FriendsException("你和对方还不是好友");
-        }
-        privateMessage.setSender(sender);
-        privateMessage.setReceiver(receiver);
-        privateMessage.setContent(message.getContent());
-        privateMessage.setMessageType(message.getMessageType());
-        privateMessage.setStatus(MessageStatus.SENT);
-        privateMessage.setIsRead(false);
-        privateMessage.setCreateTime(LocalDateTime.now());
-        messageRepository.save(privateMessage);
-        asyncAfterSendMessage(message,senderId);
-        // 2. 推送给接收者
-        simpMessagingTemplate.convertAndSendToUser(
-                receiver.getUserId().toString(), // 目标用户ID
-                "/queue/messages", // 订阅路径
-                PrivateMessageVO.fromEntity(privateMessage) // 消息内容
-        );
-        return PrivateMessageVO.fromEntity(privateMessage);
     }
 
     public PrivateMessageVO sendMessage(PrivateMessageDTO message) {
@@ -463,38 +432,81 @@ public class MessageServiceImpl implements MessageService {
         privateMessage.setIsRead(false);
         privateMessage.setCreateTime(LocalDateTime.now());
         messageRepository.save(privateMessage);
-        asyncAfterSendMessage(message,senderId);
-        // 2. 推送给接收者
-        simpMessagingTemplate.convertAndSendToUser(
-                receiver.getUserId().toString(), // 目标用户ID
-                "/queue/messages", // 订阅路径
-                PrivateMessageVO.fromEntity(privateMessage) // 消息内容
-        );
-        return PrivateMessageVO.fromEntity(privateMessage);
+        asyncAfterSendMessage(message, senderId);
+
+        // 推送私聊消息到接收者的专属主题
+        PrivateMessageVO messageVO = PrivateMessageVO.fromEntity(privateMessage);
+        sendToUserPrivateTopic(messageVO);
+
+        return messageVO;
     }
-
-
 
     // 发送消息后更新缓存
     @Async("taskExecutor") // 指定使用配置的"taskExecutor"线程池
-    public void asyncAfterSendMessage(PrivateMessageDTO message,Long userId) {
+    public void asyncAfterSendMessage(PrivateMessageDTO message, Long userId) {
         // 更新最后一条消息缓存
-        redisServiceUtil.updateLastMsg(message,userId);
+        redisServiceUtil.updateLastMsg(message, userId);
         // 如果是发送给好友的消息，更新好友的未读计数
         if (!userId.equals(message.getReceiverId())) {
-            redisServiceUtil.updateUnreadMsgCount(message.getReceiverId(),userId);
+            redisServiceUtil.updateUnreadMsgCount(message.getReceiverId(), userId);
         }
     }
 
-    // // 标记消息已读后清除未读计数
-    // private void markMessageAsRead(String messageId) {
-    //     PrivateMessage message = messageRepository.findById(messageId).orElseThrow(() -> new RuntimeException("消息不存在"));
-    //     if (message.getStatus().equals(MessageStatus.SENT)) {
-    //         redisServiceUtil.deleteUnreadMsgCount(message);
-    //         message.setStatus(MessageStatus.READ);
-    //         messageRepository.save(message);
-    //     }
-    // }
+    @Override
+    public PrivateMessageVO sendMessage(PrivateMessageDTO message, String sessionId) {
+        Long senderId = sessionMapUtil.getUserIdBySessionId(sessionId);
+        PrivateMessage privateMessage = new PrivateMessage();
+        privateMessage.setMessageId(UUID.randomUUID().toString());
+        // 获取发送者和接收者实体
+        UserInfo sender = userRepository.findById(senderId)
+                .orElseThrow(() -> new RuntimeException("发送者不存在"));
+        UserInfo receiver = userRepository.findById(message.getReceiverId())
+                .orElseThrow(() -> new RuntimeException("接收者不存在"));
+        if (!friendRelationRepository.hasRelationBetweenUsers(senderId, receiver.getUserId(), FriendStatus.ACCEPTED)) {
+            throw new FriendsException("你和对方还不是好友");
+        }
+        privateMessage.setSender(sender);
+        privateMessage.setReceiver(receiver);
+        privateMessage.setContent(message.getContent());
+        privateMessage.setMessageType(message.getMessageType());
+        privateMessage.setStatus(MessageStatus.SENT);
+        privateMessage.setIsRead(false);
+        privateMessage.setCreateTime(LocalDateTime.now());
+        messageRepository.save(privateMessage);
+        asyncAfterSendMessage(message, senderId);
 
+        // 推送私聊消息到接收者的专属主题
+        PrivateMessageVO messageVO = PrivateMessageVO.fromEntity(privateMessage);
+        sendToUserPrivateTopic(messageVO);
+        System.out.println(receiver.getUserId().toString());
+        return messageVO;
+    }
 
+    // 推送私聊消息到用户专属主题
+    @Async("taskExecutor")
+    public void sendToUserPrivateTopic(PrivateMessageVO message) {
+        try {
+            // 使用convertAndSendToUser方法推送消息，该方法会自动添加/user/前缀
+            // 实际路径会是/user/{userId}/private-messages
+
+            // 推送给接收者
+            simpMessagingTemplate.convertAndSendToUser(
+                    String.valueOf(message.getReceiverId()), // 目标用户ID
+                    "/private-messages", // 订阅路径（相对路径，会自动加上/user/{userId}前缀）
+                    message // 消息内容
+            );
+
+            // 同时也发送给发送者，用于消息确认和同步
+            simpMessagingTemplate.convertAndSendToUser(
+                    String.valueOf(message.getSenderId()), // 发送者用户ID
+                    "/private-messages", // 订阅路径
+                    message // 消息内容
+            );
+
+            log.info("私聊消息已发送到用户专属主题: receiverId={}, senderId={}",
+                    message.getReceiverId(), message.getSenderId());
+        } catch (Exception e) {
+            log.error("发送到用户专属主题失败: {}", message, e);
+        }
+    }
 }

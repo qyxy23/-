@@ -109,6 +109,8 @@ public class ChatGroupController {
 
 
 
+
+
     @Operation(summary = "获取指定群聊的最新N条消息")
     @PostMapping("/chat.recent/{groupId}/{limit}") // 接收请求：包含roomId和limit
     @SendTo("/topic/recent/{groupId}") // 广播结果：发送到对应房间的Topic（仅订阅该房间的客户端能收到）

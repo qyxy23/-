@@ -4,6 +4,7 @@ import com.guanyu.haigui.Exception.TokenErrorException;
 import com.guanyu.haigui.pojo.vo.CustomUserDetails;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import io.micrometer.common.util.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.GrantedAuthority;
@@ -61,6 +62,27 @@ public class JwtTokenUtil {
             throw new TokenErrorException("Token认证已过期");
         } catch (JwtException | IllegalArgumentException e) {
             throw new TokenErrorException("Token认证无效");
+        }
+    }
+
+    public Boolean validateToken1(String token) {
+        if (StringUtils.isBlank(token)) {
+            log.warn("Token为空");
+            return false;
+        }
+        try {
+            // 解析Token（自动验证签名和过期时间）
+            Jwts.parserBuilder()
+                    .setSigningKey(getSigningKey())
+                    .build()
+                    .parseClaimsJws(token);
+            return true; // 验证通过
+        } catch (ExpiredJwtException e) {
+            log.warn("Token已过期: {}", e.getMessage());
+            return false; // 过期
+        } catch (JwtException | IllegalArgumentException e) {
+            log.warn("Token无效: {}", e.getMessage());
+            return false; // 无效（签名错误、格式错误等）
         }
     }
 
