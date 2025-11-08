@@ -2,6 +2,7 @@ package com.guanyu.haigui.Hanldler;
 
 import com.guanyu.haigui.Exception.*;
 import com.guanyu.haigui.result.Result;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -10,6 +11,7 @@ import org.springframework.security.authentication.DisabledException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MultipartException;
 
 import javax.security.sasl.AuthenticationException;
 
@@ -17,6 +19,7 @@ import javax.security.sasl.AuthenticationException;
 /**
  * 全局异常处理器
  */
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -119,4 +122,13 @@ public class GlobalExceptionHandler {
     public Result<String> handleUnauthorizedException(UnauthorizedException e) {
         return Result.error(e.getMessage());
     }
+
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<String> handleMultipartException(MultipartException e) {
+        log.error("Multipart request parsing failed: {}", e.getMessage());
+        return ResponseEntity.badRequest()
+                .body("文件上传请求格式错误，请确保使用multipart/form-data格式");
+    }
+
+
 }

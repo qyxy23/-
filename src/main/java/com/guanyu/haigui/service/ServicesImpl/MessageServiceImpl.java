@@ -1,14 +1,15 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
 import cn.hutool.core.lang.UUID;
+import com.guanyu.haigui.Enum.MessageChatType;
 import com.guanyu.haigui.Enum.FriendStatus;
 import com.guanyu.haigui.Enum.MessageStatus;
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.Exception.FriendsException;
 import com.guanyu.haigui.Exception.UnauthorizedException;
 import com.guanyu.haigui.context.BaseContext;
-import com.guanyu.haigui.pojo.dto.PrivateMessageDTO;
 import com.guanyu.haigui.pojo.dto.MsgDTO;
+import com.guanyu.haigui.pojo.dto.PrivateMessageDTO;
 import com.guanyu.haigui.pojo.model.PrivateMessage;
 import com.guanyu.haigui.pojo.model.UserInfo;
 import com.guanyu.haigui.pojo.vo.ChatSessionVO;
@@ -436,8 +437,8 @@ public class MessageServiceImpl implements MessageService {
 
         // 推送私聊消息到接收者的专属主题
         PrivateMessageVO messageVO = PrivateMessageVO.fromEntity(privateMessage);
+        messageVO.setChatType(MessageChatType.PRIVATE_MESSAGE);
         sendToUserPrivateTopic(messageVO);
-
         return messageVO;
     }
 
@@ -477,6 +478,7 @@ public class MessageServiceImpl implements MessageService {
 
         // 推送私聊消息到接收者的专属主题
         PrivateMessageVO messageVO = PrivateMessageVO.fromEntity(privateMessage);
+        messageVO.setChatType(MessageChatType.PRIVATE_MESSAGE);
         sendToUserPrivateTopic(messageVO);
         System.out.println(receiver.getUserId().toString());
         return messageVO;

@@ -1,17 +1,15 @@
 package com.guanyu.haigui.websocket;
 
 
-import com.guanyu.haigui.Enum.FriendStatus;
-import com.guanyu.haigui.Enum.MessageStatus;
-import com.guanyu.haigui.Enum.RequestStatus;
+import com.guanyu.haigui.Enum.*;
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.dto.*;
 import com.guanyu.haigui.pojo.model.*;
-import com.guanyu.haigui.pojo.vo.ChatGroupVo;
-import com.guanyu.haigui.pojo.vo.GroupMessageVO;
-import com.guanyu.haigui.pojo.vo.GroupRoomListVO;
+import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.repository.*;
+import com.guanyu.haigui.utils.GroupRoomUtils;
+import com.guanyu.haigui.utils.MinioUtil;
 import com.guanyu.haigui.utils.RedisServiceUtil;
 import io.micrometer.common.util.StringUtils;
 import jakarta.persistence.EntityManager;
@@ -28,6 +26,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -50,11 +49,12 @@ public class GroupService {
     private final SimpMessagingTemplate simpMessagingTemplate; // WebSocket消息模板
     private final GroupJoinRequestRepository joinRequestRepo;
     private final UserInfoRepository userInfoRepository;
-    @PersistenceContext
-    private EntityManager entityManager;
     private final RedisServiceUtil redisServiceUtil;
     // private static final int LATEST_MESSAGES_LIMIT = 20;
-
+    private final GroupRoomUtils groupRoomUtils;
+    private final MinioUtil minioUtil;
+    @PersistenceContext
+    private EntityManager entityManager;
 
     /**
      * 用户申请加入群聊
@@ -98,9 +98,16 @@ public class GroupService {
         notification.setApplicantName(request.getUser().getUsername());
         notification.setGroupId(group.getGroupId());
         notification.setDescription(request.getDescription());
+        notification.setGroupName(group.getGroupName());
+        notification.setGroupAvatar(group.getGroupAvatar());
+        notification.setChatType(MessageChatType.GROUP_JOIN_REQUESTS);
 
         // 发送给群主（群主订阅此主题：/topic/group/{groupId}/join-requests）
-        simpMessagingTemplate.convertAndSend("/topic/group/" + group.getGroupId() + "/join-requests", notification);
+        simpMessagingTemplate.convertAndSendToUser(
+                String.valueOf(group.getCreator().getUserId()), // 群主ID
+                "/private-messages", // 订阅路径
+                notification // 群主消息内容
+        );
         return notification;
     }
 
@@ -205,6 +212,7 @@ public class GroupService {
                 .build();
 
         chatGroupMemberRepository.save(member);
+        groupRoomUtils.addUserToGroup(groupId, memberId);
     }
 
     /**
@@ -357,6 +365,7 @@ public class GroupService {
 
     /**
      * 获取指定群聊的历史消息（仅分页，无排序）
+     *
      * @param dto 查询参数（群ID、分页）
      * @return 分页后的群消息VO列表
      */
@@ -366,12 +375,14 @@ public class GroupService {
             // 过滤条件：消息所属群ID等于目标群
             return cb.equal(root.get("chatGroup").get("groupId"), dto.getGroupId());
         };
-        redisServiceUtil.clearGroupMsgCount(BaseContext.getCurrentId(),dto.getGroupId());
+        redisServiceUtil.clearGroupMsgCount(BaseContext.getCurrentId(), dto.getGroupId());
 
         // 构建分页请求（无排序）
         Pageable pageable = PageRequest.of(dto.getPage(), dto.getSize());
         // 执行查询（返回GroupMessage分页）
         Page<GroupMessage> messagePage = chatGroupMessageRepository.findAll(spec, pageable);
+
+        groupRoomUtils.addUserToGroup(dto.getGroupId(), BaseContext.getCurrentId());
         // 转换为GroupMessageVO分页
         return messagePage.map(GroupMessageVO::from);
     }
@@ -412,14 +423,12 @@ public class GroupService {
         message.setCreateTime(LocalDateTime.now());
         message.setStatus(MessageStatus.SENT);
         chatGroupMessageRepository.save(message);
-        redisServiceUtil.updateLastGroupMessage1(request.getGroupId(),message.getContent(),message.getCreateTime());
-        redisServiceUtil.updateLastGroupSenderId(request.getGroupId(),message.getSender().getUserId());
+        redisServiceUtil.updateLastGroupMessage1(request.getGroupId(), message.getContent(), message.getCreateTime());
+        redisServiceUtil.updateLastGroupSenderId(request.getGroupId(), message.getSender().getUserId());
         // 4. 转换为VO并广播给群成员
         GroupMessageVO vo = GroupMessageVO.from(message);
-        simpMessagingTemplate.convertAndSend(
-                "/topic/group/" + request.getGroupId() + "/messages", // 群消息主题
-                vo
-        );
+        vo.setChatType(MessageChatType.GROUP_MESSAGE);
+        broadcastGroupMessageToMembers(vo, request.getGroupId());
         return vo;
     }
 
@@ -433,11 +442,13 @@ public class GroupService {
             // 2. 删除群成员记录
             chatGroupMemberRepository.delete(memberOpt.get());
 
+            groupRoomUtils.leaveGroupRoom(groupId, userId);
             // 3. 广播用户退出事件（客户端可更新群成员列表）
-            simpMessagingTemplate.convertAndSend(
-                    "/topic/group/" + groupId + "/exit", // 退出主题
-                    userId // 退出的用户ID
-            );
+            leaveGroupRoomVO leaveGroupRoomVO = new leaveGroupRoomVO();
+            leaveGroupRoomVO.setUserId(userId);
+            leaveGroupRoomVO.setRoomId(groupId);
+            leaveGroupRoomVO.setChatType(MessageChatType.GROUP_LEAVE);
+            broadcastGroupMessageToMembers(leaveGroupRoomVO, groupId);
         } else {
             throw new BusinessException("您未加入该群，无法退出");
         }
@@ -461,6 +472,12 @@ public class GroupService {
         request.setProcessTime(LocalDateTime.now());
         request.setProcessor(userInfoRepository.findById(processorId).orElseThrow(() -> new BusinessException("处理人不存在")));
         joinRequestRepo.save(request);
+        simpMessagingTemplate.convertAndSendToUser(
+                request.getUser().getUserId().toString(),
+                "/queue/group/join",
+                new JoinGroupRoomVO(request.getUser().getUserId(), group.getGroupId(),
+                        group.getGroupName(), group.getGroupAvatar(), JoinGroupStatus.REFUSE, MessageChatType.GROUP_REFUSE_REQUESTS)
+        );
     }
 
     /**
@@ -495,8 +512,95 @@ public class GroupService {
                 .build();
 
         chatGroupMemberRepository.save(member);
+        groupRoomUtils.addUserToGroup(group.getGroupId(), request.getUser().getUserId());
 
-        // 5. （可选）通知申请人入群成功
-        // sendJoinSuccessToApplicant(request.getUser());
+
+        simpMessagingTemplate.convertAndSendToUser(
+                request.getUser().getUserId().toString(),
+                "/queue/group/join",
+                new JoinGroupRoomVO(request.getUser().getUserId(), group.getGroupId(),
+                        group.getGroupName(), group.getGroupAvatar(), JoinGroupStatus.AGREE, MessageChatType.GROUP_AGREE_REQUESTS)
+        );
+    }
+
+    public updateGroupAvatarVO uploadGroupAvatar(MultipartFile avatarFile, String groupId) {
+        Long userId = BaseContext.getCurrentId();
+        ChatGroup group = chatGroupRepository.findById(groupId)
+                .orElseThrow(() -> new BusinessException("群不存在"));
+        if (!group.getCreator().getUserId().equals(userId)) {
+            throw new BusinessException("您不是群主，无权修改群头像");
+        }
+        String avatarUrl = minioUtil.generateAvatarUrl(avatarFile);
+        chatGroupRepository.updateGroupAvatar(groupId, avatarUrl);
+        updateGroupAvatarVO updateGroupAvatarVO= new updateGroupAvatarVO(groupId, avatarUrl, MessageChatType.GROUP_UPDATE_AVATAR);
+        broadcastGroupMessageToMembers(updateGroupAvatarVO, groupId);
+        return updateGroupAvatarVO;
+    }
+
+    /**
+     * 向群成员广播消息（给每个成员发私信）
+     *
+     * @param messageVo 要发送的消息VO
+     * @param groupId   群聊ID
+     */
+    private void broadcastGroupMessageToMembers(Object messageVo, String groupId) {
+        // 获取群成员列表（可根据需要加缓存）
+        Set<Long> groupMembers = groupRoomUtils.getGroupMembers(groupId);
+        // 遍历发送给每个成员
+        groupMembers.forEach(memberId -> {
+            simpMessagingTemplate.convertAndSendToUser(
+                    String.valueOf(memberId),  // 目标用户ID（Stomp会自动拼接成/user/{memberId}/private-messages）
+                    "/private-messages",       // 订阅路径（客户端需要订阅此路径才能收到消息）
+                    messageVo                  // 要发送的消息内容
+            );
+        });
+    }
+
+    public updateGroupNameVO updateGroupName(updateGroupNameDTO request) {
+        Long userId = BaseContext.getCurrentId();
+        ChatGroup group = chatGroupRepository.findById(request.getGroupId())
+                .orElseThrow(() -> new BusinessException("群不存在"));
+        if (!group.getCreator().getUserId().equals(userId)) {
+            throw new BusinessException("您不是群主，无权修改群名称");
+        }
+        chatGroupRepository.updateGroupName(request.getGroupId(), request.getGroupName());
+        updateGroupNameVO updateGroupNameVO = new updateGroupNameVO();
+        updateGroupNameVO.setGroupId(request.getGroupId());
+        updateGroupNameVO.setGroupName(request.getGroupName());
+        updateGroupNameVO.setChatType(MessageChatType.GROUP_UPDATE_NAME);
+        broadcastGroupMessageToMembers(updateGroupNameVO, request.getGroupId());
+        return updateGroupNameVO;
+    }
+
+    /**
+     * 获取指定群聊成员（分页）
+     * @param groupId 群ID
+     * @param pageable 分页参数（Spring Data JPA提供）
+     * @return 包含分页信息的群成员列表VO
+     */
+    public ChatGroupMemberListVO getGroupUsers(String groupId, Pageable pageable) {
+        // 1. 分页查询群成员（从数据库取）
+        Page<ChatGroupMember> memberPage = chatGroupMemberRepository.findByChatGroupGroupId(groupId, pageable);
+
+        // 2. 将ChatGroupMember转换为前端需要的ChatGroupMemberVO
+        List<ChatGroupMemberVO> memberVos = memberPage.getContent().stream()
+                .map(member -> {
+                    UserInfo userInfo = member.getMember(); // 关联的用户信息
+                    return new ChatGroupMemberVO(
+                            userInfo.getUserId(),
+                            userInfo.getUsername(),
+                            userInfo.getAvatar()
+                    );
+                })
+                .collect(Collectors.toList());
+
+        // 3. 构建分页结果VO（包含群ID、成员列表、分页元数据）
+        return new ChatGroupMemberListVO(
+                groupId,
+                memberVos,
+                memberPage.getTotalElements(), // 总成员数
+                memberPage.getNumber() + 1,    // 当前页码（Spring Data页码从0开始，需转成1开始）
+                memberPage.getSize()           // 每页大小
+        );
     }
 }

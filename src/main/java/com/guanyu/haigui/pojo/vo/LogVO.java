@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import org.springframework.security.core.GrantedAuthority;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 
@@ -17,7 +18,7 @@ public class LogVO {
     // 邮箱
     private String email;
     // 创建时间
-    private String createTime;
+    private LocalDateTime createTime;
     // 头像
     @Schema(description = "头像")
     private String avatar;

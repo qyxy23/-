@@ -1,5 +1,6 @@
 package com.guanyu.haigui.pojo.vo;
 
+import com.guanyu.haigui.Enum.MessageChatType;
 import com.guanyu.haigui.Enum.MessageStatus;
 import com.guanyu.haigui.Enum.MessageType;
 import com.guanyu.haigui.pojo.model.PrivateMessage;
@@ -24,6 +25,8 @@ public class PrivateMessageVO {
     private MessageStatus status;
     private Boolean isRead;
     private LocalDateTime createTime;
+    private MessageChatType chatType;
+
 
     // 从实体类转换
     public static PrivateMessageVO fromEntity(PrivateMessage message) {

@@ -41,7 +41,7 @@ public class ChatWithFriendController {
      * @param request 包含sessionId、chatType、isSticky（可选）
      * @return 操作结果
      */
-    @PostMapping("/topSingleSession")
+    @PostMapping("/chat/topSingleSession")
     @Operation(summary = "置顶/取消置顶单个会话")
     @ResponseBody
     public Result<String> topSingleSession(@RequestBody TopSessionRequest request) {

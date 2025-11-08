@@ -4,11 +4,12 @@ import com.guanyu.haigui.Enum.LoginType;
 import com.guanyu.haigui.Enum.RegisterType;
 import com.guanyu.haigui.Strategy.LoginStrategy;
 import com.guanyu.haigui.Strategy.RegisterStrategy;
-import com.guanyu.haigui.pojo.dto.LoginRequest;
-import com.guanyu.haigui.pojo.dto.RegisterRequest;
+import com.guanyu.haigui.pojo.dto.*;
 import com.guanyu.haigui.pojo.vo.LogVO;
+import com.guanyu.haigui.pojo.vo.UserInfoVO;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.service.UserService;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,11 +40,31 @@ public class UserController {
     private final Map<RegisterType, RegisterStrategy> RegisterstrategyMap; // 策略映射（Spring自动注入所有实现）
 
 
+    @PostMapping("/bindPhone")
+    @Operation(summary = "绑定手机号码")
+    public Result<String> bindPhone(@RequestBody BindPhoneRequest request) {
+        return Result.success(userService.bindPhone(request.getPhone()));
+    }
+
+    @PostMapping("/bindEmail")
+    @Operation(summary = "绑定邮箱")
+    public Result<String> bindEmail(@RequestBody BindEmailRequest request) {
+        return Result.success(userService.bindEmail(request.getEmail()));
+    }
+
+    @PostMapping("/bindPassword")
+    @Operation(summary = "绑定密码")
+    public Result<String> bindPassword(@RequestBody BindPasswordRequest request) {
+        return Result.success(userService.bindPassword(request.getPassword()));
+    }
+
+
     /**
      * 上传用户头像接口
      * @param avatarFile 头像文件（表单参数，name=avatar）
      * @return 头像访问URL或错误信息
      */
+    @Operation(summary = "上传用户头像")
     @PostMapping("/upAvatar")
     public ResponseEntity<?> uploadAvatar(@RequestParam("avatar") MultipartFile avatarFile) {
         try {
@@ -65,6 +86,7 @@ public class UserController {
      *
      * @return 认证结果
      */
+    @Operation(summary = "登录")
     @PostMapping("/login")
     public Result<LogVO> Login(@RequestBody LoginRequest request)
             throws AuthenticationException {
@@ -76,11 +98,14 @@ public class UserController {
     }
 
     // 退出登录接口
+    @Operation(summary = "退出登录")
     @PostMapping("/logout")
     public Result<String> logout(@RequestHeader("Authorization") String token) {
         return Result.success(userService.logout(token));
     }
 
+
+    @Operation(summary = "测试")
     @GetMapping("/test")
     public Result<String> test() {
         return Result.success("Hello World");
@@ -92,6 +117,7 @@ public class UserController {
      *
      * @return 注册结果
      */
+    @Operation(summary = "注册")
     @PostMapping("/register")
     public Result<LogVO> register(
             @RequestBody RegisterRequest request) throws Exception {
@@ -102,5 +128,11 @@ public class UserController {
         }
 
         return Result.success(strategy.register(request));
+    }
+
+    @Operation(summary = "获取用户信息")
+    @GetMapping("/info")
+    public Result<UserInfoVO> getUserInfo() {
+        return Result.success(userService.getUserInfo());
     }
 }

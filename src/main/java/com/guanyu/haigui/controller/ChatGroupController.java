@@ -1,6 +1,7 @@
 package com.guanyu.haigui.controller;
 
 import com.guanyu.haigui.pojo.dto.*;
+import com.guanyu.haigui.pojo.vo.ChatGroupMemberListVO;
 import com.guanyu.haigui.pojo.vo.ChatGroupVo;
 import com.guanyu.haigui.pojo.vo.GroupMessageVO;
 import com.guanyu.haigui.pojo.vo.GroupRoomListVO;
@@ -12,8 +13,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -36,6 +40,27 @@ public class ChatGroupController {
     public Result<String> createGroupRoom(@RequestBody CreateGroupRequest request) {
         // 创建群聊并获取生成的房间ID
         return Result.success(groupService.createGroupRoom(request));
+    }
+
+
+    /**
+     * 上传用户头像接口
+     * @param avatarFile 头像文件（表单参数，name=avatar）
+     * @return 头像访问URL或错误信息
+     */
+    @Operation(summary = "上传群头像")
+    @PostMapping("/upGroupAvatar/{groupId}")
+    public Result<?> uploadAvatar(@RequestParam("avatar") MultipartFile avatarFile,@PathVariable String groupId) {
+        if (avatarFile.isEmpty()) {
+            return Result.error("文件不能为空");
+        }
+        return Result.success(groupService.uploadGroupAvatar(avatarFile,groupId));
+    }
+
+    @Operation(summary = "修改群名称")
+    @PostMapping("/upGroupName")
+    public Result<?> updateGroupName(@RequestBody updateGroupNameDTO request) {
+        return Result.success(groupService.updateGroupName(request));
     }
 
 
@@ -75,17 +100,6 @@ public class ChatGroupController {
 
 
 
-
-    // 处理用户加入群聊的请求（前端发送到/app/chat.joinGroupRoom）
-    // @Operation(summary = "处理用户加入群聊的请求")
-    // @PostMapping("/joinGroupRoom")
-    // public void joinRoom(SimpMessageHeaderAccessor accessor, @Payload JoinChatRoomRequest request) {
-    //     String sessionId = accessor.getSessionId();
-    //     String GroupRoomId = request.getChatRoomId();
-    //     // 加入群聊
-    //     groupService.joinChatRoom(GroupRoomId, sessionId);
-    // }
-
     @Operation(summary = "用户申请加入群聊")
     @PostMapping("/joinGroupRoom")
     public GroupJoinNotification joinRoom(@RequestBody JoinGroupRoomRequest request) {
@@ -106,8 +120,6 @@ public class ChatGroupController {
         // 加入群聊
         groupService.RefuseJoinRequest(request);
     }
-
-
 
 
 
@@ -134,6 +146,23 @@ public class ChatGroupController {
     public void leaveGroupRoom(@PathVariable String groupId) {
         // 获取当前登录用户ID（从SecurityContext）
         groupService.leaveGroupRoom(groupId);
+    }
+
+    @Operation(summary = "获取指定群聊成员（分页）")
+    @GetMapping("/getGroupUsers/{groupId}")
+    public Result<ChatGroupMemberListVO> getGroupUsers(
+            @PathVariable String groupId,
+            // 接收分页参数，设置默认值
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer pageSize) {
+
+        // 注意：Spring Data JPA的PageRequest页码从0开始，所以page-1
+        Pageable pageable = PageRequest.of(page - 1, pageSize);
+
+        // 调用Service获取分页结果
+        ChatGroupMemberListVO result = groupService.getGroupUsers(groupId, pageable);
+        System.out.println(result);
+        return Result.success(result);
     }
 
 }

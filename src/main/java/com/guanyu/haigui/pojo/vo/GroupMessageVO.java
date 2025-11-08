@@ -1,5 +1,6 @@
 package com.guanyu.haigui.pojo.vo;
 
+import com.guanyu.haigui.Enum.MessageChatType;
 import com.guanyu.haigui.Enum.MessageStatus;
 import com.guanyu.haigui.Enum.MessageType;
 import com.guanyu.haigui.pojo.model.GroupMessage;
@@ -31,6 +32,7 @@ public class GroupMessageVO {
     private LocalDateTime createTime;
     @Schema(description = "发送者ID")
     private String senderId;
+    private MessageChatType chatType;
 
 
     public static GroupMessageVO from(GroupMessage message) {

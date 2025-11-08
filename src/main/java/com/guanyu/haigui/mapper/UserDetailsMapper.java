@@ -32,4 +32,13 @@ public interface UserDetailsMapper {
 
     @Select("SELECT * FROM sys_user WHERE sys_user.user_id = #{creatorId}")
     UserInfo selectUserInfoById(Long creatorId);
+
+    @Select("UPDATE sys_user SET password = #{password} WHERE sys_user.user_id = #{currentId}")
+    void updateUserPassword(String password, Long currentId);
+
+    @Select("UPDATE sys_user SET email = #{email} WHERE sys_user.user_id = #{currentId}")
+    void updateUserEmail(String email, Long currentId);
+
+    @Select("UPDATE sys_user SET phone = #{phone} WHERE sys_user.user_id = #{currentId}")
+    void updateUserPhone(String phone, Long currentId);
 }
