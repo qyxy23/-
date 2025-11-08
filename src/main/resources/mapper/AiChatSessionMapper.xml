@@ -31,7 +31,7 @@
         (session_id, sender_type, content, send_time, is_read
         <if test="senderId != null">, sender_id</if>)
         VALUES
-        (#{sessionId}, #{role}, #{content}, #{sendTime}, #{isRead}
+        (#{sessionId}, #{role.name()}, #{content}, #{sendTime}, #{isRead}
         <if test="senderId != null">, #{senderId}</if>)
     </insert>
 

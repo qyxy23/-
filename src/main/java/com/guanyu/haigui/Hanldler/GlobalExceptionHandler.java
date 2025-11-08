@@ -73,6 +73,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(RuntimeException.class)
     public Result<?> handleRuntimeException(RuntimeException ex) {
         ex.printStackTrace();
+        // log.error("RuntimeException: {}", ex.getMessage());
         return Result.error(405, ex.getMessage());
     }
 

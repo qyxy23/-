@@ -58,7 +58,7 @@ public class AiChatSession {
 
     /** 逻辑删除标记（0=未删，1=已删） */
     @Column(name = "is_deleted", nullable = false)
-    private Integer isDeleted;
+    private boolean isDeleted;
 
     /** 🔑 关联场景类型（GROUP_CHAT/PRIVATE_CHAT/GAME_ROOM/AI_SOLO） */
     @Enumerated(EnumType.STRING) // 存储枚举字符串（匹配数据库ENUM）

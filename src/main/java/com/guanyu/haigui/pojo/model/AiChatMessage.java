@@ -1,7 +1,7 @@
 package com.guanyu.haigui.pojo.model;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import com.volcengine.ark.runtime.model.completion.chat.ChatMessageRole;
+import com.guanyu.haigui.Enum.ChatMessageRole;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -45,7 +45,11 @@ public class AiChatMessage {
 
     /** 发送者类型（USER/ASSISTANT/SYSTEM，对应数据库sender_type ENUM） */
     @Enumerated(EnumType.STRING) // 存储枚举字符串
-    @Column(name = "sender_type", nullable = false)
+    @Column(
+            name = "sender_type",
+            nullable = false
+            // columnDefinition = "ENUM('USER', 'ASSISTANT', 'SYSTEM')"  // 强制指定数据库ENUM定义
+    )
     private ChatMessageRole role; // 保持与数据库ENUM一致
 
     /** 发送者ID（用户ID/AI标识，sender_type=USER时必填） */
