@@ -46,7 +46,7 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
         String sessionId = accessor.getSessionId();
 
         log.info("===== STOMP 消息预处理 =====");
-        log.info("命令: {}, 会话ID: {}", command==null? "心跳帧": command, sessionId);
+        log.info("命令: {}, 会话ID: {}", command == null ? "心跳帧" : command, sessionId);
 
         try {
             // ------------------- 1. 处理 CONNECT 帧（核心：设置用户身份） -------------------
@@ -78,7 +78,8 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
 
     /**
      * 处理 CONNECT 帧（核心：验证身份 + 设置上下文）
-     * @param accessor STOMP 头部访问器
+     * 
+     * @param accessor        STOMP 头部访问器
      * @param originalMessage 原始 CONNECT 帧消息（校验成功时返回）
      * @return 校验成功返回原始消息，失败返回 null
      */
@@ -104,8 +105,7 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
         if (!(principal instanceof CustomUserDetails customUserDetails)) {
             String errorMsg = String.format(
                     "Principal 类型错误，预期 CustomUserDetails，实际：%s，会话ID: %s",
-                    principal.getClass().getName(), sessionId
-            );
+                    principal.getClass().getName(), sessionId);
             log.warn(errorMsg);
             return rejectConnection(accessor, errorMsg);
         }
@@ -115,15 +115,13 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
                 "CONNECT 帧验证通过：用户名={}, 角色={}, 会话ID={}",
                 customUserDetails.getName(),
                 customUserDetails.getAuthorities(),
-                sessionId
-        );
+                sessionId);
 
         // 5. 关键：重新设置 SecurityContext（跨线程传递认证信息）
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 customUserDetails,
                 null,
-                customUserDetails.getAuthorities()
-        );
+                customUserDetails.getAuthorities());
         SecurityContextHolder.getContext().setAuthentication(authentication);
         log.info("SecurityContext 已设置：认证信息={}", authentication);
 
@@ -141,8 +139,6 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
         // 8. 校验成功，返回原始消息以允许连接建立
         return originalMessage;
     }
-
-
 
     private void updateSessionActivity(String sessionId) {
         long currentTime = System.currentTimeMillis();
@@ -168,12 +164,11 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
      */
     // @Override
     // public void afterSendCompletion(Message<?> message, MessageChannel channel,
-    //                                 boolean sent, Exception ex) {
-    //     // 清除当前线程的 SecurityContext（若连接断开，可避免内存泄漏）
-    //     SecurityContextHolder.clearContext();
-    //     log.info("STOMP 消息发送完成，清理 SecurityContext");
+    // boolean sent, Exception ex) {
+    // // 清除当前线程的 SecurityContext（若连接断开，可避免内存泄漏）
+    // SecurityContextHolder.clearContext();
+    // log.info("STOMP 消息发送完成，清理 SecurityContext");
     // }
-
 
     @Override
     public void postSend(@NotNull Message<?> message, @NotNull MessageChannel channel, boolean sent) {

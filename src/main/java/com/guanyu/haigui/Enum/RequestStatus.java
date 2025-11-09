@@ -1,10 +1,17 @@
 package com.guanyu.haigui.Enum;
 
-/**
- * 申请状态枚举
- */
+import lombok.Getter;
+
+@Getter
 public enum RequestStatus {
-    PENDING,   // 待处理
-    ACCEPTED,  // 已同意
-    REJECTED   // 已拒绝
+    PENDING("待处理"),
+    ACCEPTED("已同意"),
+    REJECTED("已拒绝");
+
+    private final String description;
+
+    RequestStatus(String description) {
+        this.description = description;
+    }
+
 }

@@ -3,8 +3,10 @@ package com.guanyu.haigui.pojo.vo;
 import com.guanyu.haigui.pojo.model.UserInfo;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import org.springframework.security.core.GrantedAuthority;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 
 @Data
 public class UserInfoVO {
@@ -23,8 +25,10 @@ public class UserInfoVO {
     private String avatar;
     // 状态
     private boolean enabled;
+    @Schema(description = "权限列表")
+    private Collection<? extends GrantedAuthority> authorities; // 必须有此属性！
 
-    public static UserInfoVO from(UserInfo userInfo) {
+    public static UserInfoVO from(UserInfo userInfo, Collection<? extends GrantedAuthority> authorities) {
         UserInfoVO userInfoVO = new UserInfoVO();
         userInfoVO.setUserId(userInfo.getUserId());
         userInfoVO.setUsername(userInfo.getUsername());
@@ -33,6 +37,7 @@ public class UserInfoVO {
         userInfoVO.setCreateTime(userInfo.getCreateTime());
         userInfoVO.setAvatar(userInfo.getAvatar());
         userInfoVO.setEnabled(userInfo.getEnabled());
+        userInfoVO.setAuthorities(authorities);
         return userInfoVO;
     }
 }

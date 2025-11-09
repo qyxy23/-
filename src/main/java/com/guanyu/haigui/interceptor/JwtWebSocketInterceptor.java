@@ -88,7 +88,7 @@ public class JwtWebSocketInterceptor implements HandshakeInterceptor {
             List<String> roleNames = jwtTokenUtil.getRolesFromToken(token);
             // 3. 将角色转换为GrantedAuthority（Spring Security要求的权限格式，如"ROLE_ADMIN"）
             List<GrantedAuthority> authorities = roleNames.stream()
-                    .map(role -> new SimpleGrantedAuthority("ROLE_" + role)) // 给角色加"ROLE_"前缀（Spring Security默认要求）
+                    .map(SimpleGrantedAuthority::new) // 从token解析的角色已经自带"ROLE_"前缀（Spring Security默认要求）
                     .collect(Collectors.toList());
             log.info("用户ID: {}, 用户名: {}", userId, username);
 
@@ -104,7 +104,7 @@ public class JwtWebSocketInterceptor implements HandshakeInterceptor {
             log.error("握手失败ERROR!", e);
             return false;
         } finally {
-            log.info("===== WebSocket握手成功=====");
+            log.info("===== WebSocket握手结束=====");
         }
     }
 

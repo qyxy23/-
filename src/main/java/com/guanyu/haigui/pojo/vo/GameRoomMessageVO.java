@@ -1,5 +1,6 @@
 package com.guanyu.haigui.pojo.vo;
 
+import com.guanyu.haigui.Enum.MessageChatType;
 import com.guanyu.haigui.Enum.MessageStatus;
 import com.guanyu.haigui.Enum.MessageType;
 import com.guanyu.haigui.pojo.model.ChatGameMessage;
@@ -31,7 +32,8 @@ public class GameRoomMessageVO {
     private LocalDateTime createTime;
     @Schema(description = "发送者ID")
     private String senderId;
-
+    @Schema(description = "消息类型")
+    private MessageChatType chatType;
 
     public static GameRoomMessageVO from(ChatGameMessage message) {
         GameRoomMessageVO vo = new GameRoomMessageVO();
@@ -46,6 +48,8 @@ public class GameRoomMessageVO {
             vo.setSenderUsername(message.getSender().getUsername());
             vo.setSenderAvatar(message.getSender().getAvatar());
         }
+        // 默认设置chatType为LOBBY_MESSAGE，但允许外部覆盖
+        vo.setChatType(MessageChatType.LOBBY_MESSAGE);
         return vo;
     }
 }

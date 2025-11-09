@@ -3,6 +3,7 @@ package com.guanyu.haigui.websocket;
 import cn.hutool.core.lang.UUID;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
+import com.guanyu.haigui.Enum.MessageChatType;
 import com.guanyu.haigui.Enum.MessageStatus;
 import com.guanyu.haigui.Enum.RoomStatus;
 import com.guanyu.haigui.Exception.*;
@@ -17,6 +18,7 @@ import com.guanyu.haigui.repository.ChatGameMemberRepository;
 import com.guanyu.haigui.repository.ChatGameMsgRepository;
 import com.guanyu.haigui.repository.ChatGameRepository;
 import com.guanyu.haigui.repository.UserInfoRepository;
+import com.guanyu.haigui.utils.LobbyRoomUtils;
 import com.guanyu.haigui.utils.RedisServiceUtil;
 import com.guanyu.haigui.utils.SessionMapUtil;
 import lombok.AllArgsConstructor;
@@ -31,15 +33,15 @@ import java.math.BigInteger;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 @Service
 @Slf4j
 @Transactional(rollbackFor = Exception.class)
 @AllArgsConstructor
 public class RoomService {
-// 存储大厅ID与成员用户ID的映射（线程安全，仅存用户ID减少内存占用）
-//     private final ConcurrentMap<String, Set<Long>> lobbies = new ConcurrentHashMap<>();
+    // 存储大厅ID与成员用户ID的映射（线程安全，仅存用户ID减少内存占用）
+    // private final ConcurrentMap<String, Set<Long>> lobbies = new
+    // ConcurrentHashMap<>();
     private final RedisServiceUtil redisService;
     private final ChatGameMapper chatGameMapper;
     private final ChatGameMemberMapper chatGameMemberMapper;
@@ -50,6 +52,7 @@ public class RoomService {
     private final ChatGameMemberRepository chatGameMemberRepository;
     private final ChatGameMsgRepository chatGameMsgRepository;
     private final SessionMapUtil sessionMapUtil;
+    private final LobbyRoomUtils lobbyRoomUtils;
 
     /**
      * 创建聊天室
@@ -253,36 +256,19 @@ public class RoomService {
         Pageable pageable = PageRequest.of(
                 dto.getPage(),
                 dto.getSize(),
-                Sort.by(Sort.Direction.DESC, "createTime")
-        );
+                Sort.by(Sort.Direction.DESC, "createTime"));
 
         // 调用 Repository 方法（使用带关联查询的方法名）
         Page<ChatGameMessage> messages = chatGameMsgRepository
                 .findByRoomIdWithAssociations(dto.getRoomId(), pageable);
 
-        log.info("=== 查询到的 GameMessage 原始分页数据 ===");
-        log.info("总页数: {}", messages.getTotalPages());
-        log.info("总记录数: {}", messages.getTotalElements());
-        log.info("当前页记录数: {}", messages.getContent().size());
-
         // 遍历打印消息详情（可选，用于调试）
-        List<ChatGameMessage> messageList = messages.getContent();
-        IntStream.range(0, messageList.size()).forEach(i -> {
-            ChatGameMessage msg = messageList.get(i);
-            log.info("【第 {} 条消息】", i + 1);
-            log.info("消息ID: {}", msg.getMessageId());
-            log.info("内容: {}", msg.getContent());
-            log.info("消息类型: {}", msg.getMessageType());
-            log.info("状态: {}", msg.getStatus());
-            log.info("创建时间: {}", msg.getCreateTime());
-            log.info("发送者ID: {}, 发送者用户名: {}",
-                    msg.getSender().getUserId(), msg.getSender().getUsername());
-            log.info("-----------------------------------");
-        });
-
-
+        // List<ChatGameMessage> messageList = messages.getContent();
+        Page<GameRoomMessageVO> vo = messages.map(GameRoomMessageVO::from);
+        lobbyRoomUtils.addUserToLobby(dto.getRoomId(), BaseContext.getCurrentId());
+        // lobbyRoomUtils.broadcastGroupMessageToMembers(vo,dto.getRoomId());
         // 转换为 VO 分页
-        return messages.map(GameRoomMessageVO::from);
+        return vo;
     }
 
     /**
@@ -297,10 +283,9 @@ public class RoomService {
 
         // 构造分页请求（仅取第 1 页，数量为 limit，倒序）
         Pageable pageable = PageRequest.of(
-                0,              // 第 1 页（从 0 开始）
-                limit,          // 每页条数
-                Sort.by(Sort.Direction.DESC, "createTime")
-        );
+                0, // 第 1 页（从 0 开始）
+                limit, // 每页条数
+                Sort.by(Sort.Direction.DESC, "createTime"));
 
         // 调用 Repository 方法（使用命名规则的排序查询）
         Page<ChatGameMessage> messagePage = chatGameMsgRepository
@@ -348,10 +333,10 @@ public class RoomService {
         messagingTemplate.convertAndSend("/topic/chat/" + roomId, "房间已激活");
     }
 
-
     public void sendLobbyMessage(SendGameRoomMsgRequest request, String sessionId) {
         // 1. 获取当前登录用户（发送者）
-        UserInfo sender = sessionMapUtil.getCurrentUser(sessionId);
+        UserInfo sender = userInfoRepository.findById(sessionMapUtil.getUserIdBySessionId(sessionId))
+                .orElseThrow(() -> new BusinessException("用户不存在"));
 
         // 2. 校验群聊是否存在
         ChatGame room = chatGameRepository.findById(request.getRoomId())
@@ -366,19 +351,20 @@ public class RoomService {
                 .status(MessageStatus.SENT) // 默认状态：已发送
                 .createTime(LocalDateTime.now())
                 .build();
-        ChatGameMessage savedMessage = chatGameMsgRepository.save(message);
+        chatGameMsgRepository.save(message);
 
         // 4. 广播消息到大厅聊天主题，让所有用户都能实时看到消息
-        GameRoomMessageVO messageVO = GameRoomMessageVO.from(savedMessage);
-        messagingTemplate.convertAndSend("/topic/lobbyChat/" + request.getRoomId(), messageVO);
-
+        GameRoomMessageVO messageVO = GameRoomMessageVO.from(message);
+        messageVO.setChatType(MessageChatType.LOBBY_MESSAGE); // 确保设置chatType为LOBBY_MESSAGE
+        // messagingTemplate.convertAndSend("/topic/lobbyChat/" + request.getRoomId(),
+        // messageVO);
+        lobbyRoomUtils.broadcastGroupMessageToMembers(messageVO, request.getRoomId());
         log.info("用户[{}]在大厅[{}]发送消息并广播", sender.getUsername(), request.getRoomId());
-
     }
 
     /**
-
-    /**
+     * 
+     * /**
      * 用户离开大厅（群聊房间）
      * 
      * @param roomId    房间ID
@@ -422,33 +408,34 @@ public class RoomService {
         }
 
         // 8. 更新Redis在线房间缓存（可选）
-        messagingTemplate.convertAndSend("/topic/memberChange", user.getName() + "离开了大厅");
-
+        // messagingTemplate.convertAndSend("/topic/memberChange", user.getName() +
+        // "离开了大厅");
+        lobbyRoomUtils.leaveLobbyRoom(roomId, sessionMapUtil.getUserIdBySessionId(sessionId));
         log.info("用户[{}]离开房间[{}]成功", user.getName(), roomId);
     }
 
-
-
     // 添加用户到大厅（线程安全）
     // public void addUserToLobby(String lobbyId, ChatGameMember user) {
-    //     lobbies.computeIfAbsent(lobbyId, k -> ConcurrentHashMap.newKeySet()).add(user);
+    // lobbies.computeIfAbsent(lobbyId, k ->
+    // ConcurrentHashMap.newKeySet()).add(user);
     // }
     //
     // // 检查用户是否在大厅（高效版）
     // public boolean isUserInLobby(String lobbyId, ChatGameMember user) {
-    //     Long userId= lobbies.get(lobbyId);
-    //     return members != null && members.contains(user);
+    // Long userId= lobbies.get(lobbyId);
+    // return members != null && members.contains(user);
     // }
     //
     // // 检查用户是否在大厅（根据用户ID版）
     // public boolean isUserInLobby(String lobbyId, Long userId) {
-    //     Set<ChatGameMember> members = lobbies.get(lobbyId);
-    //     return members != null && members.stream().anyMatch(m -> m.getId().getMemberId().equals(userId));
+    // Set<ChatGameMember> members = lobbies.get(lobbyId);
+    // return members != null && members.stream().anyMatch(m ->
+    // m.getId().getMemberId().equals(userId));
     // }
     //
     // // 获取大厅所有成员
     // public Set<ChatGameMemberChatGameMember> getLobbyMembers(String lobbyId) {
-    //     return lobbies.getOrDefault(lobbyId, Collections.emptySet());
+    // return lobbies.getOrDefault(lobbyId, Collections.emptySet());
     // }
 
     /**
@@ -470,25 +457,5 @@ public class RoomService {
     }
 
 
-
-
-    /**
-     * 从Session中获取当前发送者（需结合项目认证方式实现）
-     * 示例：从SecurityContext获取（需处理WebSocket的认证）
-     */
-    // private UserInfo getCurrentUser(String sessionId) {
-    // // 方式1：若WebSocket连接时绑定了用户身份（如用Spring Security的WebSocket认证）
-    // // 可从SecurityContextHolder获取：
-    // // return (UserInfo)
-    // SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-    //
-    // // 方式2：若用SessionRegistry管理在线用户（推荐）
-    // // 假设SessionRegistry已注册所有在线用户的sessionId和UserInfo映射：
-    // // return sessionRegistry.getUserBySessionId(sessionId);
-    //
-    // // 示例简化：返回测试用户（实际需替换为真实逻辑）
-    // return userInfoRepository.findByUsername("testUser")
-    // .orElseThrow(() -> new IllegalArgumentException("发送者未找到"));
-    // }
 
 }

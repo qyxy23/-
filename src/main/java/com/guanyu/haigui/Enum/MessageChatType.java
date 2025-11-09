@@ -11,6 +11,7 @@ public enum MessageChatType {
     GROUP_REFUSE_REQUESTS("拒绝加入群聊申请"),
     GROUP_LEAVE("离开群聊"),
     GROUP_UPDATE_NAME("修改群名称"),
+    LOBBY_MESSAGE("大厅消息"),
     // VOICE("语音"),
     VIDEO("视频"), GROUP_UPDATE_AVATAR("修改群头像");
 

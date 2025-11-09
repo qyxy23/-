@@ -31,7 +31,7 @@ public class ChatRoomController {
     /**
      * 创建游戏房间
      *
-     * @param request   创建房间请求参数
+     * @param request 创建房间请求参数
      */
     @Operation(summary = "创建大厅")
     @ResponseBody
@@ -69,7 +69,6 @@ public class ChatRoomController {
         return roomService.searchLobbies(dto, page);
     }
 
-
     // 获取指定房间的历史消息
     @Operation(summary = "获取指定房间的历史消息")
     @PostMapping("/chat.history")
@@ -77,9 +76,6 @@ public class ChatRoomController {
     public Page<GameRoomMessageVO> getRoomChatHistory(@RequestBody RoomChatHistoryDTO roomChatHistoryDTO) {
         return roomService.getGameMessages(roomChatHistoryDTO);
     }
-
-
-
 
     // 处理用户加入大厅的请求（前端发送到/app/chat.joinLobby）
     @Operation(summary = "处理用户加入大厅的请求")
@@ -91,7 +87,6 @@ public class ChatRoomController {
         roomService.joinChatRoom(lobbyId, sessionId);
     }
 
-
     @Operation(summary = "获取指定房间的最新N条消息")
     @MessageMapping("/chat.recent/{roomId}/{limit}") // 接收请求：包含roomId和limit
     @SendTo("/topic/recent/{roomId}") // 广播结果：发送到对应房间的Topic（仅订阅该房间的客户端能收到）
@@ -101,14 +96,12 @@ public class ChatRoomController {
         return roomService.getRecentMessages(roomId, limit);
     }
 
-
     // 处理发送聊天消息的请求（前端发送到/app/chat.sendMessage）
     @Operation(summary = "处理发送聊天消息的请求")
     @MessageMapping("/ws/sendLobbyMessage")
     public void sendLobbyMessage(@Payload SendGameRoomMsgRequest message, @Header("simpSessionId") String sessionId) {
         roomService.sendLobbyMessage(message, sessionId);
     }
-
 
     @Operation(summary = "离开大厅")
     @MessageMapping("/leaveLobby")
@@ -121,24 +114,8 @@ public class ChatRoomController {
     // @Operation(summary = "处理大厅人数是否达标，若达到要求可开始游戏")
     // @MessageMapping("/checkRoomStatus")
     // public void checkRoomStatus(@Payload String roomId) {
-    //     log.info("检查房间{}的状态", roomId);
-    //     roomService.checkRoomStatus(roomId);
+    // log.info("检查房间{}的状态", roomId);
+    // roomService.checkRoomStatus(roomId);
     // }
-
-    // /**
-    // * 处理消息发送请求
-    // * @param request 消息参数
-    // * @param sessionId WebSocket会话ID（用于获取发送者）
-    // */
-    // @Operation(summary = "处理发送消息的请求")
-    // @MessageMapping("/ws/sendGameMessage") //
-    // // 前端发送到/app/ws/sendMessage（需结合WebSocketConfig的applicationDestinationPrefixes）
-    // public void sendGameMessage(
-    //         @Validated SendMessageRequest request,
-    //         @Header("simpSessionId") String sessionId) { // 从WebSocket头获取SessionID
-    //     roomService.sendGameMessage(request, sessionId);
-    // }
-
-
 
 }

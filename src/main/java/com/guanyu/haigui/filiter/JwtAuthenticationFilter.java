@@ -69,7 +69,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 // 3. 构造Spring Security的Authentication对象（携带角色权限）
                 List<GrantedAuthority> authorities = roles.stream()
-                        .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                        .map(SimpleGrantedAuthority::new)
                         .collect(Collectors.toList());
 
                 Authentication authentication = new UsernamePasswordAuthenticationToken(

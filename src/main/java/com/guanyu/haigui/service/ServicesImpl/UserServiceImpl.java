@@ -11,12 +11,17 @@ import com.guanyu.haigui.utils.MinioUtil;
 import com.guanyu.haigui.utils.RedisServiceUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
+import java.util.Collection;
 
 @Slf4j
 @Service
@@ -36,9 +41,9 @@ public class UserServiceImpl implements UserService {
     private UserInfoRepository userInfoRepository; // 用户信息DAO（需自己实现）
 
 
-
     /**
      * 上传用户头像（核心方法）
+     *
      * @param avatarFile 前端传来的头像文件（MultipartFile）
      * @return 头像的访问URL（前端可直接使用）
      */
@@ -81,9 +86,17 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserInfoVO getUserInfo() {
-        return userInfoRepository.findById(BaseContext.getCurrentId())
-                .map(UserInfoVO::from)
+        // 1. 从SecurityContextHolder中获取当前请求的SecurityContext
+        SecurityContext securityContext = SecurityContextHolder.getContext();
+
+        // 2. 从SecurityContext中获取Authentication对象（即之前注入的）
+        Authentication authentication = securityContext.getAuthentication();
+
+        // 3. 从Authentication中提取具体信息
+        Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities(); // 获取角色列表（对应Token中的roles）
+        UserInfo userInfo = userInfoRepository.findById(BaseContext.getCurrentId())
                 .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
+        return UserInfoVO.from(userInfo, authorities);
     }
 
 
@@ -93,7 +106,6 @@ public class UserServiceImpl implements UserService {
     private void deleteAvatar(String oldAvatarUrl) {
         minioUtil.deleteAvatar(oldAvatarUrl);
     }
-
 
 
     @Override

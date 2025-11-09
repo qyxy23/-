@@ -55,6 +55,7 @@ public class GroupService {
     private final MinioUtil minioUtil;
     @PersistenceContext
     private EntityManager entityManager;
+    private final ChatGroupAdminRepository chatGroupAdminRepository;
 
     /**
      * 用户申请加入群聊
@@ -96,11 +97,11 @@ public class GroupService {
         GroupJoinNotification notification = new GroupJoinNotification();
         notification.setRequestId(request.getId());
         notification.setApplicantName(request.getUser().getUsername());
-        notification.setGroupId(group.getGroupId());
         notification.setDescription(request.getDescription());
         notification.setGroupName(group.getGroupName());
-        notification.setGroupAvatar(group.getGroupAvatar());
         notification.setChatType(MessageChatType.GROUP_JOIN_REQUESTS);
+        notification.setStatus(RequestStatus.PENDING);
+        notification.setApplyTime(request.getApplyTime());
 
         // 发送给群主（群主订阅此主题：/topic/group/{groupId}/join-requests）
         simpMessagingTemplate.convertAndSendToUser(
@@ -130,6 +131,12 @@ public class GroupService {
         ChatGroup newGroup = buildChatGroup(currentUserId);
         chatGroupRepository.save(newGroup);
 
+        ChatGroupAdministrator ownerAdmin = new ChatGroupAdministrator();
+        ownerAdmin.setId(new ChatGroupAdministratorId(newGroup.getGroupId(), currentUserId));
+        ownerAdmin.setChatGroup(newGroup);
+        ownerAdmin.setSysUser(sysUserRepository.findById(currentUserId).orElseThrow(() -> new BusinessException("用户不存在")));
+        ownerAdmin.setIsOwner(true);
+        chatGroupAdminRepository.save(ownerAdmin);
         // 4. 添加群成员（创建者+好友）
         addUserToGroup(newGroup.getGroupId(), currentUserId); // 添加创建者
         request.getFriendIds().forEach(friendId -> addUserToGroup(newGroup.getGroupId(), friendId)); // 添加好友
@@ -313,14 +320,32 @@ public class GroupService {
         // 4. 构造分页结果（PageImpl）
         // ------------------------------
         // 用前端传的 sortOrder 转换为 Spring Data 的 Direction
-        Sort.Direction direction = Sort.Direction.fromString(sortOrder);
+        Sort.Direction direction = parseSortDirection(sortOrder);
         // 用前端传的 sortField 转换为实体属性名（比如 memberCount → members）
         String sortFieldEntity = getOrderField(sortField);
         // 构造 Spring Data 的 Sort
-        Sort sort = Sort.by(direction, sortFieldEntity);
+        Sort sort;
+        if (sortFieldEntity != null && !sortFieldEntity.trim().isEmpty()) {
+            sort = Sort.by(direction, sortFieldEntity);
+        } else {
+            // 如果排序字段无效，使用默认排序
+            sort = Sort.by(Sort.Direction.DESC, "createTime");
+        }
         // 构造 Pageable
         Pageable pageable = PageRequest.of(page, pageSize, sort);
         return new PageImpl<>(voList, pageable, total);
+    }
+
+    private Sort.Direction parseSortDirection(String sortOrder) {
+        if (sortOrder == null || sortOrder.trim().isEmpty()) {
+            return Sort.Direction.DESC; // 默认降序
+        }
+
+        try {
+            return Sort.Direction.fromString(sortOrder.trim());
+        } catch (IllegalArgumentException e) {
+            return Sort.Direction.DESC; // 解析失败时使用默认值
+        }
     }
 
     /**
@@ -328,7 +353,17 @@ public class GroupService {
      */
     private Order buildOrder(CriteriaBuilder cb, Root<ChatGroup> cg, Join<ChatGroup, ChatGroupMember> cgm,
                              String sortField, String sortOrder) {
-        Sort.Direction direction = Sort.Direction.fromString(sortOrder);
+        // 处理 sortOrder 为空或无效的情况，设置默认值
+        Sort.Direction direction;
+        if (sortOrder == null || sortOrder.trim().isEmpty()) {
+            direction = Sort.Direction.DESC; // 默认降序
+        } else {
+            try {
+                direction = Sort.Direction.fromString(sortOrder);
+            } catch (IllegalArgumentException e) {
+                direction = Sort.Direction.DESC; // 如果解析失败，使用默认值
+            }
+        }
         return switch (sortField) {
             case "memberCount" -> // 按成员数排序（统计值）
                     direction.isAscending()
@@ -441,6 +476,7 @@ public class GroupService {
         if (memberOpt.isPresent()) {
             // 2. 删除群成员记录
             chatGroupMemberRepository.delete(memberOpt.get());
+            joinRequestRepo.deleteByUserUserIdAndGroupGroupId(userId, groupId);
 
             groupRoomUtils.leaveGroupRoom(groupId, userId);
             // 3. 广播用户退出事件（客户端可更新群成员列表）
@@ -517,7 +553,7 @@ public class GroupService {
 
         simpMessagingTemplate.convertAndSendToUser(
                 request.getUser().getUserId().toString(),
-                "/queue/group/join",
+                "/private-messages",
                 new JoinGroupRoomVO(request.getUser().getUserId(), group.getGroupId(),
                         group.getGroupName(), group.getGroupAvatar(), JoinGroupStatus.AGREE, MessageChatType.GROUP_AGREE_REQUESTS)
         );
@@ -602,5 +638,105 @@ public class GroupService {
                 memberPage.getNumber() + 1,    // 当前页码（Spring Data页码从0开始，需转成1开始）
                 memberPage.getSize()           // 每页大小
         );
+    }
+
+    /**
+     * 获取群入群申请分页列表（带权限校验：仅管理员可查）
+     * @param pageable 分页参数
+     * @return 分页的VO结果
+     */
+    public ChatGroupJoinRequestListVO getGroupJoinRequests(Pageable pageable) {
+        Long currentUserId = BaseContext.getCurrentId();
+        Page<GroupJoinRequest> requestPage = joinRequestRepo.findByManagedGroupsOrderByApplyTimeDesc(currentUserId, pageable);
+
+        // 转换为VO
+        List<GroupJoinRequestVO> voList = requestPage.getContent().stream()
+                .map(this::convertToVO)
+                .collect(Collectors.toList());
+
+        // 构造分页结果
+        return ChatGroupJoinRequestListVO.builder()
+                .totalPages(requestPage.getTotalPages())
+                .currentPage(requestPage.getNumber() + 1) // 适配前端页码（从1开始）
+                .pageSize(requestPage.getSize())
+                .data(voList)
+                .chatType(MessageChatType.GROUP_JOIN_REQUESTS)
+                .build();
+    }
+
+    /**
+     * 将GroupJoinRequest实体转换为VO
+     */
+    private GroupJoinRequestVO convertToVO(GroupJoinRequest request) {
+        return GroupJoinRequestVO.builder()
+                .requestId(request.getId())
+                .applicantName(request.getUser().getUsername()) // 申请人昵称
+                .groupName(request.getGroup().getGroupName())   // 群名称
+                .description(request.getDescription())         // 加群描述
+                .status(request.getStatus().getDescription()) // 状态中文描述（需枚举支持）
+                .applyTime(request.getApplyTime())             // 申请时间
+                .processTime(request.getProcessTime())         // 处理时间
+                .processorName(request.getProcessor() != null ? request.getProcessor().getUsername() : null) // 处理人昵称
+                .build();
+    }
+
+    @Transactional(rollbackFor = Exception.class) // 异常回滚
+    public void addAdministrator(String groupId, Long newAdminUserId) {
+        Long currentUserId = BaseContext.getCurrentId();
+        // 1. 校验群存在
+        ChatGroup group = chatGroupRepository.findById(groupId)
+                .orElseThrow(() -> new BusinessException("群不存在"));
+
+        // 2. 校验被加用户存在
+        UserInfo newAdmin = userInfoRepository.findById(newAdminUserId)
+                .orElseThrow(() -> new BusinessException("被添加用户不存在"));
+
+        // 3. 校验被加用户是群成员（必须先加入群才能当管理员）
+        boolean isMember = chatGroupMemberRepository.existsById_MemberIdAndId_GroupId(newAdminUserId, groupId);
+        if (!isMember) {
+            throw new BusinessException("用户未加入群，无法添加为管理员");
+        }
+
+        // 4. 校验当前用户是群主（只有群主能加管理员）
+        boolean isCurrentOwner = chatGroupAdminRepository.existsById_GroupIdAndId_UserIdAndIsOwnerTrue(groupId, currentUserId);
+        if (!isCurrentOwner) {
+            throw new BusinessException("只有群主可以添加管理员");
+        }
+
+        // 5. 校验被加用户不是已有管理员（避免重复添加）
+        boolean exists = chatGroupAdminRepository.existsById_GroupIdAndId_UserId(groupId, newAdminUserId);
+        if (exists) {
+            throw new BusinessException("用户已经是管理员");
+        }
+
+        // 6. 创建并保存管理员记录（isOwner=0：普通管理员）
+        ChatGroupAdministrator admin = new ChatGroupAdministrator();
+        admin.setChatGroup(group);          // 关联群实体（自动填充复合主键的groupId）
+        admin.setSysUser(newAdmin);         // 关联用户实体（自动填充复合主键的userId）
+        admin.setIsOwner(false);            // 普通管理员
+        chatGroupAdminRepository.save(admin);
+    }
+
+    // ===================== 删除普通管理员 =====================
+    @Transactional(rollbackFor = Exception.class)
+    public void removeAdministrator(String groupId, Long adminUserId) {
+        Long currentUserId = BaseContext.getCurrentId();
+        // 1. 校验要删除的管理员记录存在
+        ChatGroupAdministrator admin = chatGroupAdminRepository.findById_GroupIdAndId_UserId(groupId, adminUserId)
+                .orElseThrow(() -> new BusinessException("管理员不存在"));
+
+        // 2. 校验当前用户是群主
+        boolean isCurrentOwner = chatGroupAdminRepository.existsById_GroupIdAndId_UserIdAndIsOwnerTrue(groupId, currentUserId);
+        if (!isCurrentOwner) {
+            throw new BusinessException("只有群主可以删除管理员");
+        }
+
+        // 3. 校验不能删除群主自己（isOwner=1表示群主）
+        if (admin.getIsOwner()) {
+            throw new BusinessException("不能删除群主");
+        }
+
+        // 4. 删除管理员记录
+        chatGroupAdminRepository.delete(admin);
     }
 }

@@ -3,6 +3,7 @@ package com.guanyu.haigui.websocket;
 import cn.hutool.core.lang.UUID;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
+import com.guanyu.haigui.Enum.MessageChatType;
 import com.guanyu.haigui.Enum.MessageStatus;
 import com.guanyu.haigui.Enum.RoomStatus;
 import com.guanyu.haigui.Exception.*;
@@ -20,6 +21,7 @@ import com.guanyu.haigui.repository.ChatGameMemberRepository;
 import com.guanyu.haigui.repository.ChatGameMsgRepository;
 import com.guanyu.haigui.repository.ChatGameRepository;
 import com.guanyu.haigui.repository.UserInfoRepository;
+import com.guanyu.haigui.utils.LobbyRoomUtils;
 import com.guanyu.haigui.utils.RedisServiceUtil;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +53,8 @@ public class TestLobbyService {
     private final ChatGameRepository chatGameRepository;
     private final ChatGameMemberRepository chatGameMemberRepository;
     private final ChatGameMsgRepository chatGameMsgRepository;
+    private final LobbyRoomUtils lobbyRoomUtils;
+
 
     /**
      * 创建聊天室
@@ -379,8 +383,9 @@ public class TestLobbyService {
 
         // 4. 广播消息到大厅聊天主题，让所有用户都能实时看到消息
         GameRoomMessageVO messageVO = GameRoomMessageVO.from(savedMessage);
-        messagingTemplate.convertAndSend("/topic/lobbyChat/" + request.getRoomId(), messageVO);
-
+        messageVO.setChatType(MessageChatType.LOBBY_MESSAGE);
+        // messagingTemplate.convertAndSend("/topic/lobbyChat/" + request.getRoomId(), messageVO);
+        lobbyRoomUtils.broadcastGroupMessageToMembers(messageVO,request.getRoomId());
         log.info("用户[{}]在大厅[{}]发送消息并广播", sender.getUsername(), request.getRoomId());
         return messageVO;
     }

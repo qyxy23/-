@@ -25,4 +25,6 @@ public interface ChatGroupMemberRepository extends JpaRepository<ChatGroupMember
     List<ChatGroupMember> findByChatGroupGroupId(String groupId);
 
     Page<ChatGroupMember> findByChatGroupGroupId(String groupId, Pageable pageable);
+
+    boolean existsById_MemberIdAndId_GroupId(Long newAdminUserId, String groupId);
 }

@@ -1,10 +1,7 @@
 package com.guanyu.haigui.controller;
 
 import com.guanyu.haigui.pojo.dto.*;
-import com.guanyu.haigui.pojo.vo.ChatGroupMemberListVO;
-import com.guanyu.haigui.pojo.vo.ChatGroupVo;
-import com.guanyu.haigui.pojo.vo.GroupMessageVO;
-import com.guanyu.haigui.pojo.vo.GroupRoomListVO;
+import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.websocket.GroupService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -163,6 +160,43 @@ public class ChatGroupController {
         ChatGroupMemberListVO result = groupService.getGroupUsers(groupId, pageable);
         System.out.println(result);
         return Result.success(result);
+    }
+
+    @Operation(summary = "获取入群申请（分页）")
+    @GetMapping("/getGroupJoinRequests")
+    public Result<ChatGroupJoinRequestListVO> getGroupJoinRequests(
+            // 获取分页参数，设置默认值
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer pageSize) {
+
+        // 注意：Spring Data JPA的PageRequest页码从0开始，所以page-1
+        Pageable pageable = PageRequest.of(page - 1, pageSize);
+
+        // 调用Service获取分页结果
+        ChatGroupJoinRequestListVO result = groupService.getGroupJoinRequests(pageable);
+        System.out.println(result);
+        return Result.success(result);
+    }
+
+
+    // ===================== 增加普通管理员 =====================
+    @Operation(summary = "群主添加普通管理员")
+    @PostMapping("/add")
+    public Result<String> addAdministrator(
+            @RequestParam String groupId,          // 群ID
+            @RequestParam Long adminUserId){        // 要添加的管理员用户ID
+        groupService.addAdministrator(groupId, adminUserId);
+        return Result.success("添加成功");
+    }
+
+    // ===================== 删除普通管理员 =====================
+    @Operation(summary = "群主删除普通管理员")
+    @PostMapping("/remove")
+    public Result<String> removeAdministrator(
+            @RequestParam String groupId,          // 群ID
+            @RequestParam Long adminUserId){        // 要删除的管理员用户ID
+        groupService.removeAdministrator(groupId, adminUserId);
+        return Result.success("删除成功");
     }
 
 }
