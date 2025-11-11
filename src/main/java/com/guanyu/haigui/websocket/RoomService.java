@@ -336,11 +336,11 @@ public class RoomService {
     public void sendLobbyMessage(SendGameRoomMsgRequest request, String sessionId) {
         // 1. 获取当前登录用户（发送者）
         UserInfo sender = userInfoRepository.findById(sessionMapUtil.getUserIdBySessionId(sessionId))
-                .orElseThrow(() -> new BusinessException("用户不存在"));
+                .orElseThrow(() -> new BusinessException(403, "用户不存在"));
 
         // 2. 校验群聊是否存在
         ChatGame room = chatGameRepository.findById(request.getRoomId())
-                .orElseThrow(() -> new BusinessException("群聊不存在：" + request.getRoomId()));
+                .orElseThrow(() -> new BusinessException(403, "群聊不存在：" + request.getRoomId()));
 
         // 3. 构造群聊消息实体
         ChatGameMessage message = ChatGameMessage.builder()

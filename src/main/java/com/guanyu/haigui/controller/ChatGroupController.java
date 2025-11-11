@@ -2,6 +2,8 @@ package com.guanyu.haigui.controller;
 
 import com.guanyu.haigui.pojo.dto.*;
 import com.guanyu.haigui.pojo.vo.*;
+import com.guanyu.haigui.repository.ChatGroupAdminRepository;
+import com.guanyu.haigui.repository.ChatGroupRepository;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.websocket.GroupService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,6 +27,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ChatGroupController {
     private final GroupService groupService;
+    private final ChatGroupAdminRepository chatGroupAdminRepository;
+    private final ChatGroupRepository chatGroupRepository;
 
     /**
      * 创建游戏房间
@@ -104,14 +108,14 @@ public class ChatGroupController {
         return groupService.applyJoinGroup(request);
     }
 
-    @Operation(summary = "群主同意用户加入群聊的请求")
+    @Operation(summary = "群主/管理员同意用户加入群聊的请求")
     @PostMapping("/AgreeJoinGroupRoom")
     public void agreeJoinRoom(@RequestBody dealJoinGroupRoomRequest request) {
         // 加入群聊
         groupService.agreeJoinRequest(request);
     }
 
-    @Operation(summary = "群主拒绝用户加入群聊的请求")
+    @Operation(summary = "群主/管理员拒绝用户加入群聊的请求")
     @PostMapping("/RefuseJoinGroupRoom")
     public void refuseJoinRoom(@RequestBody dealJoinGroupRoomRequest request) {
         // 加入群聊
@@ -199,4 +203,26 @@ public class ChatGroupController {
         return Result.success("删除成功");
     }
 
+    // GroupController.java
+    @GetMapping("/{groupId}/detail")
+    @Operation(summary = "获取群详情（含当前用户权限）")
+    public Result<GroupDetailVO> getGroupDetail(
+            @PathVariable String groupId) {
+        return Result.success(groupService.getGroupDetail(groupId));
+    }
+
+    @Operation(summary = "查询自己已经发送的群申请(分页)")
+    @GetMapping("/getGroupPermission")
+    public Result<MineChatGroupJoinRequestListVO> getGroupPermission(
+            @RequestParam(defaultValue = "1") Integer page,       // 前端页码（从1开始）
+            @RequestParam(defaultValue = "10") Integer pageSize){  // 每页数量
+
+        // 构造Spring Data JPA的分页参数（页码从0开始）
+        Pageable pageable = PageRequest.of(page - 1, pageSize);
+
+        // 调用Service获取分页结果
+        MineChatGroupJoinRequestListVO result = groupService.getGroupPermission(pageable);
+
+        return Result.success(result);
+    }
 }

@@ -43,4 +43,15 @@ public interface GroupJoinRequestRepository extends JpaRepository<GroupJoinReque
     @Modifying // 删除操作需要加@Modifying注解（部分JPA版本要求）
     @Query("DELETE FROM GroupJoinRequest r WHERE r.user.userId = :userId AND r.group.groupId = :groupId")
     void deleteByUserUserIdAndGroupGroupId(@Param("userId") Long userId, @Param("groupId") String groupId);
+
+
+    /**
+     * 核心：根据申请人ID（userInfo.id）分页查询入群申请，按申请时间倒序
+     * 方法名约定：findBy[关联字段][关联字段ID]OrderBy[排序字段]Desc
+     * 解释：GroupJoinRequest中的user字段关联UserInfo，因此user.id对应方法名中的`User_Id`
+     * @param userId 当前登录用户ID（申请人）
+     * @param pageable 分页参数
+     * @return 分页的申请记录
+     */
+    Page<GroupJoinRequest> findByUser_UserIdOrderByApplyTimeDesc(Long userId, Pageable pageable);
 }

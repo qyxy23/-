@@ -20,10 +20,10 @@ import java.io.Serializable;
 public class ChatGameMemberId implements Serializable {
 
     /** 成员ID（对应member_id） */
-    @Column(name = "member_id")
+    @Column(name = "member_id", nullable = false)
     private Long memberId;
 
     /** 房间ID（对应room_id） */
-    @Column(name = "room_id", length = 36)
+    @Column(name = "room_id", length = 36, nullable = false)
     private String roomId;
 }

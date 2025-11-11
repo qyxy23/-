@@ -88,7 +88,7 @@ public class MessageServiceImpl implements MessageService {
         // 1. 校验权限：必须是好友
         Long otherUserId = parseUserId(sessionId); // sessionId转Long（对方用户ID）
         if (!friendRelationRepository.hasRelationBetweenUsers(currentUserId, otherUserId, FriendStatus.ACCEPTED)) {
-            throw new BusinessException("非好友，无法操作该私聊");
+            throw new BusinessException(403, "非好友，无法操作该私聊");
         }
 
         // 2. 根据isSticky执行不同操作
@@ -110,7 +110,7 @@ public class MessageServiceImpl implements MessageService {
     private void topGroupSession(String sessionId, Long currentUserId, boolean isSticky) {
         // 2.1 校验是群成员
         if (!chatGameMemberRepository.existsByChatGroupGroupIdAndMemberUserId(sessionId, currentUserId)) {
-            throw new BusinessException("非群成员，无法置顶该群聊");
+            throw new BusinessException(403, "非群成员，无法置顶该群聊");
         }
 
         // 2. 根据isSticky执行不同操作
@@ -347,7 +347,7 @@ public class MessageServiceImpl implements MessageService {
                 vo.setLastMessageContent(lastMsg.getContent());
                 vo.setLastMessageTime(lastMsg.getTime());
                 UserInfo senderInfo = userRepository.findById(lastSenderId)
-                        .orElseThrow(() -> new BusinessException("发送者信息不存在"));
+                        .orElseThrow(() -> new BusinessException(403, "发送者信息不存在"));
                 vo.setLastSenderName(senderInfo.getName());
             } else {
                 // Redis无数据，查数据库

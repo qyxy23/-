@@ -5,51 +5,53 @@ import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 
-/**
- * 群聊管理员表（含群主）实体类
- */
-@Data // Lombok自动生成getter/setter/toString等
+@Data
 @Entity
-@Table(name = "chat_group_administrators") // 对应数据库表名
+@Table(name = "chat_group_administrators")
 public class ChatGroupAdministrator {
 
-    /**
-     * 复合主键（群ID + 管理员用户ID）
-     */
+    /** 复合主键（群ID + 管理员用户ID） */
     @EmbeddedId
     private ChatGroupAdministratorId id;
 
     /**
-     * 关联群聊实体（ChatGroup）
-     * &#064;MapsId("groupId")：映射复合主键中的groupId字段，自动从ChatGroup获取
+     * 关联群成员（ChatGroupMember）—— 用@MapsId直接映射复合主键字段
+     * 无需@OneToOne或@JoinColumns，简化关联！
      */
-    @ManyToOne(fetch = FetchType.LAZY) // 懒加载，避免不必要的查询
-    @MapsId("groupId")
-    @JoinColumn(name = "group_id", nullable = false) // 对应数据库group_id列
-    private ChatGroup chatGroup;
-
-    /**
-     * 关联用户实体（SysUser）
-     * &#064;MapsId("userId")：映射复合主键中的userId字段，自动从SysUser获取
-     */
+    @MapsId("userId") // 映射复合主键的userId字段
     @ManyToOne(fetch = FetchType.LAZY)
-    @MapsId("userId")
-    @JoinColumn(name = "user_id", nullable = false) // 对应数据库user_id列
-    private UserInfo sysUser;
+    @JoinColumn(name = "user_id", nullable = false)
+    private UserInfo user; // 对应ChatGroupMember.id.memberId（Long类型）
 
-    /**
-     * 是否是群主（0-普通管理员，1-群主）
-     * columnDefinition：指定数据库字段类型和默认值
-     */
+    @MapsId("groupId") // 映射复合主键的groupId字段
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "group_id", nullable = false)
+    private ChatGroup chatGroup; // 对应ChatGroupMember.id.groupId（String类型）
+
+    /** 是否是群主 */
     @Column(nullable = false, columnDefinition = "TINYINT(1) DEFAULT 0")
     private Boolean isOwner;
 
-    /**
-     * 任命时间（自动填充当前时间）
-     * &#064;CreationTimestamp：Hibernate注解，插入时自动生成当前时间
-     */
+    /** 任命时间 */
     @CreationTimestamp
     @Column(nullable = false, columnDefinition = "DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6)")
     private LocalDateTime appointTime;
+
+    // 重写equals和hashCode（基于复合主键）
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        ChatGroupAdministrator that = (ChatGroupAdministrator) o;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
 }

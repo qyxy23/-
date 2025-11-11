@@ -368,7 +368,7 @@ public class TestLobbyService {
 
         // 2. 校验群聊是否存在
         ChatGame room = chatGameRepository.findById(request.getRoomId())
-                .orElseThrow(() -> new BusinessException("群聊不存在：" + request.getRoomId()));
+                .orElseThrow(() -> new BusinessException(403, "群聊不存在：" + request.getRoomId()));
 
         // 3. 构造群聊消息实体
         ChatGameMessage message = ChatGameMessage.builder()

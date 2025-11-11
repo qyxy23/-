@@ -51,13 +51,19 @@ public class ChatGroup {
     @Column(name = "update_time", nullable = false)
     private LocalDateTime updateTime;
 
-    /** 群成员列表（一对多关联chat_group_members表，可选） */
+
+    /** 群成员列表（一对多关联chat_group_members表，级联删除） */
     @OneToMany(mappedBy = "chatGroup", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private Set<ChatGroupMember> members = new HashSet<>();
 
-    /** 群置顶列表（一对多关联user_group_sticky表，可选） */
+    /** 群置顶列表（一对多关联user_group_sticky表，级联删除） */
     @OneToMany(mappedBy = "chatGroup", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private Set<UserGroupSticky> stickies = new HashSet<>();
+
+    // ✅ 新增：群管理员列表（一对多关联chat_group_administrators表，级联删除）
+    @OneToMany(mappedBy = "chatGroup", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private Set<ChatGroupAdministrator> administrators = new HashSet<>();
 }
