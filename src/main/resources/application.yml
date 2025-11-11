@@ -5,12 +5,12 @@ jwt:
   # 设置jwt签名加密时使用的秘钥
   admin-secret-key: mySuperLongSecretKeyForJWTWithMoreThan32Bytes!!
   # 设置jwt过期时间
-  admin-ttl: 86400000
+  admin-ttl: 2592000000
   # 设置前端传递过来的令牌名称
   admin-token-name: authorization
   # 用户令牌
   user-secret-key: client
-  user-ttl: 86400000
+  user-ttl: 2592000000
   user-token-name: authorization
 
 spring:

@@ -477,13 +477,27 @@ public class GroupService {
             ChatGroupMemberProjection memberProj = memberOpt.get();
             // 2. 判断是否是群主：是则删除整个群（级联清理所有关联数据）
             if (isUserGroupOwner(groupId, userId)) {
-                chatGroupRepository.deleteById(groupId); // 级联删除所有关联表（管理员、成员、消息等）
+                // 先清除持久化上下文中的实体，确保直接执行SQL删除
+                entityManager.flush();
+                entityManager.clear();
+                // 先手动删除关联表中的数据，避免外键约束问题
+                entityManager.createNativeQuery("DELETE FROM chat_group_administrators WHERE group_id = ?1")
+                        .setParameter(1, groupId)
+                        .executeUpdate();
+                entityManager.createNativeQuery("DELETE FROM chat_group_members WHERE group_id = ?1")
+                        .setParameter(1, groupId)
+                        .executeUpdate();
+                entityManager.createNativeQuery("DELETE FROM user_group_sticky WHERE group_id = ?1")
+                        .setParameter(1, groupId)
+                        .executeUpdate();
+                // 最后删除群组本身
+                chatGroupRepository.deleteById(groupId);
                 log.info("群主 {} 删除群 {}", userId, groupId);
             } else {
                 // 3. 普通成员：通过复合主键删除群成员实体
                 ChatGroupMemberId memberId = new ChatGroupMemberId(
                         memberProj.getMemberId(), // 从投影获取memberId
-                        memberProj.getGroupId()   // 从投影获取groupId
+                        memberProj.getGroupId() // 从投影获取groupId
                 );
                 chatGroupMemberRepository.deleteById(memberId); // 删除实体
                 // 3.2 删除用户在当前群的置顶记录
