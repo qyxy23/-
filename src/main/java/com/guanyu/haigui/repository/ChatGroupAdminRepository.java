@@ -4,6 +4,7 @@ import com.guanyu.haigui.pojo.model.ChatGroupAdministrator;
 import com.guanyu.haigui.pojo.model.ChatGroupAdministratorId;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface ChatGroupAdminRepository extends JpaRepository<ChatGroupAdministrator, ChatGroupAdministratorId> {
@@ -42,4 +43,6 @@ public interface ChatGroupAdminRepository extends JpaRepository<ChatGroupAdminis
      * @return 管理员记录（可选）
      */
     Optional<ChatGroupAdministrator> findByChatGroupGroupIdAndUserUserId(String groupId, Long userId);
+
+    List<ChatGroupAdministrator> findByChatGroupGroupId(String groupId);
 }

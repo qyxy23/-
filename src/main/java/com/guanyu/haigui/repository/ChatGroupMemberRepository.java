@@ -22,6 +22,8 @@ public interface ChatGroupMemberRepository extends JpaRepository<ChatGroupMember
      */
     boolean existsByChatGroupGroupIdAndMemberUserId(@Param("groupId") String groupId,@Param("userId") Long userId);
 
+    /** 批量查询群成员信息 */
+    List<ChatGroupMember> findByIdGroupIdAndIdMemberIdIn(String groupId, List<Long> senderIds);
 
     // 根据群ID获取所有群成员（用于后续筛选在线成员）
     List<ChatGroupMember> findByChatGroupGroupId(String groupId);

@@ -3,8 +3,6 @@ package com.guanyu.haigui.controller;
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.dto.*;
 import com.guanyu.haigui.pojo.vo.*;
-import com.guanyu.haigui.repository.ChatGroupAdminRepository;
-import com.guanyu.haigui.repository.ChatGroupRepository;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.websocket.GroupService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,11 +26,30 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ChatGroupController {
     private final GroupService groupService;
-    private final ChatGroupAdminRepository chatGroupAdminRepository;
-    private final ChatGroupRepository chatGroupRepository;
+
 
     /**
-     * 创建游戏房间
+     * 查询群的群主与管理员ID列表
+     * @param groupId 群ID
+     * @return 群身份信息
+     */
+    @GetMapping("/{groupId}/identities")
+    public Result<GroupIdentitiesVO> getGroupIdentities(@PathVariable String groupId) {
+        return Result.success(groupService.getGroupIdentities(groupId));
+    }
+
+    /**
+     * 查询群的管理员列表
+     * @param groupId 群ID
+     * @return 群身份信息
+     */
+    @GetMapping("/{groupId}/adminDetails")
+    public Result<GroupAdminDetailsVO> getAdminDetails(@PathVariable String groupId) {
+        return Result.success(groupService.getAdminDetails(groupId));
+    }
+
+    /**
+     * 创建群聊
      *
      * @param request   创建房间请求参数
      */

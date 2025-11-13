@@ -19,6 +19,7 @@ import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.*;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
@@ -30,10 +31,7 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -57,6 +55,48 @@ public class GroupService {
     @PersistenceContext
     private EntityManager entityManager;
     private final ChatGroupAdminRepository chatGroupAdminRepository;
+
+
+    // /**
+    //  * 查询群成员详细信息
+    //  * @param request 请求参数（群ID、发送者ID列表）
+    //  * @return 群成员详情列表
+    //  * @throws BusinessException 无权限或数据不存在异常
+    //  */
+    // public List<GroupMemberDetailVO> getGroupMembersDetail(GroupMembersDetailDTO request) throws BusinessException {
+    //     String groupId = request.getGroupId();
+    //     List<Long> senderIds = request.getSenderIds();
+    //     Long currentUserId = request.getCurrentUserId();
+    //
+    //     // 1. 权限校验：当前用户必须是群成员
+    //     if (!isGroupMember(groupId, currentUserId)) {
+    //         log.warn("用户[{}]无权限查询群[{}]的成员信息", currentUserId, groupId);
+    //         throw new BusinessException(403,"无权限查询该群成员信息");
+    //     }
+    //
+    //     // 2. 批量查询群成员信息（过滤掉不在该群的发送者）
+    //     List<ChatGroupMember> members = batchGetGroupMembers(groupId, senderIds);
+    //     if (CollectionUtils.isEmpty(members)) {
+    //         log.info("群[{}]中未找到对应的成员：{}", groupId, senderIds);
+    //         return List.of(); // 返回空列表而非null
+    //     }
+    //
+    //     // 3. 转换为VO（适配前端展示）
+    //     return members.stream()
+    //             .map(this::convertToVO)
+    //             .collect(Collectors.toList());
+    // }
+
+
+    /** 批量查询群成员 */
+    private List<ChatGroupMember> batchGetGroupMembers(String groupId, List<Long> senderIds) {
+        return chatGroupMemberRepository.findByIdGroupIdAndIdMemberIdIn(groupId, senderIds);
+    }
+
+    private boolean isGroupMember(String groupId, Long userId) {
+        return chatGroupMemberRepository.existsByChatGroupGroupIdAndMemberUserId(groupId, userId);
+    }
+
 
     /**
      * 用户申请加入群聊
@@ -934,4 +974,80 @@ public class GroupService {
         return notification;
     }
 
+
+
+    public GroupIdentitiesVO getGroupIdentities(String groupId) {
+        // 1. 一次查询：获取该群的所有管理员记录
+        List<ChatGroupAdministrator> allAdmins = chatGroupAdminRepository.findByChatGroupGroupId(groupId);
+        if (CollectionUtils.isEmpty(allAdmins)) {
+            // 无管理员记录，返回空VO
+            GroupIdentitiesVO vo = new GroupIdentitiesVO();
+            vo.setGroupId(groupId);
+            vo.setOwnerId(null);
+            vo.setAdmins(Collections.emptyList());
+            return vo;
+        }
+
+        // 2. 过滤分组：群主（isOwner=true）和管理员（isOwner=false）
+        return getGroupIdentitiesVO(allAdmins,groupId);
+    }
+
+    @NotNull
+    private static GroupIdentitiesVO getGroupIdentitiesVO(List<ChatGroupAdministrator> allAdmins, String groupId) {
+        Long ownerId = null;
+        List<Long> adminIds = new ArrayList<>();
+
+        for (ChatGroupAdministrator admin : allAdmins) {
+            if (Boolean.TRUE.equals(admin.getIsOwner())) {
+                // 群主（假设群主唯一，取第一个匹配的）
+                ownerId = admin.getUser().getUserId();
+            } else {
+                // 普通管理员
+                adminIds.add(admin.getUser().getUserId());
+            }
+        }
+
+        // 3. 转换为VO（若群主不存在，ownerId为null）
+        GroupIdentitiesVO vo = new GroupIdentitiesVO();
+        vo.setGroupId(groupId);
+        vo.setOwnerId(ownerId);
+        vo.setAdmins(adminIds);
+        return vo;
+    }
+
+    public GroupAdminDetailsVO getAdminDetails(String groupId) {
+        List<ChatGroupAdministrator> allAdmins = chatGroupAdminRepository.findByChatGroupGroupId(groupId);
+        if (CollectionUtils.isEmpty(allAdmins)) {
+            // 无管理员记录，返回空VO
+            GroupAdminDetailsVO vo = new GroupAdminDetailsVO();
+            vo.setGroupId(groupId);
+            vo.setAdmins(Collections.emptyList());
+            return vo;
+        }
+
+        // 2. 过滤分组：群主（isOwner=true）和管理员（isOwner=false）
+        return getGroupAdminDetailsVO(allAdmins,groupId);
+    }
+
+    @NotNull
+    private static GroupAdminDetailsVO getGroupAdminDetailsVO(List<ChatGroupAdministrator> allAdmins, String groupId) {
+        Long ownerId = null;
+        List<AdminDetailsVO> admins = new ArrayList<>(); // 显式初始化
+
+        for (ChatGroupAdministrator admin : allAdmins) {
+            if (Boolean.TRUE.equals(admin.getIsOwner())) {
+                // 群主（假设群主唯一，取第一个匹配的）
+                ownerId = admin.getUser().getUserId();
+            } else {
+                // 普通管理员
+                admins.add(new AdminDetailsVO(admin.getId().getUserId(), admin.getUser().getUsername(), admin.getUser().getAvatar()));
+            }
+        }
+
+        // 3. 转换为VO（若群主不存在，ownerId为null）
+        GroupAdminDetailsVO vo = new GroupAdminDetailsVO();
+        vo.setGroupId(groupId);
+        vo.setAdmins(admins);
+        return vo;
+    }
 }
