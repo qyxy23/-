@@ -12,6 +12,8 @@ public class GroupRoomListVO {
     // 群聊名称
     private String groupName;
 
+    private String groupAvatar;
+
     private String creatorName;
 
     private Long memberCount;

@@ -111,7 +111,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(FriendsException.class)
     public Result<String> handleFriendsException(FriendsException e) {
-        return Result.error(e.getMessage());
+        return Result.success(e.getMessage());
     }
 
     @ExceptionHandler(BusinessException.class)

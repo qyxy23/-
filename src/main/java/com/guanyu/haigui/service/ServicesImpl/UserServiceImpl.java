@@ -1,16 +1,18 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
+import com.guanyu.haigui.Enum.FriendStatus;
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.mapper.UserDetailsMapper;
 import com.guanyu.haigui.pojo.model.UserInfo;
 import com.guanyu.haigui.pojo.vo.UserInfoVO;
+import com.guanyu.haigui.pojo.vo.otherInfoVO;
+import com.guanyu.haigui.repository.FriendRelationRepository;
 import com.guanyu.haigui.repository.UserInfoRepository;
 import com.guanyu.haigui.service.UserService;
 import com.guanyu.haigui.utils.JwtTokenUtil;
 import com.guanyu.haigui.utils.MinioUtil;
 import com.guanyu.haigui.utils.RedisServiceUtil;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
@@ -22,7 +24,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
 import java.util.Collection;
-
 @Slf4j
 @Service
 public class UserServiceImpl implements UserService {
@@ -37,8 +38,11 @@ public class UserServiceImpl implements UserService {
 
     @Resource
     private MinioUtil minioUtil;
-    @Autowired
+    @Resource
     private UserInfoRepository userInfoRepository; // 用户信息DAO（需自己实现）
+    @Resource
+    private FriendRelationRepository friendRelationRepository;
+
 
 
     /**
@@ -85,7 +89,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserInfoVO getUserInfo() {
+    public UserInfoVO getUserInfo(Long userId) {
         // 1. 从SecurityContextHolder中获取当前请求的SecurityContext
         SecurityContext securityContext = SecurityContextHolder.getContext();
 
@@ -94,9 +98,23 @@ public class UserServiceImpl implements UserService {
 
         // 3. 从Authentication中提取具体信息
         Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities(); // 获取角色列表（对应Token中的roles）
-        UserInfo userInfo = userInfoRepository.findById(BaseContext.getCurrentId())
+        UserInfo userInfo = userInfoRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
         return UserInfoVO.from(userInfo, authorities);
+    }
+
+    public otherInfoVO getOtherInfo(Long userId) {
+        // 1. 从SecurityContextHolder中获取当前请求的SecurityContext
+        SecurityContext securityContext = SecurityContextHolder.getContext();
+
+        // 2. 从SecurityContext中获取Authentication对象（即之前注入的）
+        Authentication authentication = securityContext.getAuthentication();
+
+        // 3. 从Authentication中提取具体信息
+        Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities(); // 获取角色列表（对应Token中的roles）
+        UserInfo userInfo = userInfoRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
+        return otherInfoVO.from(userInfo, authorities,friendRelationRepository.hasRelationBetweenUsers(BaseContext.getCurrentId(), userId, FriendStatus.ACCEPTED));
     }
 
 
@@ -126,5 +144,6 @@ public class UserServiceImpl implements UserService {
             return "退出失败：" + e.getMessage();
         }
     }
+
 
 }

@@ -6,7 +6,8 @@ import lombok.Getter;
 public enum RequestStatus {
     PENDING("待处理"),
     ACCEPTED("已同意"),
-    REJECTED("已拒绝");
+    REJECTED("已拒绝"),
+    RETRACTED("已撤回");
 
     private final String description;
 

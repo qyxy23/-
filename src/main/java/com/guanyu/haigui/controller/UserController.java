@@ -4,9 +4,11 @@ import com.guanyu.haigui.Enum.LoginType;
 import com.guanyu.haigui.Enum.RegisterType;
 import com.guanyu.haigui.Strategy.LoginStrategy;
 import com.guanyu.haigui.Strategy.RegisterStrategy;
+import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.dto.*;
 import com.guanyu.haigui.pojo.vo.LogVO;
 import com.guanyu.haigui.pojo.vo.UserInfoVO;
+import com.guanyu.haigui.pojo.vo.otherInfoVO;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -133,6 +135,12 @@ public class UserController {
     @Operation(summary = "获取用户信息")
     @GetMapping("/info")
     public Result<UserInfoVO> getUserInfo() {
-        return Result.success(userService.getUserInfo());
+        return Result.success(userService.getUserInfo(BaseContext.getCurrentId()));
+    }
+
+    @Operation(summary = "获取其他用户信息")
+    @GetMapping("/otherInfo/{userId}")
+    public Result<otherInfoVO> getOtherInfo(@PathVariable Long userId) {
+        return Result.success(userService.getOtherInfo(userId));
     }
 }

@@ -1,5 +1,6 @@
 package com.guanyu.haigui.controller;
 
+import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.dto.*;
 import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.repository.ChatGroupAdminRepository;
@@ -108,18 +109,27 @@ public class ChatGroupController {
         return groupService.applyJoinGroup(request);
     }
 
+    @Operation(summary = "用户撤回申请加入群聊的请求")
+    @PostMapping("/retractJoinGroupRoom")
+    public GroupApplyRetractNotificationVO retractJoinRoom(@RequestBody dealJoinGroupRoomRequest request) {
+        // 获取当前登录用户ID（从SecurityContext）
+        return groupService.retractGroupJoinApplyById(request.getRequestId(), BaseContext.getCurrentId());
+    }
+
     @Operation(summary = "群主/管理员同意用户加入群聊的请求")
     @PostMapping("/AgreeJoinGroupRoom")
-    public void agreeJoinRoom(@RequestBody dealJoinGroupRoomRequest request) {
+    public Result<String> agreeJoinRoom(@RequestBody dealJoinGroupRoomRequest request) {
         // 加入群聊
         groupService.agreeJoinRequest(request);
+        return Result.success("申请已通过");
     }
 
     @Operation(summary = "群主/管理员拒绝用户加入群聊的请求")
     @PostMapping("/RefuseJoinGroupRoom")
-    public void refuseJoinRoom(@RequestBody dealJoinGroupRoomRequest request) {
+    public Result<String> refuseJoinRoom(@RequestBody dealJoinGroupRoomRequest request) {
         // 加入群聊
         groupService.RefuseJoinRequest(request);
+        return Result.success("申请已拒绝");
     }
 
 

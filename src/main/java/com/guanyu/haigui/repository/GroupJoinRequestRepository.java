@@ -54,4 +54,9 @@ public interface GroupJoinRequestRepository extends JpaRepository<GroupJoinReque
      * @return 分页的申请记录
      */
     Page<GroupJoinRequest> findByUser_UserIdOrderByApplyTimeDesc(Long userId, Pageable pageable);
+
+
+
+    @Query("SELECT r FROM GroupJoinRequest r WHERE r.id = :requestId AND r.user.userId = :userId")
+    Optional<GroupJoinRequest> findByIdAndUserId(@Param("requestId") Long requestId, @Param("userId") Long userId);
 }

@@ -390,6 +390,7 @@ public class GroupService {
     private GroupRoomListVO convertToVO(ChatGroup group, Long memberCount) {
         return GroupRoomListVO.builder()
                 .groupId(group.getGroupId())
+                .groupAvatar(group.getGroupAvatar())
                 .groupName(group.getGroupName())
                 .creatorName(group.getCreator().getUsername())
                 .memberCount(memberCount)
@@ -889,6 +890,48 @@ public class GroupService {
                 .pageSize(requestPage.getSize()) // 每页数量
                 .data(voList) // 申请数据
                 .build();
+    }
+
+    /**
+     * 撤回加群申请（根据申请ID，更安全）
+     * @param requestId 加群申请ID
+     * @param userId    当前登录用户ID（校验权限）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public GroupApplyRetractNotificationVO retractGroupJoinApplyById(Long requestId, Long userId) {
+        GroupJoinRequest request = joinRequestRepo
+                .findByIdAndUserId(requestId, userId)
+                .orElseThrow(() -> new BusinessException(404, "申请不存在或无权限"));
+
+        // 校验申请状态：仅待处理的申请可撤回
+        if (!request.getStatus().equals(RequestStatus.PENDING)) {
+            throw new BusinessException(400, "申请已处理，无法撤回");
+        }
+
+        request.setStatus(RequestStatus.RETRACTED);
+        joinRequestRepo.save(request);
+
+        // 发送通知
+        return sendGroupApplyRetractNotification(request);
+    }
+
+    /**
+     * 发送加群撤回通知给申请人（WebSocket）
+     */
+    private GroupApplyRetractNotificationVO sendGroupApplyRetractNotification(GroupJoinRequest request) {
+        GroupApplyRetractNotificationVO notification = new GroupApplyRetractNotificationVO();
+        notification.setStatus(RequestStatus.RETRACTED); // 消息类型：加群撤回
+        notification.setRequestId(request.getId()); // 申请ID
+        notification.setRetractTime(LocalDateTime.now());
+        notification.setChatType(MessageChatType.GROUP_RETRACT_REQUESTS);
+
+        // 发送给申请人的私人频道（前端需订阅：/user/{userId}/queue/private-messages）
+        simpMessagingTemplate.convertAndSendToUser(
+                String.valueOf(request.getUser().getUserId()),
+                "/queue/private-messages",
+                notification
+        );
+        return notification;
     }
 
 }

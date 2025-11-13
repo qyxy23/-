@@ -2,10 +2,7 @@ package com.guanyu.haigui.controller;
 
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.dto.FriendApplyRequest;
-import com.guanyu.haigui.pojo.vo.FriendApplicationVO;
-import com.guanyu.haigui.pojo.vo.FriendInfoVO;
-import com.guanyu.haigui.pojo.vo.FriendSearchListVO;
-import com.guanyu.haigui.pojo.vo.FriendSearchResultVO;
+import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.service.FriendsService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,7 +24,6 @@ import java.util.List;
 @RequestMapping("/friends")
 public class FriendsController {
     private final FriendsService friendService;
-
 
     /** 获取当前用户收到的好友申请列表（待处理） */
     @GetMapping("/applications/received")
@@ -71,17 +67,24 @@ public class FriendsController {
         return Result.success(result);
     }
 
-
     /**
      * 发送好友申请
      */
     @PostMapping("/apply")
     @Operation(summary = "发送好友申请")
-    public Result<String> sendFriendApply(@RequestBody FriendApplyRequest request) {
-        friendService.sendFriendApply(BaseContext.getCurrentId(), request.getTargetUserId(), request.getRemark());
-        return Result.success("申请已发送");
+    public Result<FriendRetractNotificationVO> sendFriendApply(@RequestBody FriendApplyRequest request) {
+        return Result.success(friendService.sendFriendApply(BaseContext.getCurrentId(), request.getTargetUserId(),
+                request.getRemark()));
     }
 
+    /**
+     * 撤回好友申请
+     */
+    @DeleteMapping("/apply/{applicationId}")
+    @Operation(summary = "撤回好友申请")
+    public Result<FriendRetractNotificationVO> cancelFriendApply(@PathVariable Long applicationId) {
+        return Result.success(friendService.retractFriendApply(applicationId, BaseContext.getCurrentId()));
+    }
 
     /**
      * 同意好友申请
@@ -89,10 +92,19 @@ public class FriendsController {
     @PostMapping("/accept/{applicationId}")
     @Operation(summary = "同意好友申请")
     public Result<String> acceptFriendApply(@PathVariable Long applicationId) {
-        friendService.acceptFriendApply(applicationId,BaseContext.getCurrentId());
+        friendService.acceptFriendApply(applicationId, BaseContext.getCurrentId());
         return Result.success("申请已同意");
     }
 
+    /**
+     * 拒绝好友申请
+     */
+    @PostMapping("/reject/{applicationId}")
+    @Operation(summary = "拒绝好友申请")
+    public Result<String> rejectFriendApply(@PathVariable Long applicationId) {
+        friendService.rejectFriendApply(applicationId, BaseContext.getCurrentId());
+        return Result.success("申请已拒绝");
+    }
 
     /**
      * 删除好友
@@ -104,15 +116,14 @@ public class FriendsController {
         return Result.success("好友已删除");
     }
 
-
     /**
      * 获取好友信息
      */
     @GetMapping("/{friendId}")
-    @Operation(summary = "获取好友信息")
-    public Result<FriendInfoVO> getFriendInfo(@PathVariable Long friendId) {
-        FriendInfoVO result = friendService.getFriendInfo(BaseContext.getCurrentId(), friendId);
+    @Operation(summary = "是否为好友")
+    public Result<Boolean> isFriend(@PathVariable Long friendId) {
+        Boolean result = friendService.isFriend(BaseContext.getCurrentId(), friendId);
         return Result.success(result);
     }
-}
 
+}

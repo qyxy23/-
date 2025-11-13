@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 @Data
 @Builder
 public class GroupPermissionVO {
-    private Long id;                  // 申请ID
+    private Long requestId;                  // 申请ID
     private String groupName;         // 申请的群名称
     private String description;       // 加群描述
     private String status;            // 申请状态（中文，如"待处理"）
@@ -22,7 +22,7 @@ public class GroupPermissionVO {
      */
     public static GroupPermissionVO convertToGroupPermissionVO(GroupJoinRequest request) {
         return GroupPermissionVO.builder()
-                .id(request.getId())
+                .requestId(request.getId())
                 .groupName(request.getGroup().getGroupName())   // 从申请中获取群名称
                 .description(request.getDescription())         // 加群描述
                 .status(request.getStatus().getDescription()) // 状态转中文
