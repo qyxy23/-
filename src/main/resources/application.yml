@@ -1,6 +1,8 @@
 server:
   port: 8080
 
+
+
 jwt:
   # 设置jwt签名加密时使用的秘钥
   admin-secret-key: mySuperLongSecretKeyForJWTWithMoreThan32Bytes!!

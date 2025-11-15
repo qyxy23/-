@@ -690,6 +690,23 @@ public class GroupService {
         return updateGroupNameVO;
     }
 
+
+    /*
+     * 获取群成员列表
+     */
+    public AllChatGroupMemberListVO getAllGroupUsers(String groupId) {
+        List<ChatGroupMemberWithRole> membersWithRole = chatGroupMemberRepository.findAllMembersWithRole(groupId);
+        // 2. 转换为前端VO：映射成员基础信息 + 角色身份
+        Integer totalCount = membersWithRole.size();
+        List<ChatGroupMemberVO> memberVos = membersWithRole.stream()
+                .map(this::convertToMemberVOWithRole) // 转换每个成员
+                .collect(Collectors.toList());
+
+        // 3. 构建完整分页结果（含群ID、成员列表、分页元数据）
+        return new AllChatGroupMemberListVO(groupId,memberVos,totalCount);
+    }
+
+
     /*
      * 获取群成员列表
      */

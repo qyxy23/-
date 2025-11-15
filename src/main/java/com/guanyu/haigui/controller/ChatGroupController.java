@@ -176,6 +176,18 @@ public class ChatGroupController {
         groupService.leaveGroupRoom(groupId);
     }
 
+
+    @Operation(summary = "获取指定群聊所有成员")
+    @GetMapping("/getAllGroupUsers/{groupId}")
+    public Result<AllChatGroupMemberListVO> getAllGroupUsers(
+            @PathVariable String groupId) {
+        // 调用Service获取分页结果
+        AllChatGroupMemberListVO result = groupService.getAllGroupUsers(groupId);
+        System.out.println(result);
+        return Result.success(result);
+    }
+
+
     @Operation(summary = "获取指定群聊成员（分页）")
     @GetMapping("/getGroupUsers/{groupId}")
     public Result<ChatGroupMemberListVO> getGroupUsers(

@@ -39,6 +39,16 @@ public interface ChatGroupMemberRepository extends JpaRepository<ChatGroupMember
             "WHERE m.chatGroup.groupId = :groupId")
     Page<ChatGroupMemberWithRole> findMembersWithRole(@Param("groupId") String groupId, Pageable pageable);
 
+
+    @Query("SELECT m AS member, a AS administrator " +
+            "FROM ChatGroupMember m " +
+            "LEFT JOIN ChatGroupAdministrator a " +
+            "ON m.member.userId = a.id.userId AND m.chatGroup.groupId = a.id.groupId " + // 路径正确：a.id是复合主键对象
+            "WHERE m.chatGroup.groupId = :groupId")
+    List<ChatGroupMemberWithRole> findAllMembersWithRole(@Param("groupId") String groupId);
+
+
+
     /**
      * 查询用户是否是群成员（返回投影，避免循环引用）
      * @param userId 用户ID

@@ -1,8 +1,10 @@
 package com.guanyu.haigui.controller;
 
+import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.pojo.dto.*;
 import com.guanyu.haigui.pojo.vo.GameRoomMessageVO;
 import com.guanyu.haigui.pojo.vo.LobbyListVO;
+import com.guanyu.haigui.pojo.vo.searchAllLobbyMemberVO;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.websocket.RoomService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,10 +16,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -108,6 +107,29 @@ public class ChatRoomController {
     public void leaveLobby(@Payload String roomId, @Header("simpSessionId") String sessionId) {
         // 离开大厅
         roomService.leaveLobby(roomId, sessionId);
+    }
+
+    /**
+     * 查询游戏大厅的所有成员
+     * @param roomId 房间ID
+     * @return 统一响应（包含成员列表）
+     */
+    @GetMapping("/members/{roomId}")
+    @ResponseBody
+    @Operation(summary = "查询游戏大厅的所有成员")
+    public Result<searchAllLobbyMemberVO> searchAllLobbyMembers(@PathVariable String roomId) {
+        try {
+            // 调用Service获取成员列表
+            searchAllLobbyMemberVO members = roomService.getAllMembersByRoomId(roomId);
+            // 返回成功响应（200 OK）
+            return Result.success(members);
+        } catch (BusinessException e) {
+            // 业务异常（如房间不存在）：返回404
+            throw new BusinessException(404, e.getMessage());
+        } catch (Exception e) {
+            // 系统异常：返回500
+            return Result.error("系统繁忙，请稍后重试");
+        }
     }
 
     // 处理大厅人数是否达标，若达到要求可开始游戏

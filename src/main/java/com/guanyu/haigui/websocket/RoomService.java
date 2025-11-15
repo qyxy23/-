@@ -458,4 +458,34 @@ public class RoomService {
 
 
 
+    public searchAllLobbyMemberVO getAllMembersByRoomId(String roomId) {
+        // 查询房间下的所有成员关联数据
+        List<ChatGameMember> members = chatGameMemberRepository.findByIdRoomId(roomId);
+        searchAllLobbyMemberVO lobbyMemberVO = new searchAllLobbyMemberVO();
+
+        // 转换为LobbyMemberVO
+        List<LobbyMemberVO> memberList = members.stream()
+                .map(this::convertToLobbyMemberVO)
+                .collect(Collectors.toList());
+        lobbyMemberVO.setMemberList(memberList);
+        lobbyMemberVO.setMemberNum(memberList.size());
+        lobbyMemberVO.setMemberId(roomId);
+        return lobbyMemberVO;
+    }
+
+    /**
+     * 将ChatGameMember转换为LobbyMemberVO
+     */
+    private LobbyMemberVO convertToLobbyMemberVO(ChatGameMember member) {
+        LobbyMemberVO vo = new LobbyMemberVO();
+        // 成员基础信息（来自关联的UserInfo）
+        vo.setUserId(member.getMember().getUserId());
+        vo.setUsername(member.getMember().getUsername());
+        vo.setAvatar(member.getMember().getAvatar());
+        // 加入时间（来自ChatGameMember）
+        vo.setJoinTime(member.getJoinTime());
+        // 是否是房间创建者（对比成员ID和房间创建者ID）
+        vo.setIsCreator(member.getChatGame().getCreator().getUserId().equals(member.getMember().getUserId()));
+        return vo;
+    }
 }

@@ -19,7 +19,11 @@ public interface ChatGameMemberRepository extends JpaRepository<ChatGameMember, 
     List<ChatGameMember> findByChatGame(ChatGame chatGame);
     boolean existsByChatGameAndMember(ChatGame chatGame, UserInfo member);
     long countByChatGame(ChatGame chatGame);
+    // 根据房间ID查询所有成员（关联member和chatGame）
+    List<ChatGameMember> findByIdRoomId(String roomId);
 
     @Query("SELECT cm FROM ChatGameMember cm WHERE cm.chatGame.roomId = :roomId AND cm.member.userId = :userId")
     Optional<ChatGameMember> findByRoomIdAndUserId(@Param("roomId") String roomId, @Param("userId") Long userId);
+
+
 }
