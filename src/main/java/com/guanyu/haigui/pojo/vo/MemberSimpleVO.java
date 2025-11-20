@@ -1,10 +1,12 @@
 package com.guanyu.haigui.pojo.vo;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 
 @Data
 public class MemberSimpleVO {
     // 房间ID
+    @JsonIgnore
     private String roomId;
     // 用户ID（可选，根据需求保留）
     private Long userId;

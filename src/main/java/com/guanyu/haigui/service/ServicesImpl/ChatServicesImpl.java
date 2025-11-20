@@ -10,13 +10,11 @@ import com.guanyu.haigui.manager.AIManager;
 import com.guanyu.haigui.mapper.AiChatSessionMapper;
 import com.guanyu.haigui.pojo.model.AiChatMessage;
 import com.guanyu.haigui.pojo.model.AiChatSession;
-import com.guanyu.haigui.pojo.vo.AiChatMessageDetailVo;
-import com.guanyu.haigui.pojo.vo.ChatRoomListDetailVO;
-import com.guanyu.haigui.pojo.vo.ChatRoomListVO;
-import com.guanyu.haigui.pojo.vo.FirstChatVo;
+import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.repository.AiChatMessageRepository;
 import com.guanyu.haigui.repository.AiChatSessionRepository;
 import com.guanyu.haigui.service.ChatService;
+import com.guanyu.haigui.utils.BgeVectorClientUtil;
 import com.guanyu.haigui.utils.RedisServiceUtil;
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessage;
 import io.micrometer.common.util.StringUtils;
@@ -27,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,16 +37,41 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class ChatServicesImpl implements ChatService {
-    private AiChatSessionMapper aiChatMapper;
-
-    private AIManager aiManager;
-
-    private RedisServiceUtil redisServiceUtil;
-
     private final Map<String, List<ChatMessage>> globalMessageMap = new ConcurrentHashMap<>(); // 缓存会话消息
-
     private final AiChatSessionRepository aiChatSessionRepository;
     private final AiChatMessageRepository aiChatMessageRepository;
+    private AiChatSessionMapper aiChatMapper;
+    private AIManager aiManager;
+    private RedisServiceUtil redisServiceUtil;
+
+    /**
+     * 检测标题是否带书名号（《》），若未带则自动补全
+     *
+     * @param title 原始标题
+     * @return 带书名号的标题（若原始无，则补全；若有，则保持原样）
+     */
+    public static String ensureBookTitle(String title) {
+        if (StringUtils.isBlank(title)) {
+            return title;
+        }
+        // 去除前后空白
+        String trimmedTitle = title.trim();
+        // 检查是否以《开头且以》结尾
+        if (trimmedTitle.startsWith("《") && trimmedTitle.endsWith("》")) {
+            return trimmedTitle;
+        }
+        // 未带书名号：补全《和》
+        return "《" + trimmedTitle + "》";
+    }
+
+    // 模拟AI生成模块（实际需调用第三方AI服务，如OpenAI）
+    private static Map<String, String> generateAiModules(String soupSurface, String soupBottom) {
+        Map<String, String> modules = new HashMap<>();
+        modules.put("hostManual", "## 主持人手册 推理时长1~2小时…");
+        modules.put("keyClues", "村子里的女人被限制出门、深渊的白骨、妻子的时空穿越短信、双鱼玉佩的唯一性");
+        modules.put("progressSettings", "妈妈身份+15%…妻子是复制体+20%…双鱼玉佩功能+25%…完整还原+25%");
+        return modules;
+    }
 
     @Override
     @Transactional
@@ -136,27 +160,8 @@ public class ChatServicesImpl implements ChatService {
     }
 
     /**
-     * 检测标题是否带书名号（《》），若未带则自动补全
-     * @param title 原始标题
-     * @return 带书名号的标题（若原始无，则补全；若有，则保持原样）
-     */
-    public static String ensureBookTitle(String title) {
-        if (StringUtils.isBlank(title)) {
-            return title;
-        }
-        // 去除前后空白
-        String trimmedTitle = title.trim();
-        // 检查是否以《开头且以》结尾
-        if (trimmedTitle.startsWith("《") && trimmedTitle.endsWith("》")) {
-            return trimmedTitle;
-        }
-        // 未带书名号：补全《和》
-        return "《" + trimmedTitle + "》";
-    }
-
-    /**
      * 非首次会话聊天
-     * 
+     *
      * @param roomId  房间id
      * @param message 问题
      */
@@ -224,7 +229,7 @@ public class ChatServicesImpl implements ChatService {
 
     /**
      * 获取当前用户的AI聊天室列表（基础版）
-     * 
+     *
      * @param userId 当前用户ID
      * @return 聊天室列表
      */
@@ -234,7 +239,7 @@ public class ChatServicesImpl implements ChatService {
 
     /**
      * 获取当前用户的AI聊天室列表（含最后一条消息）
-     * 
+     *
      * @param userId 当前用户ID
      * @return 聊天室列表（带最后一条消息）
      */
@@ -248,6 +253,32 @@ public class ChatServicesImpl implements ChatService {
         ChatRoomListDetailVO detailVO = new ChatRoomListDetailVO();
         detailVO.setChatMessageList(messages);
         return detailVO;
+    }
+
+    @Override
+    public String generateHostManual(String content) {
+        return "";
+    }
+
+    @Override
+    public String generateKeyClue(String content) {
+        return "";
+    }
+
+    @Override
+    public String generateProgressSetting(String content) {
+        return "";
+    }
+
+    @Override
+    public SingleEncodeResponse vectorSignalTurtleSoup(String content) {
+        // 初始化客户端（替换为你的服务地址）
+        return BgeVectorClientUtil.encodeSingle(content);
+    }
+
+    @Override
+    public BatchEncodeResponse vectorTurtleSoup(List<String> content) {
+        return BgeVectorClientUtil.encodeBatch(content);
     }
 
 }

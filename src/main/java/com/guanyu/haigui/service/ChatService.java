@@ -1,8 +1,6 @@
 package com.guanyu.haigui.service;
 
-import com.guanyu.haigui.pojo.vo.ChatRoomListDetailVO;
-import com.guanyu.haigui.pojo.vo.ChatRoomListVO;
-import com.guanyu.haigui.pojo.vo.FirstChatVo;
+import com.guanyu.haigui.pojo.vo.*;
 
 import java.util.List;
 
@@ -33,4 +31,14 @@ public interface ChatService {
     List<ChatRoomListVO> getAIChatRoomListWithLastMessage(Long userId);
 
     ChatRoomListDetailVO getAIChatRoomListDetail(String sessionId);
+
+    String generateHostManual(String content);
+
+    String generateKeyClue(String content);
+
+    String generateProgressSetting(String content);
+
+    BatchEncodeResponse vectorTurtleSoup(List<String> content);
+
+    SingleEncodeResponse vectorSignalTurtleSoup(String content);
 }

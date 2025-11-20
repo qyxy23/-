@@ -1,12 +1,8 @@
 package com.guanyu.haigui.controller;
 
 import com.guanyu.haigui.context.BaseContext;
-import com.guanyu.haigui.pojo.dto.AfterFirstChatDto;
-import com.guanyu.haigui.pojo.dto.ChatRoomListDetailDto;
-import com.guanyu.haigui.pojo.dto.FirstChatDto;
-import com.guanyu.haigui.pojo.vo.ChatRoomListDetailVO;
-import com.guanyu.haigui.pojo.vo.ChatRoomListVO;
-import com.guanyu.haigui.pojo.vo.FirstChatVo;
+import com.guanyu.haigui.pojo.dto.*;
+import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.service.ChatService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,7 +29,6 @@ public class ChatWithAiController {
 
     /**
      * 聊天
-     *
      */
     @Operation(summary = "第一次聊天")
     @PostMapping
@@ -44,12 +39,11 @@ public class ChatWithAiController {
     @Operation(summary = "后续聊天")
     @PostMapping("/afterFirst")
     public Result<String> doChat(@RequestBody AfterFirstChatDto afterFirstChatDto) {
-        return Result.success(chatService.chatWithAI(afterFirstChatDto.getRoomId(),afterFirstChatDto.getMessage()));
+        return Result.success(chatService.chatWithAI(afterFirstChatDto.getRoomId(), afterFirstChatDto.getMessage()));
     }
 
     /**
      * 获取聊天室列表，包含最后一条消息
-     *
      */
     @Operation(summary = "获取聊天室列表内容")
     @GetMapping()
@@ -59,7 +53,6 @@ public class ChatWithAiController {
 
     /**
      * 获取某个聊天室内容
-     *
      */
     @Operation(summary = "获取某个聊天室内容")
     @PostMapping("/ChatRoomListDetail")
@@ -68,5 +61,35 @@ public class ChatWithAiController {
     }
 
 
+    @Operation(summary = "调用ai生成相对应的主持人手册模块")
+    @PostMapping("/generateHostManual")
+    public Result<String> generateHostManual(@RequestBody String content) {
+        return Result.success(chatService.generateHostManual(content));
+    }
+
+    @Operation(summary = "调用ai生成相对应的关键线索模块")
+    @PostMapping("/generateKeyClue")
+    public Result<String> generateKeyClue(@RequestBody String content) {
+        return Result.success(chatService.generateKeyClue(content));
+    }
+
+    @Operation(summary = "调用ai生成相对应的进度设置模块")
+    @PostMapping("/generateProgressSetting")
+    public Result<String> generateProgressSetting(@RequestBody String content) {
+        return Result.success(chatService.generateProgressSetting(content));
+    }
+
+    @Operation(summary = "向量化单个消息")
+    @PostMapping("/vectorSignalTurtleSoup")
+    public Result<SingleEncodeResponse> vectorSignalTurtleSoup(@RequestBody TurtleSoupSignalDTO content) {
+        log.info("接收到的参数为：{}", content);
+        return Result.success(chatService.vectorSignalTurtleSoup(content.getContent()));
+    }
+
+    @Operation(summary = "向量化一系列消息")
+    @PostMapping("/vectorTurtleSoup")
+    public Result<BatchEncodeResponse> vectorTurtleSoup(@RequestBody TurtleSoupDTO content) {
+        return Result.success(chatService.vectorTurtleSoup(content.getContent()));
+    }
 
 }

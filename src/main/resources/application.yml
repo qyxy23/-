@@ -91,6 +91,10 @@ minio:
   bucket:
     avatars: user-avatars
 
+BgeVector:
+  host: ${qingyou.BgeVector.host}
+
+
 logging:
   level:
     com:

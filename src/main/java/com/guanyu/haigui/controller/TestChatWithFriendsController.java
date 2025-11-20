@@ -1,6 +1,5 @@
 package com.guanyu.haigui.controller;
 
-import com.guanyu.haigui.pojo.dto.JoinChatRoomRequest;
 import com.guanyu.haigui.pojo.dto.SendGameRoomMsgRequest;
 import com.guanyu.haigui.pojo.vo.GameRoomMessageVO;
 import com.guanyu.haigui.result.Result;
@@ -69,13 +68,13 @@ public class TestChatWithFriendsController {
 
 
 
-    @Operation(summary = "处理用户加入大厅的请求")
-    @PostMapping("/joinRoom")
-    public void joinRoom(@RequestBody JoinChatRoomRequest request) {
-        String lobbyId = request.getChatRoomId();
-        // 加入大厅
-        lobbyService.joinChatRoom(lobbyId);
-    }
+    // @Operation(summary = "处理用户加入大厅的请求")
+    // @PostMapping("/joinRoom")
+    // public void joinRoom(@RequestBody JoinChatRoomRequest request) {
+    //     String lobbyId = request.getChatRoomId();
+    //     // 加入大厅
+    //     lobbyService.joinChatRoom(lobbyId);
+    // }
 
 
 
@@ -117,10 +116,4 @@ public class TestChatWithFriendsController {
     //     lobbyService.sendGameMessage(request, sessionId);
     // }
 
-    @Operation(summary = "离开大厅")
-    @PostMapping("/leaveLobby")
-    public String leaveLobby(@RequestBody JoinChatRoomRequest request) {
-        // 离开大厅
-        return lobbyService.leaveLobby(request.getChatRoomId());
-    }
 }

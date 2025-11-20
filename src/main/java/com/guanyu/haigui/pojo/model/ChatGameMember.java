@@ -1,5 +1,6 @@
 package com.guanyu.haigui.pojo.model;
 
+import com.guanyu.haigui.Enum.MemberStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -39,6 +40,11 @@ public class ChatGameMember {
     @MapsId("roomId") // 映射复合主键的roomId
     @JoinColumn(name = "room_id", nullable = false, columnDefinition = "VARCHAR(36)")
     private ChatGame chatGame;
+
+    /** 成员状态（新增） */
+    @Enumerated(EnumType.STRING) // 存储枚举的字符串值（如"ONLINE"）
+    @Column(name = "status", nullable = false)
+    private MemberStatus status = MemberStatus.ONLINE; // 默认在线
 
     /** 重写equals：基于复合主键判断相等性 */
     @Override

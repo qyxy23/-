@@ -2,9 +2,7 @@ package com.guanyu.haigui.controller;
 
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.pojo.dto.*;
-import com.guanyu.haigui.pojo.vo.GameRoomMessageVO;
-import com.guanyu.haigui.pojo.vo.LobbyListVO;
-import com.guanyu.haigui.pojo.vo.searchAllLobbyMemberVO;
+import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.websocket.RoomService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,7 +12,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.messaging.handler.annotation.*;
-import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
@@ -77,13 +74,21 @@ public class ChatRoomController {
     }
 
     // 处理用户加入大厅的请求（前端发送到/app/chat.joinLobby）
-    @Operation(summary = "处理用户加入大厅的请求")
-    @MessageMapping("/ws/joinRoom")
-    public void joinRoom(SimpMessageHeaderAccessor accessor, @Payload JoinChatRoomRequest request) {
-        String sessionId = accessor.getSessionId();
+    @Operation(summary = "加入大厅")
+    @PostMapping("/joinRoom")
+    @ResponseBody
+    public Result<joinChatRoomVO> joinRoom(@RequestBody JoinChatRoomRequest request) {
         String lobbyId = request.getChatRoomId();
         // 加入大厅
-        roomService.joinChatRoom(lobbyId, sessionId);
+        return Result.success(roomService.joinChatRoom(lobbyId));
+    }
+
+    @Operation(summary = "离开大厅")
+    @PostMapping("/leaveLobby/{roomId}")
+    @ResponseBody
+    public Result<leaveLobbyVO> leaveLobby(@PathVariable String roomId) {
+        // 离开大厅
+        return Result.success(roomService.leaveLobby(roomId));
     }
 
     @Operation(summary = "获取指定房间的最新N条消息")
@@ -102,12 +107,7 @@ public class ChatRoomController {
         roomService.sendLobbyMessage(message, sessionId);
     }
 
-    @Operation(summary = "离开大厅")
-    @MessageMapping("/leaveLobby")
-    public void leaveLobby(@Payload String roomId, @Header("simpSessionId") String sessionId) {
-        // 离开大厅
-        roomService.leaveLobby(roomId, sessionId);
-    }
+
 
     /**
      * 查询游戏大厅的所有成员
@@ -132,12 +132,35 @@ public class ChatRoomController {
         }
     }
 
+
+
+    @Operation(summary = "挂起房间")
+    @PostMapping("/suspendRoom/{roomId}")
+    @ResponseBody
+    public Result<suspendRoomVO> suspendRoom(@PathVariable String roomId) {
+        return Result.success(roomService.suspendRoom(roomId));
+    }
+
+    @Operation(summary = "返回房间")
+    @PostMapping("/returnRoom/{roomId}")
+    @ResponseBody
+    public Result<resumeRoomVO> returnRoom(@PathVariable String roomId) {
+        return Result.success(roomService.returnRoom(roomId));
+    }
+
+    @Operation(summary = "游戏准备")
+    @PostMapping("/ready/{roomId}")
+    @ResponseBody
+    public Result<readyVO> ready(@PathVariable String roomId) {
+        return Result.success(roomService.ready(roomId));
+    }
+
     // 处理大厅人数是否达标，若达到要求可开始游戏
-    // @Operation(summary = "处理大厅人数是否达标，若达到要求可开始游戏")
-    // @MessageMapping("/checkRoomStatus")
-    // public void checkRoomStatus(@Payload String roomId) {
-    // log.info("检查房间{}的状态", roomId);
-    // roomService.checkRoomStatus(roomId);
-    // }
+    @Operation(summary = "处理大厅人数是否达标，若达到要求可开始游戏")
+    @PostMapping("/checkRoomStatus")
+    public Result<checkRoomStatusVO> checkRoomStatus(@Payload String roomId) {
+        log.info("检查房间{}的状态", roomId);
+        return Result.success(roomService.checkRoomStatus(roomId));
+    }
 
 }

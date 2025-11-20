@@ -4,8 +4,7 @@ import com.guanyu.haigui.Enum.RoomStatus;
 import lombok.Data;
 
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.List;
 
 @Data
 public class LobbyListVO {
@@ -25,5 +24,5 @@ public class LobbyListVO {
     private LocalDateTime createTime;
 
 
-    private Set<MemberSimpleVO> members = new HashSet<>();
+    private List<MemberSimpleVO> members;
 }

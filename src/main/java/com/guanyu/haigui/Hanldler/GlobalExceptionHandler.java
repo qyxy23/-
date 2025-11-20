@@ -131,5 +131,10 @@ public class GlobalExceptionHandler {
                 .body("文件上传请求格式错误，请确保使用multipart/form-data格式");
     }
 
+    @ExceptionHandler(BgeVectorException.class)
+    public Result<String> handleBgeVectorException(BgeVectorException e) {
+        return Result.error(e.getMessage());
+    }
+
 
 }

@@ -1,8 +1,6 @@
 package com.guanyu.haigui.websocket;
 
 import cn.hutool.core.lang.UUID;
-import com.github.pagehelper.PageHelper;
-import com.github.pagehelper.PageInfo;
 import com.guanyu.haigui.Enum.MessageChatType;
 import com.guanyu.haigui.Enum.MessageStatus;
 import com.guanyu.haigui.Enum.RoomStatus;
@@ -11,12 +9,12 @@ import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.mapper.AiChatSessionMapper;
 import com.guanyu.haigui.mapper.ChatGameMapper;
 import com.guanyu.haigui.mapper.ChatGameMemberMapper;
-import com.guanyu.haigui.pojo.dto.*;
+import com.guanyu.haigui.pojo.dto.ChatGameDTO;
+import com.guanyu.haigui.pojo.dto.CreateRoomRequest;
+import com.guanyu.haigui.pojo.dto.RoomChatHistoryDTO;
+import com.guanyu.haigui.pojo.dto.SendGameRoomMsgRequest;
 import com.guanyu.haigui.pojo.model.*;
-import com.guanyu.haigui.pojo.vo.CreatorInfoVO;
 import com.guanyu.haigui.pojo.vo.GameRoomMessageVO;
-import com.guanyu.haigui.pojo.vo.LobbyListVO;
-import com.guanyu.haigui.pojo.vo.MemberSimpleVO;
 import com.guanyu.haigui.repository.ChatGameMemberRepository;
 import com.guanyu.haigui.repository.ChatGameMsgRepository;
 import com.guanyu.haigui.repository.ChatGameRepository;
@@ -25,15 +23,17 @@ import com.guanyu.haigui.utils.LobbyRoomUtils;
 import com.guanyu.haigui.utils.RedisServiceUtil;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.math.BigInteger;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -127,87 +127,6 @@ public class TestLobbyService {
                 .collect(Collectors.toList());
     }
 
-    // LobbyService.java
-    public PageImpl<LobbyListVO> searchLobbies(LobbyListDTO dto, int page) {
-        int validPage = Math.max(1, page);
-        PageHelper.startPage(validPage, 10); // 分页（每页10条）
-
-        // 1. 分页查询聊天室核心信息（不关联成员）
-        List<Map<String, Object>> baseList = chatGameMapper.searchLobbiesBase(dto);
-        if (baseList.isEmpty()) {
-            return new PageImpl<>(Collections.emptyList(), PageRequest.of(validPage - 1, 10), 0);
-        }
-
-        // 2. 收集所有聊天室的room_id（去重）
-        Set<String> roomIds = baseList.stream()
-                .map(map -> (String) map.get("room_id"))
-                .collect(Collectors.toSet());
-
-        // 3. 批量查询这些房间的成员列表（返回Map<roomId, List<MemberSimpleVO>>）
-        // LobbyService.java 中的步骤3
-        List<MemberSimpleVO> membersList = chatGameMemberMapper.selectMembersByRoomIds(roomIds);
-        // 按 roomId 分组为 Map<String, List<MemberSimpleVO>>
-        Map<String, List<MemberSimpleVO>> membersMap = membersList.stream()
-                .collect(Collectors.groupingBy(MemberSimpleVO::getRoomId));
-
-        // 4. 组装LobbyListVO列表
-        List<LobbyListVO> voList = baseList.stream().map(map -> {
-            LobbyListVO vo = new LobbyListVO();
-            // 填充聊天室核心信息
-            vo.setRoomId((String) map.get("room_id"));
-            vo.setRoomName((String) map.get("room_name"));
-            vo.setRequiredMembers(safeConvertToLong(map.get("required_members")));
-            vo.setCurrentMembers(safeConvertToLong(map.get("current_members")));
-            vo.setStatus(RoomStatus.valueOf((String) map.get("status")));
-            vo.setCreateTime((LocalDateTime) map.get("create_time"));
-
-            // 填充创建者
-            CreatorInfoVO creator = new CreatorInfoVO();
-            creator.setUserId(safeConvertToLong(map.get("creator_user_id")));
-            creator.setUsername((String) map.get("creator_username"));
-            creator.setAvatar((String) map.get("creator_avatar"));
-            vo.setCreator(creator);
-
-            // 填充成员列表（从membersMap中取，无则为空Set）
-            List<MemberSimpleVO> members = membersMap.getOrDefault(vo.getRoomId(), Collections.emptyList());
-            if (members != null) {
-                vo.setMembers(new HashSet<>(members));
-            } else {
-                // 处理单个对象的情况
-                List<MemberSimpleVO> newMembers = membersMap.getOrDefault(vo.getRoomId(), Collections.emptyList());
-                vo.setMembers(new HashSet<>(newMembers));
-            }
-            // List<MemberSimpleVO> memberList = membersMap.getOrDefault(vo.getRoomId(),
-            // Collections.emptyList());
-            // vo.setMembers(new HashSet<>(memberList));
-
-            return vo;
-        }).collect(Collectors.toList());
-
-        // 5. 转换为Spring Data Page
-        PageInfo<Map<String, Object>> pageInfo = new PageInfo<>(baseList);
-        return new PageImpl<>(
-                voList,
-                PageRequest.of(validPage - 1, 10),
-                pageInfo.getTotal());
-    }
-
-    private Long safeConvertToLong(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof Long) {
-            return (Long) value;
-        }
-        if (value instanceof BigInteger) {
-            return ((BigInteger) value).longValue();
-        }
-        if (value instanceof Integer) {
-            return ((Integer) value).longValue();
-        }
-        return Long.valueOf(value.toString());
-    }
-
     @Transactional // 事务保证原子性：成员添加+房间人数更新
     public void joinChatRoom(String roomId) {
         // 1. 获取当前用户信息（从会话映射）
@@ -248,7 +167,7 @@ public class TestLobbyService {
 
         // 7. 更新Redis在线房间缓存（可选）
         redisService.updateOnlineRoomsAndNumbers(roomId, num);
-        messagingTemplate.convertAndSend("/topic/memberChange", user.getName() + "加入大厅");
+        messagingTemplate.convertAndSend("/topic/memberChange"+roomId, user.getName() + "加入大厅");
         log.info("用户[{}]加入房间[{}]成功", user.getUserId(), roomId);
     }
 
@@ -336,29 +255,7 @@ public class TestLobbyService {
         }
     }
 
-    // 检查房间状态,如果达标可开启游戏
-    public void checkRoomStatus(String roomId) {
-        ChatGame room = chatGameMapper.checkByRoomId(roomId);
-        if (room == null) {
-            throw new RoomException("房间不存在");
-        }
-        if (room.getStatus() != RoomStatus.WAITING) {
-            throw new RoomException("房间已开始");
-        }
-        if (room.getCurrentMembers() < room.getRequiredMembers()) {
-            throw new RoomException("房间人数不足");
-        }
-        if (room.getCurrentMembers() > room.getRequiredMembers()) {
-            throw new RoomException("房间人数超出");
-        }
-        room.setStatus(RoomStatus.ACTIVE);
-        chatGameMapper.updateRoomStatus(room);
-        AiChatSession session = AiChatSession.builder().sessionId(UUID.randomUUID().toString())
-                .contextId(roomId).build();
-        aiChatSessionMapper.insertAISession(session);
-        log.info("房间{}已激活", roomId);
-        messagingTemplate.convertAndSend("/topic/chat/" + roomId, "房间已激活");
-    }
+
 
 
     public GameRoomMessageVO sendLobbyMessage(SendGameRoomMsgRequest request) {
@@ -390,52 +287,7 @@ public class TestLobbyService {
         return messageVO;
     }
 
-    /**
 
-     /**
-     * 用户离开大厅（群聊房间）
-     *
-     * @param roomId    房间ID
-     */
-    public String leaveLobby(String roomId) {
-        // 1. 获取当前用户信息（从会话映射）
-        long userId = BaseContext.getCurrentId();
-        // 2. 获取已持久化的用户实体
-        UserInfo user = userInfoRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("用户不存在：ID=" + userId));
-
-        // 3. 获取目标房间（验证存在性）
-        ChatGame room = chatGameRepository.findById(roomId)
-                .orElseThrow(() -> new RoomNotFoundException("房间不存在：ID=" + roomId));
-
-        // 4. 查找用户的成员记录（验证是否在房间内）
-        ChatGameMemberId memberId = new ChatGameMemberId(user.getUserId(), roomId);
-        ChatGameMember member = chatGameMemberRepository.findById(memberId)
-                .orElseThrow(() -> new UserNotInRoomException("用户未在房间中：ID=" + user.getUserId()));
-
-        // 5. 删除成员记录
-        chatGameMemberRepository.delete(member);
-
-        // 6. 更新房间当前人数（-1）并保存
-        int currentMembers = room.getCurrentMembers() - 1;
-        room.setCurrentMembers(currentMembers);
-        chatGameRepository.save(room);
-
-        // 7. 可选：若房间无人，更新状态为“已取消”
-        if (currentMembers == 0) {
-            room.setStatus(RoomStatus.CANCELLED); // 需在RoomStatus枚举中添加CANCELLED
-            chatGameRepository.save(room);
-            log.info("房间[{}]因无成员自动取消", roomId);
-            redisService.deleteOnlineRoomsAndNumbers(roomId, currentMembers);
-        } else {
-            redisService.updateOnlineRoomsAndNumbers(roomId, currentMembers);
-        }
-
-        // 8. 更新Redis在线房间缓存（可选）
-        messagingTemplate.convertAndSend("/topic/memberChange", user.getName() + "离开了大厅");
-        log.info("用户[{}]离开房间[{}]成功", user.getName(), roomId);
-        return "用户已经离开";
-    }
 
 
 
