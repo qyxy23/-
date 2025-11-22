@@ -47,29 +47,6 @@ public class BgeVectorClientUtil {
 
 
 
-    // /**
-    //  * 向量化批量文本（推荐，效率更高）
-    //  *
-    //  * @param texts 待向量化的文本列表
-    //  * @return 每个文本对应的向量列表（顺序一致）
-    //  */
-    // public static BatchEncodeResponse encodeBatch(List<String> texts) {
-    //     try {
-    //         // 构造批量请求（需确认服务支持{"texts": [...]}格式）
-    //         BatchEncodeRequest request = new BatchEncodeRequest(texts);
-    //         String requestBody = objectMapper.writeValueAsString(request);
-    //
-    //         // 发送请求
-    //         HttpResponse<String> response = sendRequest(requestBody);
-    //
-    //
-    //         // 解析响应
-    //         return objectMapper.readValue(response.body(), BatchEncodeResponse.class);
-    //     } catch (Exception e) {
-    //         throw new BgeVectorException("批量文本向量化失败");
-    //     }
-    // }
-
     public static BatchEncodeResponse encodeBatch(List<String> texts) {
         try {
             BatchEncodeRequest request = new BatchEncodeRequest(texts);

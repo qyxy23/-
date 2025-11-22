@@ -10,11 +10,13 @@ import com.guanyu.haigui.manager.AIManager;
 import com.guanyu.haigui.mapper.AiChatSessionMapper;
 import com.guanyu.haigui.pojo.model.AiChatMessage;
 import com.guanyu.haigui.pojo.model.AiChatSession;
-import com.guanyu.haigui.pojo.vo.*;
+import com.guanyu.haigui.pojo.vo.AiChatMessageDetailVo;
+import com.guanyu.haigui.pojo.vo.ChatRoomListDetailVO;
+import com.guanyu.haigui.pojo.vo.ChatRoomListVO;
+import com.guanyu.haigui.pojo.vo.FirstChatVo;
 import com.guanyu.haigui.repository.AiChatMessageRepository;
 import com.guanyu.haigui.repository.AiChatSessionRepository;
 import com.guanyu.haigui.service.ChatService;
-import com.guanyu.haigui.utils.BgeVectorClientUtil;
 import com.guanyu.haigui.utils.RedisServiceUtil;
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessage;
 import io.micrometer.common.util.StringUtils;
@@ -254,31 +256,4 @@ public class ChatServicesImpl implements ChatService {
         detailVO.setChatMessageList(messages);
         return detailVO;
     }
-
-    @Override
-    public String generateHostManual(String content) {
-        return "";
-    }
-
-    @Override
-    public String generateKeyClue(String content) {
-        return "";
-    }
-
-    @Override
-    public String generateProgressSetting(String content) {
-        return "";
-    }
-
-    @Override
-    public SingleEncodeResponse vectorSignalTurtleSoup(String content) {
-        // 初始化客户端（替换为你的服务地址）
-        return BgeVectorClientUtil.encodeSingle(content);
-    }
-
-    @Override
-    public BatchEncodeResponse vectorTurtleSoup(List<String> content) {
-        return BgeVectorClientUtil.encodeBatch(content);
-    }
-
 }

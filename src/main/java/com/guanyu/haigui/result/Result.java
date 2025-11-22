@@ -43,4 +43,11 @@ public class Result<T> implements Serializable {
         return result;
     }
 
+    public static <T> Result<T> success(String desc, T ID) {
+        Result<T> result = new Result<T>();
+        result.msg = desc;
+        result.data = ID;
+        result.code = 1;
+        return result;
+    }
 }

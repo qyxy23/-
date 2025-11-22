@@ -61,35 +61,6 @@ public class ChatWithAiController {
     }
 
 
-    @Operation(summary = "调用ai生成相对应的主持人手册模块")
-    @PostMapping("/generateHostManual")
-    public Result<String> generateHostManual(@RequestBody String content) {
-        return Result.success(chatService.generateHostManual(content));
-    }
 
-    @Operation(summary = "调用ai生成相对应的关键线索模块")
-    @PostMapping("/generateKeyClue")
-    public Result<String> generateKeyClue(@RequestBody String content) {
-        return Result.success(chatService.generateKeyClue(content));
-    }
-
-    @Operation(summary = "调用ai生成相对应的进度设置模块")
-    @PostMapping("/generateProgressSetting")
-    public Result<String> generateProgressSetting(@RequestBody String content) {
-        return Result.success(chatService.generateProgressSetting(content));
-    }
-
-    @Operation(summary = "向量化单个消息")
-    @PostMapping("/vectorSignalTurtleSoup")
-    public Result<SingleEncodeResponse> vectorSignalTurtleSoup(@RequestBody TurtleSoupSignalDTO content) {
-        log.info("接收到的参数为：{}", content);
-        return Result.success(chatService.vectorSignalTurtleSoup(content.getContent()));
-    }
-
-    @Operation(summary = "向量化一系列消息")
-    @PostMapping("/vectorTurtleSoup")
-    public Result<BatchEncodeResponse> vectorTurtleSoup(@RequestBody TurtleSoupDTO content) {
-        return Result.success(chatService.vectorTurtleSoup(content.getContent()));
-    }
 
 }

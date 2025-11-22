@@ -227,6 +227,18 @@
             <artifactId>redisson</artifactId>
             <version>3.41.0</version>
         </dependency>
+        <!-- Lettuce（连接Redis Stack） -->
+        <dependency>
+            <groupId>io.lettuce</groupId>
+            <artifactId>lettuce-core</artifactId>
+            <version>6.3.2.RELEASE</version> <!-- 或更高版本 -->
+        </dependency>
+        <!-- LettuceMod（Redis Stack 的 RediSearch 支持） -->
+        <dependency>
+            <groupId>com.redis</groupId>
+            <artifactId>lettucemod</artifactId>
+            <version>4.5.0</version>
+        </dependency>
         <!-- OkHttp（调用BGE API） -->
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>

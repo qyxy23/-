@@ -32,13 +32,4 @@ public interface ChatService {
 
     ChatRoomListDetailVO getAIChatRoomListDetail(String sessionId);
 
-    String generateHostManual(String content);
-
-    String generateKeyClue(String content);
-
-    String generateProgressSetting(String content);
-
-    BatchEncodeResponse vectorTurtleSoup(List<String> content);
-
-    SingleEncodeResponse vectorSignalTurtleSoup(String content);
 }
