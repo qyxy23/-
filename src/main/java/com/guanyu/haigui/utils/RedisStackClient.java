@@ -15,6 +15,7 @@ import javax.annotation.PreDestroy;
 import java.nio.ByteBuffer;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Component
 @Slf4j
@@ -107,7 +108,6 @@ public class RedisStackClient {
             soupData.put("soupBottom", soup.getSoupBottom());
             soupData.put("hostManual", soup.getHostManual());
             soupData.put("keyClues", soup.getKeyClues());
-            soupData.put("progressSettings", soup.getProgressSettings());
             soupData.put("playCount", String.valueOf(soup.getPlayCount()==null?0:soup.getPlayCount()));
             soupData.put("createdAt", String.valueOf(LocalDateTime.now()));
 
@@ -496,6 +496,176 @@ public class RedisStackClient {
     /**
      * 将浮点数向量编码为 Base64 字符串（存储/传输格式）
      */
+    /**
+     * 存储向量到Redis
+     *
+     * @param redisKey Redis键名
+     * @param vector 向量数据
+     * @return 是否成功
+     */
+    public boolean storeVector(String redisKey, List<Float> vector) {
+        try {
+            if (vector == null || vector.isEmpty()) {
+                log.warn("向量为空，无法存储: redisKey={}", redisKey);
+                return false;
+            }
+
+            // 将向量转换为JSON字符串存储
+            String vectorJson = vector.toString();
+            commands.set(redisKey, vectorJson);
+
+            // 设置过期时间（30天）
+            commands.expire(redisKey, 30 * 24 * 60 * 60);
+
+            log.info("成功存储向量: key={}, dimension={}", redisKey, vector.size());
+            return true;
+
+        } catch (Exception e) {
+            log.error("存储向量失败: key={}", redisKey, e);
+            return false;
+        }
+    }
+
+    /**
+     * 从Redis获取向量
+     *
+     * @param redisKey Redis键名
+     * @return 向量数据
+     */
+    public List<Float> getVector(String redisKey) {
+        try {
+            String vectorJson = commands.get(redisKey);
+            if (vectorJson == null) {
+                log.warn("向量不存在: key={}", redisKey);
+                return Collections.emptyList();
+            }
+
+            // 解析JSON格式的向量
+            String vectorStr = vectorJson.replaceAll("[\\[\\]]", "");
+            String[] vectorParts = vectorStr.split(",\\s*");
+
+            List<Float> vector = new ArrayList<>();
+            for (String part : vectorParts) {
+                if (!part.trim().isEmpty()) {
+                    vector.add(Float.parseFloat(part.trim()));
+                }
+            }
+
+            log.debug("成功获取向量: key={}, dimension={}", redisKey, vector.size());
+            return vector;
+
+        } catch (Exception e) {
+            log.error("获取向量失败: key={}", redisKey, e);
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * 删除向量
+     *
+     * @param redisKey Redis键名
+     * @return 是否成功
+     */
+    public boolean deleteVector(String redisKey) {
+        try {
+            Long result = commands.del(redisKey);
+            boolean success = result != null && result > 0;
+
+            if (success) {
+                log.info("成功删除向量: key={}", redisKey);
+            } else {
+                log.warn("向量不存在，删除失败: key={}", redisKey);
+            }
+
+            return success;
+
+        } catch (Exception e) {
+            log.error("删除向量失败: key={}", redisKey, e);
+            return false;
+        }
+    }
+
+    /**
+     * 在多个向量中搜索相似的向量
+     *
+     * @param queryVector 查询向量
+     * @param redisKeys 要搜索的Redis键名列表
+     * @param topK 返回前K个结果
+     * @return 匹配结果（键名 -> 相似度分数）
+     */
+    public Map<String, Double> searchSimilarVectors(List<Float> queryVector, List<String> redisKeys, int topK) {
+        try {
+            Map<String, Double> results = new HashMap<>();
+
+            for (String redisKey : redisKeys) {
+                List<Float> storedVector = getVector(redisKey);
+                if (storedVector != null && !storedVector.isEmpty()) {
+                    double similarity = calculateCosineSimilarity(queryVector, storedVector);
+                    if (similarity > 0.0) { // 只保留有相似度的结果
+                        results.put(redisKey, similarity);
+                    }
+                }
+            }
+
+            // 按相似度排序并取前topK个结果
+            return results.entrySet().stream()
+                    .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+                    .limit(topK)
+                    .collect(Collectors.toMap(
+                            Map.Entry::getKey,
+                            Map.Entry::getValue,
+                            (oldValue, newValue) -> oldValue,
+                            LinkedHashMap::new
+                    ));
+
+        } catch (Exception e) {
+            log.error("搜索相似向量失败", e);
+            return Collections.emptyMap();
+        }
+    }
+
+    /**
+     * 批量删除向量
+     *
+     * @param redisKeys Redis键名列表
+     * @return 删除的数量
+     */
+    public int deleteVectors(List<String> redisKeys) {
+        try {
+            if (redisKeys == null || redisKeys.isEmpty()) {
+                return 0;
+            }
+
+            String[] keyArray = redisKeys.toArray(new String[0]);
+            Long deletedCount = commands.del(keyArray);
+
+            int count = deletedCount != null ? deletedCount.intValue() : 0;
+            log.info("批量删除向量完成: 删除数量={}", count);
+            return count;
+
+        } catch (Exception e) {
+            log.error("批量删除向量失败", e);
+            return 0;
+        }
+    }
+
+    /**
+     * 检查向量是否存在
+     *
+     * @param redisKey Redis键名
+     * @return 是否存在
+     */
+    public boolean vectorExists(String redisKey) {
+        try {
+            Long exists = commands.exists(redisKey);
+            return exists != null && exists > 0;
+
+        } catch (Exception e) {
+            log.error("检查向量存在性失败: key={}", redisKey, e);
+            return false;
+        }
+    }
+
     private String encodeVectorToBase64(List<Float> vector) {
         float[] floatArray = new float[vector.size()];
         for (int i = 0; i < vector.size(); i++) {

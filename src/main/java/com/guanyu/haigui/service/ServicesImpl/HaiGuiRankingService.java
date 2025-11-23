@@ -1,4 +1,4 @@
-package com.guanyu.haigui.service;
+package com.guanyu.haigui.service.ServicesImpl;
 
 import com.guanyu.haigui.pojo.model.HaiGuiSoup;
 import com.guanyu.haigui.pojo.model.RankingStatistics;

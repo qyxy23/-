@@ -53,6 +53,14 @@ public class SoupClue {
     @Column(name = "is_deleted", columnDefinition = "TINYINT(1)", nullable = false)
     private Boolean isDeleted = false;
 
+    // 关联的进度任务ID列表（JSON数组）
+    @Column(name = "progress_task_ids", columnDefinition = "JSON")
+    private String progressTaskIds;
+
+    // 线索向量的Redis键名
+    @Column(name = "redis_key", columnDefinition = "VARCHAR(255)")
+    private String redisKey;
+
     // 关联的海龟汤实体
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "soup_id", referencedColumnName = "soup_id", foreignKey = @ForeignKey(name = "fk_soup_clue_soup"), insertable = false, updatable = false)

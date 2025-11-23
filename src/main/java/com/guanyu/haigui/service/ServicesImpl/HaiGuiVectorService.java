@@ -63,9 +63,8 @@ public class HaiGuiVectorService {
             if (soup.getKeyClues() == null || soup.getKeyClues().trim().isEmpty()) {
                 soup.setKeyClues("[]");
             }
-            if (soup.getProgressSettings() == null || soup.getProgressSettings().trim().isEmpty()) {
-                soup.setProgressSettings("{}");
-            }
+            // progress_settings字段已移除，现在存储在haigui_soup_progress_task表中
+            // TODO: 如果需要，可以实现进度任务的创建逻辑
 
             log.info("海龟汤向量化完成: soupId={}, surfaceDim={}, bottomDim={}",
                     soup.getSoupId(), surfaceVector.size(), bottomVector.size());
@@ -130,7 +129,7 @@ public class HaiGuiVectorService {
         cleanSoup.setSoupBottom(originalSoup.getSoupBottom());
         cleanSoup.setHostManual(originalSoup.getHostManual());
         cleanSoup.setKeyClues(originalSoup.getKeyClues());
-        cleanSoup.setProgressSettings(originalSoup.getProgressSettings());
+        // progressSettings字段已移除，不再设置
         cleanSoup.setPlayCount(originalSoup.getPlayCount());
         cleanSoup.setUploadTime(originalSoup.getUploadTime());
         cleanSoup.setCreatedAt(originalSoup.getCreatedAt());

@@ -39,19 +39,16 @@ public class HaiGuiSoup {
     @Column(name = "host_manual", columnDefinition = "TEXT", nullable = false)
     private String hostManual;
 
-    // 汤的线索
+    // 关键线索ID列表（JSON数组）
     @Column(name = "key_clues", columnDefinition = "JSON", nullable = false)
-    private String keyClues; // 或用自定义类型（如JsonType）映射JSON数组
+    private String keyClues;
 
-    // 汤的进度设置
-    @Column(name = "progress_settings", columnDefinition = "JSON", nullable = false)
-    private String progressSettings; // 或用自定义类型映射JSON对象
-
-    // 汤面的向量
+    
+    // 汤面向量的Redis键名
     @Column(name = "soup_surface_vec", columnDefinition = "VARCHAR(255)")
     private String soupSurfaceVec;
 
-    // 汤底的向量
+    // 汕底向量的Redis键名
     @Column(name = "soup_bottom_vec", columnDefinition = "VARCHAR(255)")
     private String soupBottomVec;
 

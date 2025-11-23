@@ -6,7 +6,7 @@ import com.guanyu.haigui.pojo.model.RankingStatistics;
 import com.guanyu.haigui.pojo.vo.HotSoupItem;
 import com.guanyu.haigui.pojo.vo.SoupRankInfo;
 import com.guanyu.haigui.result.Result;
-import com.guanyu.haigui.service.HaiGuiRankingService;
+import com.guanyu.haigui.service.ServicesImpl.HaiGuiRankingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;

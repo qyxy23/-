@@ -12,7 +12,7 @@ import com.guanyu.haigui.pojo.vo.SoupRankInfo;
 import com.guanyu.haigui.repository.HaiGuiSoupRepository;
 import com.guanyu.haigui.repository.SoupClueRepository;
 import com.guanyu.haigui.repository.UserInfoRepository;
-import com.guanyu.haigui.service.HaiGuiRankingService;
+import com.guanyu.haigui.service.VectorService;
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
 import com.guanyu.haigui.utils.RedisStackClient;
 import com.guanyu.haigui.utils.SoupJsonParser;
@@ -34,6 +34,7 @@ import java.util.Map;
 @Slf4j
 public class TurtleSoupService {
 
+    private final VectorService vectorService;
     private final HaiGuiVectorService haiGuiVectorService;
     private final RedisStackClient redisClient;
     private final BgeVectorClientUtil vectorClient;
@@ -52,11 +53,15 @@ public class TurtleSoupService {
     @Transactional
     public boolean addTurtleSoup(CreateHaiGuiSoupDTO soup) {
         try {
-            // 设置创建时间等必要字段
+            // 创建海龟汤实体
             HaiGuiSoup haiGuiSoup = new HaiGuiSoup();
             haiGuiSoup.setSoupId(java.util.UUID.randomUUID().toString());
             haiGuiSoup.setPlayCount(0);
             haiGuiSoup.setUploadTime(java.time.LocalDateTime.now());
+
+            // 显式设置创建时间（确保@CreationTimestamp正常工作）
+            haiGuiSoup.setCreatedAt(java.time.LocalDateTime.now());
+            haiGuiSoup.setUpdatedAt(java.time.LocalDateTime.now());
 
             // 复制基本属性
             haiGuiSoup.setSoupTitle(soup.getSoupTitle());
@@ -84,10 +89,8 @@ public class TurtleSoupService {
             haiGuiSoup.setUploader(userInfo);
             haiGuiSoup.setCreator(userInfo);
 
-            // 设置进度设置JSON
-            haiGuiSoup.setProgressSettings(soupJsonParser.serializeProgressRule(
-                    soupJsonParser.parseProgressSettings(progressSettingsInput)
-            ));
+            // 注意：progress_settings现在存储在haigui_soup_progress_task表中
+            // TODO: 实现进度任务的创建和存储
 
             // 先设置一个空的线索ID列表，满足NOT NULL约束
             haiGuiSoup.setKeyClues("[]");
@@ -104,20 +107,26 @@ public class TurtleSoupService {
             // 3. 将线索ID列表序列化为JSON数组并更新海龟汤记录
             String clueIdsJson = serializeClueIds(clueIds);
             savedSoup.setKeyClues(clueIdsJson);
+            // 显式更新更新时间
+            savedSoup.setUpdatedAt(java.time.LocalDateTime.now());
             haiGuiSoupRepository.save(savedSoup);
 
             log.info("保存到数据库的线索数量: {}, 线索ID列表JSON: '{}'", clueIds.size(), clueIdsJson);
 
-            log.info("智能解析结果 - 线索数量: {}, 进度设置: {}",
-                    clueIds.size(),
-                    soupJsonParser.parseProgressSettings(progressSettingsInput).getDifficulty());
+            log.info("智能解析结果 - 线索数量: {}", clueIds.size());
 
-            // 4. 向量化并存储到Redis
-            boolean vectorSuccess = haiGuiVectorService.vectorizeAndSaveSoup(savedSoup);
+            // 4. 获取保存后的线索列表（包含数据库ID）
+            List<SoupClue> savedClues = soupClueRepository.findBySoupIdAndIsDeletedFalse(savedSoup.getSoupId());
+
+            // 5. 使用新的向量服务向量化所有上下文内容
+            boolean vectorSuccess = vectorService.vectorizeAndStoreSoupContext(savedSoup, savedClues);
             if (!vectorSuccess) {
-                log.error("海龟汤向量化失败: soupId={}", savedSoup.getSoupId());
+                log.error("海龟汤上下文向量化失败: soupId={}", savedSoup.getSoupId());
                 // 向量化失败不影响海龟汤创建，只记录警告
                 log.warn("海龟汤创建成功但向量化失败: soupId={}", savedSoup.getSoupId());
+            } else {
+                log.info("海龟汤上下文向量化成功: soupId={}, 向量化内容数={}",
+                        savedSoup.getSoupId(), 3 + savedClues.size()); // 汤面+汤底+手册+线索
             }
 
             log.info("海龟汤新增成功: soupId={}, 线索数量: {}", savedSoup.getSoupId(), clueIds.size());
@@ -157,8 +166,11 @@ public class TurtleSoupService {
         try {
             log.info("开始更新海龟汤: soupId={}", soup.getSoupId());
 
-            // 更新向量数据
-            boolean updateSuccess = haiGuiVectorService.updateSoupVectors(soup);
+            // 获取关联的线索
+            List<SoupClue> clues = soupClueRepository.findBySoupIdAndIsDeletedFalse(soup.getSoupId());
+
+            // 使用新的向量服务更新向量数据
+            boolean updateSuccess = vectorService.updateSoupVectors(soup, clues);
             if (!updateSuccess) {
                 log.error("更新海龟汤向量失败: soupId={}", soup.getSoupId());
                 return false;
@@ -183,8 +195,13 @@ public class TurtleSoupService {
         try {
             log.info("开始删除海龟汤: soupId={}", soupId);
 
-            // 删除向量数据
-            haiGuiVectorService.deleteSoupVectors(soupId);
+            // 使用新的向量服务删除向量数据
+            boolean deleteSuccess = vectorService.deleteSoupVectors(soupId);
+            if (!deleteSuccess) {
+                log.error("删除海龟汤向量数据失败: soupId={}", soupId);
+                // 向量删除失败不影响整体删除流程
+                log.warn("海龟汤删除成功但向量清理失败: soupId={}", soupId);
+            }
 
             log.info("海龟汤删除成功: soupId={}", soupId);
             return true;
@@ -241,10 +258,7 @@ public class TurtleSoupService {
      */
     public boolean isSoupVectorized(String soupId) {
         try {
-            List<Float> surfaceVector = haiGuiVectorService.getSoupVector(soupId, "SURFACE");
-            List<Float> bottomVector = haiGuiVectorService.getSoupVector(soupId, "BOTTOM");
-            return surfaceVector != null && !surfaceVector.isEmpty()
-                    && bottomVector != null && !bottomVector.isEmpty();
+            return vectorService.isSoupVectorized(soupId);
 
         } catch (Exception e) {
             log.error("检查海龟汤向量化状态失败: soupId={}", soupId, e);

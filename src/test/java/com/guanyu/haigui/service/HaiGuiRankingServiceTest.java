@@ -1,5 +1,6 @@
 package com.guanyu.haigui.service;
 
+import com.guanyu.haigui.service.ServicesImpl.HaiGuiRankingService;
 import com.guanyu.haigui.utils.RedisStackClient;
 import io.lettuce.core.api.sync.RedisCommands;
 import org.junit.jupiter.api.Test;
