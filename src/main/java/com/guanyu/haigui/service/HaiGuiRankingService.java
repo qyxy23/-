@@ -9,8 +9,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -320,15 +322,14 @@ public class HaiGuiRankingService {
             String createdAtStr = soupData.get("createdAt");
             if (createdAtStr != null && !createdAtStr.trim().isEmpty()) {
                 try {
-                    soup.setCreatedAt(new Date(Long.parseLong(createdAtStr.trim())));
+                    long timestamp = Long.parseLong(createdAtStr.trim());
+                    soup.setCreatedAt(LocalDateTime.ofInstant(Instant.ofEpochMilli(timestamp), ZoneId.systemDefault()));
                 } catch (NumberFormatException e) {
                     log.warn("解析创建时间失败: soupId={}, createdAtStr={}", soupId, createdAtStr);
-                    soup.setCreatedAt(new Date());
+                    soup.setCreatedAt(LocalDateTime.now());
                 }
             }
-
             return soup;
-
         } catch (Exception e) {
             log.error("获取海龟汤信息失败: soupId={}", soupId, e);
             return null;

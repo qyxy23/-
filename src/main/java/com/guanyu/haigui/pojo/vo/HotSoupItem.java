@@ -3,7 +3,7 @@ package com.guanyu.haigui.pojo.vo;
 import lombok.Builder;
 import lombok.Data;
 
-import java.util.Date;
+import java.time.LocalDateTime;
 
 
 /**
@@ -18,5 +18,5 @@ public class HotSoupItem {
     private String surface;
     private Integer playCount;
     private Double hotnessScore;
-    private Date createdAt;
+    private LocalDateTime createdAt;
 }

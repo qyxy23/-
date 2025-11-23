@@ -3,8 +3,10 @@ package com.guanyu.haigui.pojo.model;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
-import java.util.Date;
+import java.time.LocalDateTime;
 
 @Data
 @Entity
@@ -18,7 +20,6 @@ import java.util.Date;
 public class HaiGuiSoup {
 
     @Id
-    @GeneratedValue(generator = "uuid2")
     @Column(name = "soup_id", columnDefinition = "VARCHAR(36)", nullable = false)
     private String soupId;
 
@@ -54,19 +55,27 @@ public class HaiGuiSoup {
     @Column(name = "soup_bottom_vec", columnDefinition = "VARCHAR(255)")
     private String soupBottomVec;
 
+    // 创作者ID（外键）
+    @Column(name = "creator_id", nullable = false)
+    private Long creatorId;
+
+    // 上传者ID（外键）
+    @Column(name = "uploader_id", nullable = false)
+    private Long uploaderId;
+
     // 创作者（关联sys_user）
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "creator_id", referencedColumnName = "user_id", foreignKey = @ForeignKey(name = "fk_hai_gui_soup_creator"))
+    @JoinColumn(name = "creator_id", referencedColumnName = "user_id", foreignKey = @ForeignKey(name = "fk_hai_gui_soup_creator"), insertable = false, updatable = false)
     private UserInfo creator;
 
     // 上传者（关联sys_user）
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "uploader_id", referencedColumnName = "user_id", foreignKey = @ForeignKey(name = "fk_hai_gui_soup_uploader"))
+    @JoinColumn(name = "uploader_id", referencedColumnName = "user_id", foreignKey = @ForeignKey(name = "fk_hai_gui_soup_uploader"), insertable = false, updatable = false)
     private UserInfo uploader;
 
     // 上传时间
     @Column(name = "upload_time", columnDefinition = "DATETIME(6)", nullable = false)
-    private Date uploadTime;
+    private LocalDateTime uploadTime;
 
     // 游玩次数
     @Column(name = "play_count", columnDefinition = "INT UNSIGNED", nullable = false)
@@ -76,11 +85,14 @@ public class HaiGuiSoup {
     @Column(name = "is_deleted", columnDefinition = "TINYINT(1)", nullable = false)
     private Boolean isDeleted = false;
 
+
     // 创建时间
     @Column(name = "created_at", columnDefinition = "DATETIME(6)", nullable = false)
-    private Date createdAt;
+    @CreationTimestamp
+    private LocalDateTime createdAt;
 
     // 更新时间
     @Column(name = "updated_at", columnDefinition = "DATETIME(6)", nullable = false)
-    private Date updatedAt;
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
 }

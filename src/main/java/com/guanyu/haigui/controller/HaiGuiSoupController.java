@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -35,6 +36,18 @@ public class HaiGuiSoupController {
     @Operation(summary = "创建海龟汤", description = "创建新的海龟汤并自动向量化存储")
     public Result<String> createSoup(@RequestBody CreateHaiGuiSoupDTO soup) {
         try {
+            log.info("接收到创建海龟汤请求:");
+            log.info("  soupTitle: '{}'", soup.getSoupTitle());
+            log.info("  soupSurface: '{}'", soup.getSoupSurface());
+            log.info("  soupBottom: '{}'", soup.getSoupBottom());
+            log.info("  hostManual: '{}'", soup.getHostManual());
+            log.info("  keyClues类型: {}, 值: '{}'",
+                    soup.getKeyClues() != null ? soup.getKeyClues().getClass().getSimpleName() : "null",
+                    soup.getKeyClues());
+            log.info("  progressSettings类型: {}, 值: '{}'",
+                    soup.getProgressSettings() != null ? soup.getProgressSettings().getClass().getSimpleName() : "null",
+                    soup.getProgressSettings());
+
             boolean success = turtleSoupService.addTurtleSoup(soup);
             if (success) {
                 return Result.success("海龟汤创建成功");
@@ -184,8 +197,8 @@ public class HaiGuiSoupController {
         soup.setSoupBottom(request.getSoupBottom());
         soup.setHostManual(request.getHostManual());
         soup.setPlayCount(request.getPlayCount() != null ? request.getPlayCount() : 0);
-        soup.setCreatedAt(request.getCreatedAt() != null ? request.getCreatedAt() : new java.util.Date());
-        soup.setUpdatedAt(new java.util.Date());
+        soup.setCreatedAt(LocalDateTime.now());
+        soup.setUpdatedAt(LocalDateTime.now());
         soup.setIsDeleted(false);
         return soup;
     }

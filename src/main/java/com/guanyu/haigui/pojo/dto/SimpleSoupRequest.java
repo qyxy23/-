@@ -2,6 +2,8 @@ package com.guanyu.haigui.pojo.dto;
 
 import lombok.Data;
 
+import java.time.LocalDateTime;
+
 /**
  * 简化海龟汤请求类
  */
@@ -13,5 +15,5 @@ public class SimpleSoupRequest {
     private String soupBottom;
     private String hostManual;
     private Integer playCount;
-    private java.util.Date createdAt;
+    private LocalDateTime createdAt;
 }

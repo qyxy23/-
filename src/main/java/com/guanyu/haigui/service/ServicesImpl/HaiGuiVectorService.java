@@ -2,12 +2,15 @@ package com.guanyu.haigui.service.ServicesImpl;
 
 import com.guanyu.haigui.pojo.model.HaiGuiSoup;
 import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
+import com.guanyu.haigui.repository.HaiGuiSoupRepository;
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
 import com.guanyu.haigui.utils.RedisStackClient;
+import com.guanyu.haigui.utils.SoupJsonParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -21,6 +24,8 @@ import java.util.Map;
 public class HaiGuiVectorService {
 
     private final RedisStackClient redisStackClient;
+    private final HaiGuiSoupRepository haiGuiSoupRepository;
+    private final SoupJsonParser soupJsonParser;
 
     /**
      * 向量化并存储海龟汤
@@ -30,6 +35,7 @@ public class HaiGuiVectorService {
     public boolean vectorizeAndSaveSoup(HaiGuiSoup soup) {
         try {
             log.info("开始向量化海龟汤: soupId={}, title={}", soup.getSoupId(), soup.getSoupTitle());
+            soup.setCreatedAt(LocalDateTime.now());
 
             // 1. 向量化标题+汤面（连接在一起）
             String titleAndSurface = combineTitleAndSurface(soup.getSoupTitle(), soup.getSoupSurface());
@@ -46,27 +52,26 @@ public class HaiGuiVectorService {
                 return false;
             }
 
-            // 3. 向量化主持人手册（可选）
-            // List<Float> manualVector = null;
-            // if (soup.getHostManual() != null && !soup.getHostManual().trim().isEmpty()) {
-            //     manualVector = vectorizeText(soup.getHostManual());
-            // }
-
             // 4. 存储到Redis
             redisStackClient.saveCompleteSoup(soup, surfaceVector, bottomVector);
-            // if (manualVector != null) {
-            //     redisStackClient.saveSoupVector(soup.getSoupId(), "MANUAL", manualVector);
-            // }
 
             // 5. 更新数据库中的向量键名
             soup.setSoupSurfaceVec(String.format("hai_gui:vec:surface:%s", soup.getSoupId()));
             soup.setSoupBottomVec(String.format("hai_gui:vec:bottom:%s", soup.getSoupId()));
 
+            // 确保JSON格式正确
+            if (soup.getKeyClues() == null || soup.getKeyClues().trim().isEmpty()) {
+                soup.setKeyClues("[]");
+            }
+            if (soup.getProgressSettings() == null || soup.getProgressSettings().trim().isEmpty()) {
+                soup.setProgressSettings("{}");
+            }
+
             log.info("海龟汤向量化完成: soupId={}, surfaceDim={}, bottomDim={}",
                     soup.getSoupId(), surfaceVector.size(), bottomVector.size());
-
+            System.out.println("soup = " + soup);
+            haiGuiSoupRepository.save(soup);
             return true;
-
         } catch (Exception e) {
             log.error("海龟汤向量化失败: soupId={}", soup.getSoupId(), e);
             return false;
@@ -131,6 +136,8 @@ public class HaiGuiVectorService {
         cleanSoup.setCreatedAt(originalSoup.getCreatedAt());
         cleanSoup.setUpdatedAt(originalSoup.getUpdatedAt());
         cleanSoup.setIsDeleted(originalSoup.getIsDeleted());
+        cleanSoup.setCreatorId(originalSoup.getCreatorId());
+        cleanSoup.setUploaderId(originalSoup.getUploaderId());
 
         // 不设置creator和uploader字段，减少不必要的数据传输
 
@@ -244,6 +251,7 @@ public class HaiGuiVectorService {
         try {
             log.info("开始删除海龟汤向量: soupId={}", soupId);
             redisStackClient.deleteSoup(soupId);
+            haiGuiSoupRepository.deleteById(soupId);
             log.info("海龟汤向量删除完成: soupId={}", soupId);
 
         } catch (Exception e) {

@@ -236,6 +236,7 @@ public class RedisStackClient {
      */
     public void deleteSoup(String soupId) {
         try {
+
             // 删除基本信息
             commands.del("hai_gui:soup:" + soupId);
 
