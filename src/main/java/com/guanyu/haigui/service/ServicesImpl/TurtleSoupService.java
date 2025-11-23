@@ -1,14 +1,16 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
-import cn.hutool.core.bean.BeanUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.dto.CreateHaiGuiSoupDTO;
 import com.guanyu.haigui.pojo.model.GameClue;
 import com.guanyu.haigui.pojo.model.HaiGuiSoup;
-import com.guanyu.haigui.pojo.model.ProgressRule;
+import com.guanyu.haigui.pojo.model.SoupClue;
 import com.guanyu.haigui.pojo.model.UserInfo;
 import com.guanyu.haigui.pojo.vo.SoupRankInfo;
+import com.guanyu.haigui.repository.HaiGuiSoupRepository;
+import com.guanyu.haigui.repository.SoupClueRepository;
 import com.guanyu.haigui.repository.UserInfoRepository;
 import com.guanyu.haigui.service.HaiGuiRankingService;
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
@@ -19,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -37,7 +40,8 @@ public class TurtleSoupService {
     private final UserInfoRepository userInfoRepository;
     private final HaiGuiRankingService haiGuiRankingService;
     private final SoupJsonParser soupJsonParser;
-    private final com.guanyu.haigui.repository.HaiGuiSoupRepository haiGuiSoupRepository;
+    private final HaiGuiSoupRepository haiGuiSoupRepository;
+    private final SoupClueRepository soupClueRepository;
 
     /**
      * 新增海龟汤（包含向量化处理和智能线索解析）
@@ -73,21 +77,6 @@ public class TurtleSoupService {
 
             log.info("解析得到的线索数量: {}", clues.size());
 
-            // 将GameClue列表序列化为JSON存储
-            String cluesJson = soupJsonParser.serializeClues(clues);
-            haiGuiSoup.setKeyClues(cluesJson);
-
-            log.info("序列化后的线索JSON: '{}'", cluesJson);
-
-            // 设置进度设置JSON
-            haiGuiSoup.setProgressSettings(soupJsonParser.serializeProgressRule(
-                    soupJsonParser.parseProgressSettings(progressSettingsInput)
-            ));
-
-            log.info("智能解析结果 - 线索数量: {}, 进度设置: {}",
-                    clues.size(),
-                    soupJsonParser.parseProgressSettings(progressSettingsInput).getDifficulty());
-
             UserInfo userInfo = userInfoRepository.findById(BaseContext.getCurrentId())
                     .orElseThrow(() -> new BusinessException(404, "用户不存在"));
             haiGuiSoup.setUploaderId(userInfo.getUserId());
@@ -95,16 +84,43 @@ public class TurtleSoupService {
             haiGuiSoup.setUploader(userInfo);
             haiGuiSoup.setCreator(userInfo);
 
+            // 设置进度设置JSON
+            haiGuiSoup.setProgressSettings(soupJsonParser.serializeProgressRule(
+                    soupJsonParser.parseProgressSettings(progressSettingsInput)
+            ));
+
+            // 先设置一个空的线索ID列表，满足NOT NULL约束
+            haiGuiSoup.setKeyClues("[]");
+
             log.info("开始新增海龟汤: title={}", soup.getSoupTitle());
 
-            // 1. 向量化并存储到Redis
-            boolean vectorSuccess = haiGuiVectorService.vectorizeAndSaveSoup(haiGuiSoup);
+            // 1. 先保存海龟汤到数据库（确保外键引用存在）
+            HaiGuiSoup savedSoup = haiGuiSoupRepository.save(haiGuiSoup);
+            log.info("海龟汤保存到数据库成功: soupId={}", savedSoup.getSoupId());
+
+            // 2. 保存线索到数据库并获取线索ID列表
+            List<String> clueIds = saveCluesToDatabase(savedSoup.getSoupId(), clues);
+
+            // 3. 将线索ID列表序列化为JSON数组并更新海龟汤记录
+            String clueIdsJson = serializeClueIds(clueIds);
+            savedSoup.setKeyClues(clueIdsJson);
+            haiGuiSoupRepository.save(savedSoup);
+
+            log.info("保存到数据库的线索数量: {}, 线索ID列表JSON: '{}'", clueIds.size(), clueIdsJson);
+
+            log.info("智能解析结果 - 线索数量: {}, 进度设置: {}",
+                    clueIds.size(),
+                    soupJsonParser.parseProgressSettings(progressSettingsInput).getDifficulty());
+
+            // 4. 向量化并存储到Redis
+            boolean vectorSuccess = haiGuiVectorService.vectorizeAndSaveSoup(savedSoup);
             if (!vectorSuccess) {
-                log.error("海龟汤向量化失败: soupId={}", haiGuiSoup.getSoupId());
-                return false;
+                log.error("海龟汤向量化失败: soupId={}", savedSoup.getSoupId());
+                // 向量化失败不影响海龟汤创建，只记录警告
+                log.warn("海龟汤创建成功但向量化失败: soupId={}", savedSoup.getSoupId());
             }
 
-            log.info("海龟汤新增成功: soupId={}, 线索数量: {}", haiGuiSoup.getSoupId(), clues.size());
+            log.info("海龟汤新增成功: soupId={}, 线索数量: {}", savedSoup.getSoupId(), clueIds.size());
             return true;
 
         } catch (Exception e) {
@@ -301,7 +317,9 @@ public class TurtleSoupService {
     }
 
     /**
-     * 获取海龟汤的线索（从JSON解析为GameClue列表）
+     * 获取海龟汤的线索（兼容新旧两种格式）
+     * 1. 新格式：从数据库查询线索，keyClues存储线索ID列表
+     * 2. 旧格式：从JSON解析为GameClue列表，keyClues存储线索内容
      *
      * @param soupId 海龟汤ID
      * @return 线索列表
@@ -310,12 +328,28 @@ public class TurtleSoupService {
         try {
             HaiGuiSoup soup = haiGuiSoupRepository.findById(soupId).orElse(null);
             if (soup == null || soup.getKeyClues() == null) {
+                log.warn("海龟汤不存在或keyClues为空: soupId={}", soupId);
                 return List.of();
             }
 
+            // 尝试解析为线索ID列表（新格式）
+            List<String> clueIds = deserializeClueIds(soup.getKeyClues());
+            if (!clueIds.isEmpty()) {
+                // 新格式：根据线索ID从数据库查询线索
+                List<SoupClue> soupClues = soupClueRepository.findByClueIdInAndIsDeletedFalse(clueIds);
+                List<GameClue> gameClues = soupClues.stream()
+                        .map(SoupClue::toGameClue)
+                        .toList();
+
+                log.info("获取海龟汤线索成功（新格式）: soupId={}, 线索数量={}", soupId, gameClues.size());
+                return gameClues;
+            }
+
+            // 如果解析线索ID失败，尝试解析为线索内容（旧格式兼容）
             List<GameClue> clues = soupJsonParser.parseKeyClues(soup.getKeyClues());
-            log.info("获取海龟汤线索成功: soupId={}, 线索数量={}", soupId, clues.size());
+            log.info("获取海龟汤线索成功（旧格式兼容）: soupId={}, 线索数量={}", soupId, clues.size());
             return clues;
+
         } catch (Exception e) {
             log.error("获取海龟汤线索失败: soupId={}", soupId, e);
             return List.of();
@@ -323,19 +357,40 @@ public class TurtleSoupService {
     }
 
     /**
-     * 获取海龟汤的关键线索
+     * 获取海龟汤的关键线索（兼容新旧两种格式）
      *
      * @param soupId 海龟汤ID
      * @return 关键线索列表
      */
     public List<GameClue> getSoupKeyClues(String soupId) {
         try {
+            HaiGuiSoup soup = haiGuiSoupRepository.findById(soupId).orElse(null);
+            if (soup == null || soup.getKeyClues() == null) {
+                log.warn("海龟汤不存在或keyClues为空: soupId={}", soupId);
+                return List.of();
+            }
+
+            // 尝试解析为线索ID列表（新格式）
+            List<String> clueIds = deserializeClueIds(soup.getKeyClues());
+            if (!clueIds.isEmpty()) {
+                // 新格式：从数据库直接查询关键线索
+                List<SoupClue> soupClues = soupClueRepository.findBySoupIdAndIsKeyTrueAndIsDeletedFalse(soupId);
+                List<GameClue> gameClues = soupClues.stream()
+                        .map(SoupClue::toGameClue)
+                        .toList();
+
+                log.info("获取海龟汤关键线索成功（新格式）: soupId={}, 关键线索数量={}", soupId, gameClues.size());
+                return gameClues;
+            }
+
+            // 如果解析线索ID失败，使用旧格式兼容
             List<GameClue> allClues = getSoupClues(soupId);
             List<GameClue> keyClues = allClues.stream()
                     .filter(GameClue::isKeyClue)
                     .toList();
-            log.info("获取海龟汤关键线索成功: soupId={}, 关键线索数量={}", soupId, keyClues.size());
+            log.info("获取海龟汤关键线索成功（旧格式兼容）: soupId={}, 关键线索数量={}", soupId, keyClues.size());
             return keyClues;
+
         } catch (Exception e) {
             log.error("获取海龟汤关键线索失败: soupId={}", soupId, e);
             return List.of();
@@ -371,6 +426,104 @@ public class TurtleSoupService {
      */
     public SoupRankInfo getSoupRankInfo(String soupId) {
         return haiGuiRankingService.getSoupRankInfo(soupId);
+    }
+
+    /**
+     * 保存线索到数据库
+     * @param soupId 海龟汤ID
+     * @param clues 线索列表
+     * @return 线索ID列表
+     */
+    @Transactional
+    public List<String> saveCluesToDatabase(String soupId, List<GameClue> clues) {
+        List<String> clueIds = new ArrayList<>();
+
+        for (GameClue gameClue : clues) {
+            try {
+                // 转换为SoupClue实体
+                SoupClue soupClue = SoupClue.fromGameClue(soupId, gameClue);
+
+                // 保存到数据库
+                SoupClue savedClue = soupClueRepository.save(soupClue);
+
+                // 添加到ID列表
+                clueIds.add(savedClue.getClueId());
+
+                log.info("保存线索到数据库成功: clueId={}, content={}",
+                        savedClue.getClueId(),
+                        savedClue.getClueContent().substring(0, Math.min(50, savedClue.getClueContent().length())));
+
+            } catch (Exception e) {
+                log.error("保存线索到数据库失败: soupId={}, content={}",
+                        soupId,
+                        gameClue.getContent().substring(0, Math.min(50, gameClue.getContent().length())), e);
+                // 继续处理其他线索，不让单个线索失败影响整体流程
+            }
+        }
+
+        log.info("成功保存线索到数据库: soupId={}, 总数={}, 成功数={}",
+                soupId, clues.size(), clueIds.size());
+
+        return clueIds;
+    }
+
+    /**
+     * 将线索ID列表序列化为JSON数组
+     * @param clueIds 线索ID列表
+     * @return JSON数组字符串
+     */
+    private String serializeClueIds(List<String> clueIds) {
+        try {
+            return new ObjectMapper().writeValueAsString(clueIds);
+        } catch (Exception e) {
+            log.error("序列化线索ID列表失败", e);
+            return "[]"; // 返回空数组作为fallback
+        }
+    }
+
+    /**
+     * 从JSON数组反序列化线索ID列表
+     * @param clueIdsJson JSON数组字符串
+     * @return 线索ID列表
+     */
+    public List<String> deserializeClueIds(String clueIdsJson) {
+        try {
+            if (clueIdsJson == null || clueIdsJson.trim().isEmpty()) {
+                return new ArrayList<>();
+            }
+            return new ObjectMapper().readValue(clueIdsJson, List.class);
+        } catch (Exception e) {
+            log.error("反序列化线索ID列表失败: {}", clueIdsJson, e);
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * 获取海龟汤的所有线索（从数据库查询）
+     * @param soupId 海龟汤ID
+     * @return 线索列表
+     */
+    public List<SoupClue> getSoupCluesFromDatabase(String soupId) {
+        try {
+            return soupClueRepository.findBySoupIdAndIsDeletedFalse(soupId);
+        } catch (Exception e) {
+            log.error("从数据库获取海龟汤线索失败: soupId={}", soupId, e);
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * 获取海龟汤的关键线索（从数据库查询）
+     * @param soupId 海龟汤ID
+     * @return 关键线索列表
+     */
+    public List<SoupClue> getSoupKeyCluesFromDatabase(String soupId) {
+        try {
+            return soupClueRepository.findBySoupIdAndIsKeyTrueAndIsDeletedFalse(soupId);
+        } catch (Exception e) {
+            log.error("从数据库获取海龟汤关键线索失败: soupId={}", soupId, e);
+            return new ArrayList<>();
+        }
     }
 
     }
