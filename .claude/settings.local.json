@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mvn compile:*)",
+      "Bash(\"D:\\CODE\\haiguitang\\HaiGuiTang\\src\\main\\resources\\temp\\aiResponse.txt\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

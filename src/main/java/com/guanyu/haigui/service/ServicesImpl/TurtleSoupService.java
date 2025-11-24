@@ -99,6 +99,7 @@ public class TurtleSoupService {
 
             // 1. 先保存海龟汤到数据库（确保外键引用存在）
             HaiGuiSoup savedSoup = haiGuiSoupRepository.save(haiGuiSoup);
+
             log.info("海龟汤保存到数据库成功: soupId={}", savedSoup.getSoupId());
 
             // 2. 保存线索到数据库并获取线索ID列表

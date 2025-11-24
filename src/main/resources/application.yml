@@ -124,3 +124,9 @@ knife4j:
     enable: false
     username: admin
     password: admin
+
+# 海龟汤AI配置
+haiqutang:
+  ai:
+    # 调试模式：true=使用模拟AI响应数据，false=调用真实AI服务
+    debug-mode: true

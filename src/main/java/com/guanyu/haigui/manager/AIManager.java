@@ -2,7 +2,6 @@ package com.guanyu.haigui.manager;
 
 import cn.hutool.core.collection.CollUtil;
 import com.volcengine.ark.runtime.model.completion.chat.*;
-import com.volcengine.ark.runtime.model.completion.chat.ChatMessageRole;
 import com.volcengine.ark.runtime.service.ArkService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -22,6 +21,7 @@ public class AIManager {
 
     // 只允许用户传入一个系统上下文和用户输入
     public String doChat(String systemPrompt, String userPrompt) {
+        // return "ai已生成";
         // 检查AI服务是否可用
         if (arkService == null) {
             return "AI服务未配置或不可用";
@@ -50,17 +50,6 @@ public class AIManager {
                 .build();
 
 
-        // arkService.streamChatCompletion(chatCompletionRequest)
-        //         .doOnError(Throwable::printStackTrace)
-        //         .blockingForEach(
-        //                 choice -> {
-        //                     if (choice.getChoices().size() > 0) {
-        //                         System.out.print(choice.getChoices().get(0).getMessage().getContent());
-        //                     }
-        //                 }
-        //         );
-        //
-        // arkService.shutdownExecutor();
         try {
             // 1. 调用同步API获取完整响应（替换原流式调用）
             ChatCompletionResult result = arkService.createChatCompletion(

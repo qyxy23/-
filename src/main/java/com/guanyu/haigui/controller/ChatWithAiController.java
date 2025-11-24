@@ -59,10 +59,4 @@ public class ChatWithAiController {
     public Result<ChatRoomListDetailVO> getChatRoomListDetail(@RequestBody ChatRoomListDetailDto chatRoomListDetailDto) {
         return Result.success(chatService.getAIChatRoomListDetail(chatRoomListDetailDto.getSessionId()));
     }
-
-
-
-
-
-
 }

@@ -1,9 +1,13 @@
 package com.guanyu.haigui.controller;
 
 import com.guanyu.haigui.pojo.dto.TurtleSoupDTO;
+import com.guanyu.haigui.pojo.dto.TurtleSoupEnhanceDTO;
 import com.guanyu.haigui.pojo.dto.TurtleSoupSignalDTO;
+import com.guanyu.haigui.pojo.dto.TitleGenerateDTO;
 import com.guanyu.haigui.pojo.vo.BatchEncodeResponse;
 import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
+import com.guanyu.haigui.pojo.vo.TitleGenerateResultVO;
+import com.guanyu.haigui.pojo.vo.TurtleSoupEnhanceResultVO;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.service.ServicesImpl.haiGuiTangServiceImpl;
 import io.swagger.v3.oas.annotations.Operation;
@@ -49,5 +53,33 @@ public class HaiGuiTangController {
     @PostMapping("/vectorTurtleSoup")
     public Result<BatchEncodeResponse> vectorTurtleSoup(@RequestBody TurtleSoupDTO content) {
         return Result.success(haiGuiTangService.vectorTurtleSoup(content.getContent()));
+    }
+
+    @Operation(summary = "海龟汤AI增强接口", description = "根据用户输入的海龟汤信息，调用AI生成完善的内容")
+    @PostMapping("/enhanceTurtleSoup")
+    public Result<TurtleSoupEnhanceResultVO> enhanceTurtleSoup(@RequestBody TurtleSoupEnhanceDTO enhanceDTO) {
+        log.info("接收到海龟汤AI增强请求: {}", enhanceDTO.getSoupTitle());
+        try {
+            TurtleSoupEnhanceResultVO result = haiGuiTangService.enhanceTurtleSoup(enhanceDTO);
+            log.info("海龟汤AI增强完成，状态: {}, prompt类型: {}", result.getStatus(), result.getPromptType());
+            return Result.success(result);
+        } catch (Exception e) {
+            log.error("海龟汤AI增强失败", e);
+            return Result.error("海龟汤AI增强失败: " + e.getMessage());
+        }
+    }
+
+    @Operation(summary = "海龟汤标题生成接口", description = "根据汤面和汤底生成引人入胜的海龟汤标题")
+    @PostMapping("/generateTitle")
+    public Result<TitleGenerateResultVO> generateTitle(@RequestBody TitleGenerateDTO titleGenerateDTO) {
+        log.info("接收到标题生成请求");
+        try {
+            TitleGenerateResultVO result = haiGuiTangService.generateTitle(titleGenerateDTO);
+            log.info("标题生成完成: {}", result.getGeneratedTitle());
+            return Result.success(result);
+        } catch (Exception e) {
+            log.error("标题生成失败", e);
+            return Result.error("标题生成失败: " + e.getMessage());
+        }
     }
 }
