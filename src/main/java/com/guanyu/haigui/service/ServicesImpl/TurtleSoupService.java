@@ -861,50 +861,179 @@ public class TurtleSoupService {
         saveUserCluesWithVectorization(soupId, clues);
     }
 
-    /**
-     * 保存线索到数据库（兼容旧方法）
-     * @param soupId 海龟汤ID
-     * @param clues 线索列表
-     * @return 线索ID列表
-     */
-    @Transactional
-    public List<String> saveCluesToDatabase(String soupId, List<GameClue> clues) {
-        List<String> clueIds = new ArrayList<>();
+    // 注意：saveCluesToDatabase方法已被删除，现在所有线索保存都通过saveUserCluesWithVectorization处理
 
-        for (GameClue gameClue : clues) {
+    /**
+     * 构建用户线索分析的系统提示词
+     */
+    private String buildUserCluesAnalysisSystemPrompt(HaiGuiSoup soup) {
+        return String.format("""
+            你是一个海龟汤线索分析师。请分析用户上传的每条线索的属性。
+
+            === 海龟汤信息 ===
+            标题：%s
+            汤面：%s
+            汤底：%s
+
+            === 分析要求 ===
+            请对每条用户线索进行分析，包括：
+            1. 线索类型（TIME/PLACE/CHARACTER/PLOT/OBJECT/TRUTH）
+            2. 难度等级（1-5级，1最简单，5最核心）
+            3. 是否关键线索（true/false）
+            4. 关联的推理任务层级（1-3）
+            5. 重要性评分（1-10）
+            6. 分析理由
+
+            === 输出格式要求 ===
+            请严格按照以下格式返回，每行一个线索的分析结果：
+            [线索内容]|[类型]|[难度]|[是否关键]|[任务层级]|[重要性]
+
+            示例：凶手是男性|CHARACTER|3|true|2|8
+            """, soup.getSoupTitle(), soup.getSoupSurface(), soup.getSoupBottom());
+    }
+
+    /**
+     * 构建用户线索分析的用户提示词
+     */
+    private String buildUserCluesAnalysisPrompt(List<String> userClueContents) {
+        StringBuilder prompt = new StringBuilder("请分析以下用户提供的线索：\n\n");
+
+        for (int i = 0; i < userClueContents.size(); i++) {
+            prompt.append(String.format("%d. %s\n", i + 1, userClueContents.get(i)));
+        }
+
+        prompt.append("\n请按照前面要求的格式返回每条线索的分析结果。");
+        return prompt.toString();
+    }
+
+    /**
+     * 保存AI分析后的用户线索
+     */
+    private void saveAiAnalyzedUserClues(String soupId, List<GameClue> clues, List<String> userClueContents, String[] aiResults) {
+        for (int i = 0; i < clues.size(); i++) {
             try {
-                // 创建线索片段（混合方案）
+                GameClue gameClue = clues.get(i);
+                String aiResult = i < aiResults.length ? aiResults[i] : "";
+
+                // 解析AI分析结果
+                String[] parts = aiResult.split("\\|");
+                String fragmentType = parts.length > 1 ? parts[1] : "PLOT";
+                Integer difficulty = parts.length > 2 ? tryParseInt(parts[2]) : 2;
+                Boolean isCore = parts.length > 3 ? tryParseBoolean(parts[3]) : false;
+                Integer associatedTask = parts.length > 4 ? tryParseInt(parts[4]) : 1;
+                Integer importance = parts.length > 5 ? tryParseInt(parts[5]) : 5;
+
+                // 创建线索片段
+                ClueFragment fragment = new ClueFragment();
+                fragment.setSoupId(soupId);
+                fragment.setFragmentContent(gameClue.getContent());
+                fragment.setFragmentType(fragmentType);
+                fragment.setInferenceLevel(associatedTask);
+                fragment.setIsCoreClue(isCore);
+                fragment.setDifficulty(difficulty);
+                fragment.setImportance(importance);
+                fragment.setFragmentOrder(i);
+                fragment.setTriggerKeywords(java.util.Arrays.asList(gameClue.getContent().split(" ")));
+                fragment.setGenerationSource("USER_AI_ANALYZED"); // 标记为用户输入+AI分析
+                fragment.setAiAnalysisConfidence(0.9); // AI分析的置信度
+                fragment.setAssociatedTaskIds(java.util.Arrays.asList(associatedTask));
+
+                // 向量化处理
+                try {
+                    String keywords = fragment.getTriggerKeywords() != null ? String.join(" ", fragment.getTriggerKeywords()) : "";
+                    String vectorText = fragment.getFragmentContent() + " " + keywords;
+
+                    SingleEncodeResponse response = BgeVectorClientUtil.encodeSingle(vectorText);
+                    List<Double> vector = response.getEmbeddings().get(0)
+                            .stream()
+                            .map(Float::doubleValue)
+                            .collect(java.util.stream.Collectors.toList());
+
+                    String vectorHash = generateVectorHash(vector);
+                    fragment.setVectorData(vector);
+                    fragment.setVectorHash(vectorHash);
+
+                    // 存储到Redis
+                    String redisKey = String.format("hai_gui:soup:%s:fragment:%s", soupId, fragment.getFragmentId());
+                    List<Float> floatVector = vector.stream()
+                            .map(Double::floatValue)
+                            .collect(java.util.stream.Collectors.toList());
+                    redisClient.storeVector(redisKey, floatVector);
+
+                    log.debug("用户线索向量存储完成: fragmentId={}", fragment.getFragmentId());
+
+                } catch (Exception e) {
+                    log.error("用户线索向量化失败: {}", gameClue.getContent(), e);
+                    fragment.setVectorData(new ArrayList<>());
+                    fragment.setVectorHash("");
+                }
+
+                // 保存到数据库
+                ClueFragment savedFragment = clueFragmentRepository.save(fragment);
+
+                log.info("保存AI分析用户线索: content={}, type={}, difficulty={}, importance={}, isCore={}, associatedTask={}",
+                        gameClue.getContent(), fragmentType, difficulty, importance, isCore, associatedTask);
+
+            } catch (Exception e) {
+                log.error("保存AI分析用户线索失败: content={}", gameClue.getContent(), e);
+            }
+        }
+    }
+
+    /**
+     * 保存用户线索（使用默认属性）
+     */
+    private void saveUserCluesWithDefaultAttributes(String soupId, List<GameClue> clues) {
+        for (int i = 0; i < clues.size(); i++) {
+            try {
+                GameClue gameClue = clues.get(i);
+
+                // 创建线索片段（使用默认属性）
                 ClueFragment fragment = new ClueFragment();
                 fragment.setSoupId(soupId);
                 fragment.setFragmentContent(gameClue.getContent());
                 fragment.setFragmentType(gameClue.getClueType().toString());
                 fragment.setInferenceLevel(1); // 默认为表层信息
                 fragment.setIsCoreClue(gameClue.getIsKey());
-                fragment.setFragmentOrder(clueIds.size());
+                fragment.setDifficulty(2); // 默认中等难度
+                fragment.setImportance(5); // 默认中等重要性
+                fragment.setFragmentOrder(i);
                 fragment.setTriggerKeywords(java.util.Arrays.asList(gameClue.getContent().split(" ")));
+                fragment.setGenerationSource("USER_DEFAULT");
+                fragment.setAiAnalysisConfidence(0.3); // 低置信度
+                fragment.setAssociatedTaskIds(java.util.Arrays.asList(1));
 
                 // 保存到数据库
                 ClueFragment savedFragment = clueFragmentRepository.save(fragment);
 
-                // 添加到ID列表（保持兼容性）
-                clueIds.add("fragment_" + savedFragment.getFragmentId());
-
-                log.info("保存线索片段成功: fragmentId={}, content={}",
-                        savedFragment.getFragmentId(),
-                        gameClue.getContent().substring(0, Math.min(50, gameClue.getContent().length())));
+                log.info("保存默认用户线索: fragmentId={}", savedFragment.getFragmentId());
 
             } catch (Exception e) {
-                log.error("保存线索片段失败: soupId={}, content={}",
-                        soupId,
-                        gameClue.getContent().substring(0, Math.min(50, gameClue.getContent().length())), e);
-                // 继续处理其他线索，不让单个线索失败影响整体流程
+                log.error("保存默认用户线索失败: content={}", gameClue.getContent(), e);
             }
         }
+    }
 
-        log.info("成功保存线索到数据库: soupId={}, 总数={}, 成功数={}",
-                soupId, clues.size(), clueIds.size());
+    /**
+     * 尝试解析整数
+     */
+    private Integer tryParseInt(String str) {
+        try {
+            return Integer.parseInt(str);
+        } catch (Exception e) {
+            return 2; // 默认中等难度
+        }
+    }
 
-        return clueIds;
+    /**
+     * 尝试解析布尔值
+     */
+    private Boolean tryParseBoolean(String str) {
+        try {
+            return Boolean.parseBoolean(str);
+        } catch (Exception e) {
+            return false; // 默认非关键线索
+        }
     }
 
     /**
