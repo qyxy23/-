@@ -253,7 +253,6 @@ public class TurtleSoupService {
                         result.setIsCoreClue(fragment.getIsCoreClue());
                         result.setInferenceLevel(fragment.getInferenceLevel());
                         result.setSimilarity(similarity);
-                        result.setSoupId(fragment.getSoupId());
 
                         // 计算匹配原因
                         String matchReason = generateMatchReason(question, fragment.getFragmentContent(), similarity);

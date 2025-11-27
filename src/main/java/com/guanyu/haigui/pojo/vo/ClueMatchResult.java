@@ -44,11 +44,6 @@ public class ClueMatchResult {
     private Double similarity;
 
     /**
-     * 海龟汤ID
-     */
-    private String soupId;
-
-    /**
      * 匹配原因说明
      */
     private String matchReason;
@@ -63,36 +58,21 @@ public class ClueMatchResult {
      */
     private Double aiAnalysisConfidence;
 
-    /**
-     * 构造函数
-     */
-    public ClueMatchResult(String fragmentId, String fragmentContent, String fragmentType,
-                         Boolean isCoreClue, Integer inferenceLevel, Double similarity,
-                         String soupId, String matchReason) {
-        this.fragmentId = fragmentId;
-        this.fragmentContent = fragmentContent;
-        this.fragmentType = fragmentType;
-        this.isCoreClue = isCoreClue;
-        this.inferenceLevel = inferenceLevel;
-        this.similarity = similarity;
-        this.soupId = soupId;
-        this.matchReason = matchReason;
-    }
 
     /**
      * 获取片段类型描述
      */
     public String getFragmentTypeDescription() {
         if (fragmentType == null) return "未知";
-        switch (fragmentType) {
-            case "TIME": return "时间";
-            case "PLACE": return "地点";
-            case "CHARACTER": return "人物";
-            case "PLOT": return "情节";
-            case "OBJECT": return "物品";
-            case "TRUTH": return "真相";
-            default: return fragmentType;
-        }
+        return switch (fragmentType) {
+            case "TIME" -> "时间";
+            case "PLACE" -> "地点";
+            case "CHARACTER" -> "人物";
+            case "PLOT" -> "情节";
+            case "OBJECT" -> "物品";
+            case "TRUTH" -> "真相";
+            default -> fragmentType;
+        };
     }
 
     /**
@@ -100,14 +80,14 @@ public class ClueMatchResult {
      */
     public String getInferenceLevelDescription() {
         if (inferenceLevel == null) return "未知";
-        switch (inferenceLevel) {
-            case 1: return "表层信息";
-            case 2: return "浅层推理";
-            case 3: return "中层推理";
-            case 4: return "深层推理";
-            case 5: return "核心真相";
-            default: return "层级" + inferenceLevel;
-        }
+        return switch (inferenceLevel) {
+            case 1 -> "表层信息";
+            case 2 -> "浅层推理";
+            case 3 -> "中层推理";
+            case 4 -> "深层推理";
+            case 5 -> "核心真相";
+            default -> "层级" + inferenceLevel;
+        };
     }
 
     /**
