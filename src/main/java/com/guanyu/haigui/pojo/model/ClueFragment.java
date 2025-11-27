@@ -56,6 +56,12 @@ public class ClueFragment {
     @Convert(converter = ListIntegerConverter.class)
     private List<Integer> associatedTaskIds;
 
+    @Column(name = "difficulty", columnDefinition = "INT")
+    private Integer difficulty = 2;
+
+    @Column(name = "importance", columnDefinition = "INT")
+    private Integer importance = 5;
+
     @Column(name = "trigger_keywords", columnDefinition = "JSON")
     @Convert(converter = ListStringConverter.class)
     private List<String> triggerKeywords;

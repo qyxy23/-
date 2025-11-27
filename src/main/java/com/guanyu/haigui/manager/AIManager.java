@@ -13,7 +13,7 @@ import java.util.List;
 /*
 AI调用
  */
-@Service
+@Service("aiManager")
 public class AIManager {
     @Autowired(required = false)
     @Nullable

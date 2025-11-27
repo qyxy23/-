@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.context.BaseContext;
+import com.guanyu.haigui.manager.AIManager;
 import com.guanyu.haigui.pojo.dto.CreateHaiGuiSoupDTO;
 import com.guanyu.haigui.pojo.model.*;
 import com.guanyu.haigui.pojo.vo.ClueMatchResult;
@@ -19,6 +20,7 @@ import com.guanyu.haigui.utils.RedisStackClient;
 import com.guanyu.haigui.utils.SoupJsonParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,6 +53,9 @@ public class TurtleSoupService {
             .registerModule(new JavaTimeModule());
 
     private final boolean debugMode = false;
+
+    @Autowired
+    private AIManager aiManager;
 
     /**
      * 新增海龟汤（包含向量化处理和智能线索解析）
@@ -110,30 +115,20 @@ public class TurtleSoupService {
 
             log.info("海龟汤保存到数据库成功: soupId={}", savedSoup.getSoupId());
 
-            // 2. 保存用户输入的线索片段并进行向量化
-            if (!clues.isEmpty()) {
-                try {
-                    log.info("开始保存用户输入的线索片段，数量: {}", clues.size());
-                    saveUserCluesWithVectorization(savedSoup.getSoupId(), clues);
-                    log.info("用户线索片段保存并向量化完成");
-                } catch (Exception e) {
-                    log.error("保存用户线索片段失败: {}", e.getMessage(), e);
-                }
-            }
-
-            // 3. 使用AI拆解汤底为线索片段并生成推理任务
+            // 2. 使用AI拆解汤底并分析用户线索（合并处理）
             List<ClueFragment> aiFragments = new ArrayList<>();
             try {
-                log.info("开始为海龟汤生成AI拆解的线索片段");
+                log.info("开始为海龟汤生成AI拆解的线索片段，同时分析用户线索，用户线索数量: {}", clues.size());
 
-                // 使用ClueDecompositionService拆解汤底
-                aiFragments = clueDecompositionService.decomposeSoupBottom(
+                // 使用ClueDecompositionService拆解汤底并分析用户线索
+                aiFragments = clueDecompositionService.decomposeSoupBottomWithUserClues(
                     savedSoup.getSoupTitle(),
                     savedSoup.getSoupSurface(),
-                    savedSoup.getSoupBottom()
+                    savedSoup.getSoupBottom(),
+                    clues
                 );
 
-                // 保存AI生成的线索片段到数据库并存储到Redis
+                // 3. 保存AI生成的线索片段到数据库并存储到Redis
                 for (ClueFragment fragment : aiFragments) {
                     fragment.setSoupId(savedSoup.getSoupId());
                     // 确保fragmentId为null，让JPA自动生成
@@ -185,9 +180,6 @@ public class TurtleSoupService {
                     }
                 }
 
-                // 基于AI拆解结果生成推理任务并更新线索的任务关联
-                generateInferenceTasksWithClueAssociation(savedSoup.getSoupId(), aiFragments);
-
                 log.info("AI拆解线索片段完成，生成{}个片段", aiFragments.size());
 
             } catch (Exception e) {
@@ -195,6 +187,7 @@ public class TurtleSoupService {
                 // AI拆解失败时，仍然生成推理任务
                 generateInferenceTasksForSoup(savedSoup.getSoupId());
             }
+
 
             // 3. 更新海龟汤的关键线索ID列表和拆解配置
             updateSoupWithClueInfo(savedSoup, aiFragments);
@@ -842,9 +835,9 @@ public class TurtleSoupService {
                 // 保存到数据库
                 clueFragmentRepository.save(fragment);
 
-                log.info("保存用户线索片段成功: content={}, type={}, isKey={}, vectorSize={}",
+                log.info("保存用户线索片段成功: content={}, type={}, isKey={}, vectorSize={}, fragmentId={}",
                         gameClue.getContent(), gameClue.getClueType(), gameClue.getIsKey(),
-                        fragment.getVectorData() != null ? fragment.getVectorData().size() : 0);
+                        fragment.getVectorData() != null ? fragment.getVectorData().size() : 0, fragment.getFragmentId());
             } catch (Exception e) {
                 log.error("保存用户线索片段失败: content={}", clues.get(i).getContent(), e);
             }
@@ -911,8 +904,8 @@ public class TurtleSoupService {
      */
     private void saveAiAnalyzedUserClues(String soupId, List<GameClue> clues, List<String> userClueContents, String[] aiResults) {
         for (int i = 0; i < clues.size(); i++) {
+            GameClue gameClue = clues.get(i);
             try {
-                GameClue gameClue = clues.get(i);
                 String aiResult = i < aiResults.length ? aiResults[i] : "";
 
                 // 解析AI分析结果
@@ -936,7 +929,7 @@ public class TurtleSoupService {
                 fragment.setTriggerKeywords(java.util.Arrays.asList(gameClue.getContent().split(" ")));
                 fragment.setGenerationSource("USER_AI_ANALYZED"); // 标记为用户输入+AI分析
                 fragment.setAiAnalysisConfidence(0.9); // AI分析的置信度
-                fragment.setAssociatedTaskIds(java.util.Arrays.asList(associatedTask));
+                fragment.setAssociatedTaskIds(List.of(associatedTask));
 
                 // 向量化处理
                 try {
@@ -971,8 +964,8 @@ public class TurtleSoupService {
                 // 保存到数据库
                 ClueFragment savedFragment = clueFragmentRepository.save(fragment);
 
-                log.info("保存AI分析用户线索: content={}, type={}, difficulty={}, importance={}, isCore={}, associatedTask={}",
-                        gameClue.getContent(), fragmentType, difficulty, importance, isCore, associatedTask);
+                log.info("保存AI分析用户线索: content={}, type={}, difficulty={}, importance={}, isCore={}, associatedTask={}, fragmentId={}",
+                        gameClue.getContent(), fragmentType, difficulty, importance, isCore, associatedTask, savedFragment.getFragmentId());
 
             } catch (Exception e) {
                 log.error("保存AI分析用户线索失败: content={}", gameClue.getContent(), e);
@@ -985,9 +978,8 @@ public class TurtleSoupService {
      */
     private void saveUserCluesWithDefaultAttributes(String soupId, List<GameClue> clues) {
         for (int i = 0; i < clues.size(); i++) {
+            GameClue gameClue = clues.get(i);
             try {
-                GameClue gameClue = clues.get(i);
-
                 // 创建线索片段（使用默认属性）
                 ClueFragment fragment = new ClueFragment();
                 fragment.setSoupId(soupId);
@@ -995,13 +987,12 @@ public class TurtleSoupService {
                 fragment.setFragmentType(gameClue.getClueType().toString());
                 fragment.setInferenceLevel(1); // 默认为表层信息
                 fragment.setIsCoreClue(gameClue.getIsKey());
-                fragment.setDifficulty(2); // 默认中等难度
-                fragment.setImportance(5); // 默认中等重要性
+                // 不设置difficulty和importance字段（数据库表中不存在）
                 fragment.setFragmentOrder(i);
                 fragment.setTriggerKeywords(java.util.Arrays.asList(gameClue.getContent().split(" ")));
                 fragment.setGenerationSource("USER_DEFAULT");
                 fragment.setAiAnalysisConfidence(0.3); // 低置信度
-                fragment.setAssociatedTaskIds(java.util.Arrays.asList(1));
+                fragment.setAssociatedTaskIds(List.of(1));
 
                 // 保存到数据库
                 ClueFragment savedFragment = clueFragmentRepository.save(fragment);
