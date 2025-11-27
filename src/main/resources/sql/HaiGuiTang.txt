@@ -8,12 +8,9 @@ CREATE TABLE IF NOT EXISTS `hai_gui_soup` (
   `soup_bottom` TEXT NOT NULL COMMENT '汤底文本（完整故事逻辑：背景、多视角、主持人手册）',
   `host_manual` TEXT NOT NULL COMMENT '主持人手册（推理规则、进度提示）',
   `key_clues` JSON NOT NULL COMMENT '关键线索ID列表（JSON数组，如["clue_123", "clue_456"]，对应hai_gui_soup_clue.clue_id）',
-  `soup_surface_vec` VARCHAR(255) DEFAULT '' COMMENT '汤面向量的Redis Stack键名（如"hai_gui:vec:surface:xxx"）',
-  `soup_bottom_vec` VARCHAR(255) DEFAULT '' COMMENT '汤底向量的Redis Stack键名',
 
   -- 混合方案新增字段
   `task_generation_strategy` VARCHAR(20) DEFAULT 'HYBRID' COMMENT '任务生成策略：HYBRID-混合方案，DYNAMIC-纯AI，STATIC-静态预设',
-  `clue_decomposition_config` JSON COMMENT '线索拆解配置（AI生成的线索片段列表）',
   `vector_match_threshold` DECIMAL(3,2) DEFAULT 0.7 COMMENT '向量匹配阈值',
 
   `creator_id` BIGINT UNSIGNED COMMENT '实际创作者ID（外键：sys_user.user_id）',

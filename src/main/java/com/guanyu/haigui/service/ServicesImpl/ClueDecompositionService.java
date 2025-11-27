@@ -42,7 +42,6 @@ public class ClueDecompositionService {
     /**
      * 拆解汤底为线索片段
      */
-    @SuppressWarnings("unchecked")
     public List<ClueFragment> decomposeSoupBottom(String soupTitle, String soupSurface, String soupBottom) {
         try {
             log.info("开始拆解汤底线索，标题: {}，调试模式: {}", soupTitle, debugMode);
@@ -401,7 +400,8 @@ public class ClueDecompositionService {
         fragment.setFragmentOrder((Integer) data.getOrDefault("order", 0));
 
         // 设置增强的属性
-        // 不设置difficulty和importance字段，使用默认值
+        fragment.setDifficulty(((Number) data.getOrDefault("difficulty", 2)).intValue());
+        fragment.setImportance(((Number) data.getOrDefault("importance", 5)).intValue());
 
         String source = (String) data.getOrDefault("source", "AI");
         fragment.setGenerationSource(source);
@@ -511,7 +511,9 @@ public class ClueDecompositionService {
             fragment.setGenerationSource("AUGMENTED_USER");
             fragment.setAiAnalysisConfidence(0.95); // 模拟AI分析的高置信度
 
-            // 不设置difficulty和importance字段，使用默认值
+            // 设置difficulty和importance字段的默认值
+            fragment.setDifficulty(2); // 默认中等难度
+            fragment.setImportance(5); // 默认中等重要性
 
             fragment.setSimilarityThreshold(0.8); // 用户线索相似度阈值稍高
             fragment.setAssociatedTaskIds(Arrays.asList(1, 2)); // 关联前两个推理任务
@@ -565,7 +567,9 @@ public class ClueDecompositionService {
 
             // 基本分析设置默认值
             if (clue.getIsKey()) {
-                // 关键线索（不设置difficulty和importance字段）
+                // 关键线索设置更高的重要性
+                fragment.setDifficulty(3); // 关键线索难度中高
+                fragment.setImportance(8); // 关键线索重要性高
             } else {
                 fragment.setDifficulty(2); // 普通线索难度中等
                 fragment.setImportance(5); // 普通线索重要性中等

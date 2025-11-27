@@ -43,14 +43,6 @@ public class HaiGuiSoup {
     @Column(name = "key_clues", columnDefinition = "JSON", nullable = false)
     private String keyClues;
 
-    
-    // 汤面向量的Redis键名
-    @Column(name = "soup_surface_vec", columnDefinition = "VARCHAR(255)")
-    private String soupSurfaceVec;
-
-    // 汕底向量的Redis键名
-    @Column(name = "soup_bottom_vec", columnDefinition = "VARCHAR(255)")
-    private String soupBottomVec;
 
     // 创作者ID（外键）
     @Column(name = "creator_id", nullable = false)

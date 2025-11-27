@@ -67,9 +67,6 @@ public class VectorServiceImpl implements VectorService {
             List<VectorMetadata> clueVectors = vectorizeClues(soup.getSoupId(), clues);
             vectorMetadataList.addAll(clueVectors);
 
-            // 5. 更新海龟汤的向量键名
-            soup.setSoupSurfaceVec(surfaceVector != null ? surfaceVector.getRedisKey() : null);
-            soup.setSoupBottomVec(bottomVector != null ? bottomVector.getRedisKey() : null);
             haiGuiSoupRepository.save(soup);
 
             // 6. 更新线索的向量键名

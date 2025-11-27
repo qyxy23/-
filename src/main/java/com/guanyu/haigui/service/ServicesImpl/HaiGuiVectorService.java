@@ -55,9 +55,6 @@ public class HaiGuiVectorService {
             // 4. 存储到Redis
             redisStackClient.saveCompleteSoup(soup, surfaceVector, bottomVector);
 
-            // 5. 更新数据库中的向量键名
-            soup.setSoupSurfaceVec(String.format("hai_gui:vec:surface:%s", soup.getSoupId()));
-            soup.setSoupBottomVec(String.format("hai_gui:vec:bottom:%s", soup.getSoupId()));
 
             // 确保JSON格式正确
             if (soup.getKeyClues() == null || soup.getKeyClues().trim().isEmpty()) {

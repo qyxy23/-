@@ -981,7 +981,9 @@ public class TurtleSoupService {
                 fragment.setFragmentType(gameClue.getClueType().toString());
                 fragment.setInferenceLevel(1); // 默认为表层信息
                 fragment.setIsCoreClue(gameClue.getIsKey());
-                // 不设置difficulty和importance字段（数据库表中不存在）
+                // 设置difficulty和importance字段的默认值
+                fragment.setDifficulty(2); // 默认中等难度
+                fragment.setImportance(5); // 默认中等重要性
                 fragment.setFragmentOrder(i);
                 fragment.setTriggerKeywords(java.util.Arrays.asList(gameClue.getContent().split(" ")));
                 fragment.setGenerationSource("USER_DEFAULT");
