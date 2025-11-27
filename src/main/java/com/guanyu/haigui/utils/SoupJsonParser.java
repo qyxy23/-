@@ -190,7 +190,7 @@ public class SoupJsonParser {
         log.info("去除空格后的输入: '{}'", trimmedInput);
 
         String[] parts = CLUE_SEPARATORS.split(trimmedInput);
-        log.info("按分隔符分割后得到 {} 个部分: {}", parts.length, java.util.Arrays.toString(parts));
+        log.info("按分隔符分割后得到 {} 个部分: {}", parts.length, Arrays.toString(parts));
 
         for (int i = 0; i < parts.length; i++) {
             String part = parts[i].trim();

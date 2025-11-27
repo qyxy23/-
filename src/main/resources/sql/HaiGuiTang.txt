@@ -57,6 +57,8 @@ CREATE TABLE IF NOT EXISTS `hai_gui_soup_clue_fragment` (
   `fragment_order` INT DEFAULT 0 COMMENT '片段在逻辑链中的顺序',
   `generation_source` VARCHAR(20) DEFAULT 'AI' COMMENT '生成来源：AI-AI拆解，MANUAL-手动拆解',
   `ai_analysis_confidence` DECIMAL(3,2) COMMENT 'AI分析的置信度（0-1）',
+  `difficulty` INT DEFAULT 2 COMMENT '线索难度等级：1-5，1最简单，5最难',
+  `importance` INT DEFAULT 5 COMMENT '线索重要性等级：1-10，数值越重要程度越高',
   `is_deleted` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除标记',
   `created_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) COMMENT '创建时间',
   `updated_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6) COMMENT '更新时间',

@@ -146,9 +146,6 @@ public class TurtleSoupService {
                                     .collect(java.util.stream.Collectors.toList());
                             redisClient.storeVector(soupFragmentKey, floatVector);
 
-                            // 同时保留旧的键结构，用于全局搜索
-                            String globalKey = String.format("hai_gui:fragment:%s", savedFragment.getFragmentId());
-                            redisClient.storeVector(globalKey, floatVector);
 
                             // 将片段ID添加到海龟汤的片段集合中
                             String soupFragmentsKey = String.format("hai_gui:soup:%s:fragments", savedSoup.getSoupId());
@@ -797,9 +794,6 @@ public class TurtleSoupService {
                                 .collect(java.util.stream.Collectors.toList());
                         redisClient.storeVector(redisKey, floatVector);
 
-                        // 同时保留旧的键结构，用于全局搜索
-                        String globalKey = String.format("hai_gui:fragment:%s", fragment.getFragmentId());
-                        redisClient.storeVector(globalKey, floatVector);
 
                         // 不再使用集合键，直接使用具体片段键
 
