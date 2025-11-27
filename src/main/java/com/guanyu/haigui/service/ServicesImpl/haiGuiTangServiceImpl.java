@@ -2,8 +2,8 @@ package com.guanyu.haigui.service.ServicesImpl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.guanyu.haigui.manager.AIManager;
-import com.guanyu.haigui.pojo.dto.TurtleSoupEnhanceDTO;
 import com.guanyu.haigui.pojo.dto.TitleGenerateDTO;
+import com.guanyu.haigui.pojo.dto.TurtleSoupEnhanceDTO;
 import com.guanyu.haigui.pojo.vo.BatchEncodeResponse;
 import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
 import com.guanyu.haigui.pojo.vo.TitleGenerateResultVO;

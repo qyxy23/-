@@ -19,7 +19,7 @@ public class TitleGenerateResultVO {
     private String status;
 
     /**
-     * 标题类型（original/optimized）
+     * 标题类型（original 原标题/optimized ai生成的标题）
      */
     private String titleType;
 
