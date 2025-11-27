@@ -6,8 +6,13 @@ import com.guanyu.haigui.pojo.model.ClueFragment;
 import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
+import org.springframework.util.FileCopyUtils;
 
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -24,6 +29,9 @@ public class ClueDecompositionService {
     private final ObjectMapper objectMapper;
     private final BgeVectorClientUtil vectorClient;
 
+    @Value("${haiqutang.ai.debug-mode:false}")
+    private boolean debugMode;
+
     public ClueDecompositionService(AIManager aiManager, ObjectMapper objectMapper, BgeVectorClientUtil vectorClient) {
         this.aiManager = aiManager;
         this.objectMapper = objectMapper;
@@ -36,7 +44,71 @@ public class ClueDecompositionService {
     @SuppressWarnings("unchecked")
     public List<ClueFragment> decomposeSoupBottom(String soupTitle, String soupSurface, String soupBottom) {
         try {
-            log.info("开始拆解汤底线索，标题: {}", soupTitle);
+            log.info("开始拆解汤底线索，标题: {}，调试模式: {}", soupTitle, debugMode);
+
+            if (debugMode) {
+                // 调试模式：从aiClue.txt读取模拟数据
+                return loadDebugFragments(soupTitle, soupSurface, soupBottom);
+            }
+
+            // 正常模式：调用真实AI服务
+            return decomposeWithAI(soupTitle, soupSurface, soupBottom);
+
+        } catch (Exception e) {
+            log.error("拆解汤底线索失败", e);
+            return generateFallbackFragments(soupTitle, soupSurface, soupBottom);
+        }
+    }
+
+    /**
+     * 从aiClue.txt加载调试数据
+     */
+    @SuppressWarnings("unchecked")
+    private List<ClueFragment> loadDebugFragments(String soupTitle, String soupSurface, String soupBottom) {
+        try {
+            log.info("调试模式：从aiClue.txt加载模拟数据");
+
+            ClassPathResource resource = new ClassPathResource("aiClue.txt");
+            if (!resource.exists()) {
+                log.warn("aiClue.txt文件不存在，使用备用方案");
+                return generateFallbackFragments(soupTitle, soupSurface, soupBottom);
+            }
+
+            String jsonContent = FileCopyUtils.copyToString(new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8));
+            log.info("读取到aiClue.txt内容，长度: {}", jsonContent.length());
+
+            Map<String, Object> response = objectMapper.readValue(jsonContent, Map.class);
+            List<Map<String, Object>> fragmentsData = (List<Map<String, Object>>) response.get("fragments");
+
+            if (fragmentsData == null || fragmentsData.isEmpty()) {
+                log.warn("aiClue.txt中未找到fragments数据，使用备用方案");
+                return generateFallbackFragments(soupTitle, soupSurface, soupBottom);
+            }
+
+            // 转换为ClueFragment对象
+            List<ClueFragment> fragments = fragmentsData.stream()
+                    .map(this::mapToClueFragment)
+                    .collect(Collectors.toList());
+
+            // 为每个片段生成向量（调试模式也需要向量化以支持语义匹配）
+            generateVectorsForFragments(fragments);
+
+            log.info("调试模式：成功加载{}个模拟线索片段", fragments.size());
+            return fragments;
+
+        } catch (Exception e) {
+            log.error("加载调试数据失败，使用备用方案", e);
+            return generateFallbackFragments(soupTitle, soupSurface, soupBottom);
+        }
+    }
+
+    /**
+     * 使用AI进行拆解（正常模式）
+     */
+    @SuppressWarnings("unchecked")
+    private List<ClueFragment> decomposeWithAI(String soupTitle, String soupSurface, String soupBottom) {
+        try {
+            log.info("正常模式：调用AI服务进行线索拆解");
 
             // 生成拆解提示词
             String prompt = generateDecompositionPrompt(soupTitle, soupSurface, soupBottom);
@@ -59,11 +131,11 @@ public class ClueDecompositionService {
             // 为每个片段生成向量
             generateVectorsForFragments(fragments);
 
-            log.info("成功拆解出{}个线索片段", fragments.size());
+            log.info("AI模式：成功拆解出{}个线索片段", fragments.size());
             return fragments;
 
         } catch (Exception e) {
-            log.error("拆解汤底线索失败", e);
+            log.error("AI拆解失败，使用备用方案", e);
             return generateFallbackFragments(soupTitle, soupSurface, soupBottom);
         }
     }
@@ -145,6 +217,10 @@ public class ClueDecompositionService {
         fragment.setGenerationSource("AI");
         fragment.setAiAnalysisConfidence(0.9);
         fragment.setIsDeleted(false);
+
+        // 临时设置fragmentId为0，表示这是新对象，JPA保存后会自动生成ID
+        fragment.setFragmentId(0L);
+
         return fragment;
     }
 

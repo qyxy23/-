@@ -625,6 +625,130 @@ public class RedisStackClient {
     }
 
     /**
+     * 在指定海龟汤中搜索相似线索（基于Redis中的向量）
+     *
+     * @param queryVector 查询向量
+     * @param soupId 海龟汤ID
+     * @param topK 返回前K个结果
+     * @return 相似的片段ID列表及其相似度分数
+     */
+    public Map<String, Double> searchSimilarCluesInSoup(List<Float> queryVector, String soupId, int topK) {
+        try {
+            Map<String, Double> results = new HashMap<>();
+            List<String> fragmentKeys = new ArrayList<>();
+
+            // 获取指定海龟汤的所有片段
+            String soupFragmentsKey = String.format("hai_gui:soup:%s:fragments", soupId);
+            Set<String> fragmentIds = commands.smembers(soupFragmentsKey);
+
+            if (fragmentIds.isEmpty()) {
+                log.warn("海龟汤中没有找到片段: soupId={}", soupId);
+                return results;
+            }
+
+            // 构建包含海龟汤ID的向量键
+            for (String fragmentId : fragmentIds) {
+                String soupFragmentKey = String.format("hai_gui:soup:%s:fragment:%s", soupId, fragmentId);
+                fragmentKeys.add(soupFragmentKey);
+            }
+
+            log.info("在海龟汤中搜索片段: soupId={}, fragmentCount={}", soupId, fragmentKeys.size());
+
+            // 搜索相似向量
+            Map<String, Double> searchResults = searchSimilarVectors(queryVector, fragmentKeys, topK);
+
+            // 转换键名，只保留片段ID
+            for (Map.Entry<String, Double> entry : searchResults.entrySet()) {
+                String key = entry.getKey();
+                if (key.startsWith(String.format("hai_gui:soup:%s:fragment:", soupId))) {
+                    String fragmentId = key.substring(String.format("hai_gui:soup:%s:fragment:", soupId).length());
+                    results.put(fragmentId, entry.getValue());
+                } else {
+                    results.put(key, entry.getValue());
+                }
+            }
+
+            log.info("海龟汤内片段搜索完成: soupId={}, totalFragments={}, matchedFragments={}",
+                    soupId, fragmentKeys.size(), results.size());
+
+            return results;
+
+        } catch (Exception e) {
+            log.error("在海龟汤中搜索相似片段失败: soupId={}", soupId, e);
+            return Collections.emptyMap();
+        }
+    }
+
+    /**
+     * 搜索相似的海龟汤片段（基于Redis中的向量）
+     *
+     * @param queryVector 查询向量
+     * @param soupId 海龟汤ID（可选，如果提供则只在该汤内搜索）
+     * @param topK 返回前K个结果
+     * @return 相似的片段ID列表及其相似度分数
+     */
+    public Map<String, Double> searchSimilarClueFragments(List<Float> queryVector, String soupId, int topK) {
+        try {
+            Map<String, Double> results = new HashMap<>();
+            List<String> fragmentKeys = new ArrayList<>();
+
+            if (soupId != null && !soupId.isEmpty()) {
+                // 搜索特定海龟汤的片段
+                String soupFragmentsKey = String.format("hai_gui:soup:%s:fragments", soupId);
+                Set<String> fragmentIds = commands.smembers(soupFragmentsKey);
+
+                for (String fragmentId : fragmentIds) {
+                    fragmentKeys.add(String.format("hai_gui:fragment:%s", fragmentId));
+                }
+
+                log.info("搜索特定海龟汤的片段: soupId={}, fragmentCount={}", soupId, fragmentKeys.size());
+            } else {
+                // 搜索所有海龟汤的片段
+                Set<String> soupIds = commands.smembers("hai_gui:soups:all");
+
+                for (String id : soupIds) {
+                    String soupFragmentsKey = String.format("hai_gui:soup:%s:fragments", id);
+                    Set<String> fragmentIds = commands.smembers(soupFragmentsKey);
+
+                    for (String fragmentId : fragmentIds) {
+                        fragmentKeys.add(String.format("hai_gui:fragment:%s", fragmentId));
+                    }
+                }
+
+                log.info("搜索所有海龟汤的片段: soupCount={}, totalFragmentCount={}", soupIds.size(), fragmentKeys.size());
+            }
+
+            if (fragmentKeys.isEmpty()) {
+                log.warn("没有找到任何片段向量");
+                return results;
+            }
+
+            // 使用现有的向量搜索功能
+            Map<String, Double> searchResults = searchSimilarVectors(queryVector, fragmentKeys, topK);
+
+            // 转换键名，去掉前缀，只保留片段ID
+            for (Map.Entry<String, Double> entry : searchResults.entrySet()) {
+                String key = entry.getKey();
+                if (key.startsWith("hai_gui:fragment:")) {
+                    String fragmentId = key.substring("hai_gui:fragment:".length());
+                    results.put(fragmentId, entry.getValue());
+                } else {
+                    results.put(key, entry.getValue());
+                }
+            }
+
+            log.info("片段向量搜索完成: queryType={}, totalFragments={}, matchedFragments={}",
+                    soupId != null ? "汤内" : "全局", fragmentKeys.size(), results.size());
+
+            return results;
+
+        } catch (Exception e) {
+            log.error("搜索相似片段失败: soupId={}", soupId, e);
+            return Collections.emptyMap();
+        }
+    }
+
+    /**
      * 批量删除向量
      *
      * @param redisKeys Redis键名列表

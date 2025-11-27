@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(mvn compile:*)",
-      "Bash(\"D:\\CODE\\haiguitang\\HaiGuiTang\\src\\main\\resources\\temp\\aiResponse.txt\")"
+      "Bash(\"D:\\CODE\\haiguitang\\HaiGuiTang\\src\\main\\resources\\temp\\aiResponse.txt\")",
+      "Bash(mvn clean compile:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

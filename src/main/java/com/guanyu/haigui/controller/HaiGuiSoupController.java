@@ -3,6 +3,7 @@ package com.guanyu.haigui.controller;
 import com.guanyu.haigui.pojo.dto.CreateHaiGuiSoupDTO;
 import com.guanyu.haigui.pojo.dto.SimpleSoupRequest;
 import com.guanyu.haigui.pojo.model.HaiGuiSoup;
+import com.guanyu.haigui.pojo.vo.ClueMatchResult;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.service.ServicesImpl.TurtleSoupService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -136,6 +137,27 @@ public class HaiGuiSoupController {
         } catch (Exception e) {
             log.error("获取海龟汤推荐失败", e);
             return Result.error("推荐获取失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 在指定海龟汤中搜索相关线索
+     */
+    @PostMapping("/search-clues")
+    @Operation(summary = "搜索汤内线索", description = "在指定海龟汤中基于向量匹配搜索相关线索")
+    public Result<List<ClueMatchResult>> searchCluesInSoup(
+            @Parameter(description = "玩家问题") @RequestParam String question,
+            @Parameter(description = "海龟汤ID") @RequestParam String soupId,
+            @Parameter(description = "返回线索数量") @RequestParam(defaultValue = "10") int topK) {
+        try {
+            log.info("搜索汤内线索请求: question={}, soupId={}, topK={}", question, soupId, topK);
+
+            List<ClueMatchResult> results = turtleSoupService.findMatchingCluesInSoup(question, soupId, topK);
+            return Result.success("线索搜索完成", results);
+
+        } catch (Exception e) {
+            log.error("搜索汤内线索失败: question={}, soupId={}", question, soupId, e);
+            return Result.error("线索搜索失败: " + e.getMessage());
         }
     }
 
