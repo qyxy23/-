@@ -2,10 +2,12 @@ package com.guanyu.haigui.controller;
 
 import com.guanyu.haigui.pojo.dto.CreateHaiGuiSoupDTO;
 import com.guanyu.haigui.pojo.dto.SimpleSoupRequest;
+import com.guanyu.haigui.pojo.dto.SoupQuestionRequest;
 import com.guanyu.haigui.pojo.model.HaiGuiSoup;
 import com.guanyu.haigui.pojo.vo.ClueMatchResult;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.service.ServicesImpl.TurtleSoupService;
+import com.guanyu.haigui.service.SoupQuestionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -29,6 +31,7 @@ import java.util.Map;
 public class HaiGuiSoupController {
 
     private final TurtleSoupService turtleSoupService;
+    private final SoupQuestionService soupQuestionService;
 
     /**
      * 创建海龟汤（包含向量化）
@@ -259,6 +262,66 @@ public class HaiGuiSoupController {
         } catch (Exception e) {
             log.error("重新向量化失败", e);
             return Result.error("重新向量化失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 海龟汤问题判断接口
+     * 通过向量化匹配相关线索，让AI判断问题的答案
+     */
+    @PostMapping("/question")
+    @Operation(summary = "海龟汤问题判断", description = "基于向量匹配相关线索，让AI判断问题答案为是或否")
+    public Result<String> processSoupQuestion(@RequestBody SoupQuestionRequest request) {
+    // public Result<SoupQuestionResponse> processSoupQuestion(@RequestBody SoupQuestionRequest request) {
+        try {
+            log.info("接收到海龟汤问题判断请求: soupId={}, question={}",
+                    request.getSoupId(),
+                    request.getQuestion().substring(0, Math.min(50, request.getQuestion().length())));
+
+            String response = soupQuestionService.processSoupQuestion(request);
+            return Result.success(response);
+            // if ("SUCCESS".equals(response.getStatus())) {
+            //     return Result.success("问题判断成功", response);
+            // } else {
+            //     return Result.error("问题判断失败: " + response.getMessage());
+            // }
+
+        } catch (Exception e) {
+            log.error("处理海龟汤问题判断失败", e);
+            return Result.error("问题判断失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 简化版问题判断接口（GET方式）
+     */
+    @GetMapping("/question")
+    @Operation(summary = "简化版问题判断", description = "GET方式的问题判断接口，简化参数")
+    public Result<String> processSoupQuestionSimple(
+            @Parameter(description = "海龟汤ID", required = true) @RequestParam String soupId,
+            @Parameter(description = "玩家问题", required = true) @RequestParam String question,
+            @Parameter(description = "返回相关上下文数量") @RequestParam(defaultValue = "5") int topK,
+            @Parameter(description = "最小匹配阈值") @RequestParam(defaultValue = "0.3") double minSimilarity) {
+        try {
+            SoupQuestionRequest request = new SoupQuestionRequest();
+            request.setSoupId(soupId);
+            request.setQuestion(question);
+            request.setTopK(topK);
+            request.setMinSimilarity(minSimilarity);
+            request.setIncludeMatchDetails(false);
+
+            String response = soupQuestionService.processSoupQuestion(request);
+            return Result.success(response);
+
+            // if ("SUCCESS".equals(response.getStatus())) {
+            //     return Result.success("问题判断成功", response);
+            // } else {
+            //     return Result.error("问题判断失败: " + response.getMessage());
+            // }
+
+        } catch (Exception e) {
+            log.error("简化版问题判断失败: soupId={}, question={}", soupId, question, e);
+            return Result.error("问题判断失败: " + e.getMessage());
         }
     }
 }
