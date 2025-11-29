@@ -2,7 +2,9 @@ package com.guanyu.haigui.service.ServicesImpl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.guanyu.haigui.manager.AIManager;
+import com.guanyu.haigui.pojo.Content.TurtleSoupEnhancedContent;
 import com.guanyu.haigui.pojo.model.ClueFragment;
+import com.guanyu.haigui.pojo.result.DecompositionResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -35,23 +37,28 @@ public class DynamicTaskService {
         try {
             log.info("开始为海龟汤生成增强内容: {}", soupTitle);
 
-            // 1. 拆解线索片段
-            List<ClueFragment> fragments = clueDecompositionService.decomposeSoupBottom(soupTitle, soupSurface, soupBottom);
+            // 1. 拆解线索片段并生成推理任务
+            DecompositionResult decompositionResult =
+                clueDecompositionService.decomposeSoupBottom(soupTitle, soupSurface, soupBottom);
 
-            // 2. 基于线索片段生成推理任务
-            List<Map<String, Object>> tasks = generateInferenceTasks(soupTitle, soupSurface, soupBottom, fragments);
+            List<Map<String, Object>> tasks = decompositionResult.getInferenceTasks();
+
+            // 2. 如果AI未生成任务，则基于线索片段生成推理任务
+            if (tasks == null || tasks.isEmpty()) {
+                tasks = generateInferenceTasks(soupTitle, soupSurface, soupBottom, decompositionResult.getFragments());
+            }
 
             // 3. 构建增强内容
             TurtleSoupEnhancedContent content = new TurtleSoupEnhancedContent();
             content.setSoupTitle(soupTitle);
             content.setSoupSurface(soupSurface);
             content.setSoupBottom(soupBottom);
-            content.setClueFragments(fragments);
+            content.setClueFragments(decompositionResult.getFragments());
             content.setInferenceTasks(tasks);
             content.setGenerationStrategy("HYBRID");
             content.setGeneratedAt(System.currentTimeMillis());
 
-            log.info("成功生成增强内容，包含{}个线索片段和{}个推理任务", fragments.size(), tasks.size());
+            log.info("成功生成增强内容，包含{}个线索片段和{}个推理任务", decompositionResult.getFragments().size(), tasks.size());
             return content;
 
         } catch (Exception e) {
@@ -63,7 +70,6 @@ public class DynamicTaskService {
     /**
      * 基于线索片段生成推理任务（保持向后兼容）
      */
-    @SuppressWarnings("unchecked")
     public List<Map<String, Object>> generateBasicTasks(String soupTitle, String soupSurface, String soupBottom) {
         TurtleSoupEnhancedContent content = generateEnhancedContent(soupTitle, soupSurface, soupBottom);
         return content.getInferenceTasks();
@@ -129,9 +135,7 @@ public class DynamicTaskService {
                     List<ClueFragment> fragments = entry.getValue();
                     prompt.append(String.format("**推理层次%d**（共%d个片段）：\n", level, fragments.size()));
 
-                    fragments.forEach(fragment -> {
-                        prompt.append(String.format("- %s (%s)\n", fragment.getFragmentContent(), fragment.getFragmentType()));
-                    });
+                    fragments.forEach(fragment -> prompt.append(String.format("- %s (%s)\n", fragment.getFragmentContent(), fragment.getFragmentType())));
                     prompt.append("\n");
                 });
 
@@ -191,7 +195,6 @@ public class DynamicTaskService {
     /**
      * 生成备用推理任务
      */
-    @SuppressWarnings("unchecked")
     private List<Map<String, Object>> generateFallbackInferenceTasks(String soupTitle, Map<Integer, List<ClueFragment>> fragmentsByLevel) {
         log.warn("使用备用方案生成推理任务");
 
@@ -284,38 +287,6 @@ public class DynamicTaskService {
         return fragment;
     }
 
-    /**
-     * 增强内容数据类
-     */
-    public static class TurtleSoupEnhancedContent {
-        private String soupTitle;
-        private String soupSurface;
-        private String soupBottom;
-        private List<ClueFragment> clueFragments;
-        private List<Map<String, Object>> inferenceTasks;
-        private String generationStrategy;
-        private long generatedAt;
-
-        // Getters and Setters
-        public String getSoupTitle() { return soupTitle; }
-        public void setSoupTitle(String soupTitle) { this.soupTitle = soupTitle; }
-
-        public String getSoupSurface() { return soupSurface; }
-        public void setSoupSurface(String soupSurface) { this.soupSurface = soupSurface; }
-
-        public String getSoupBottom() { return soupBottom; }
-        public void setSoupBottom(String soupBottom) { this.soupBottom = soupBottom; }
-
-        public List<ClueFragment> getClueFragments() { return clueFragments; }
-        public void setClueFragments(List<ClueFragment> clueFragments) { this.clueFragments = clueFragments; }
-
-        public List<Map<String, Object>> getInferenceTasks() { return inferenceTasks; }
-        public void setInferenceTasks(List<Map<String, Object>> inferenceTasks) { this.inferenceTasks = inferenceTasks; }
-
-        public String getGenerationStrategy() { return generationStrategy; }
-        public void setGenerationStrategy(String generationStrategy) { this.generationStrategy = generationStrategy; }
-
-        public long getGeneratedAt() { return generatedAt; }
-        public void setGeneratedAt(long generatedAt) { this.generatedAt = generatedAt; }
-    }
+    
 }
+

@@ -7,6 +7,7 @@ import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.manager.AIManager;
 import com.guanyu.haigui.pojo.dto.CreateHaiGuiSoupDTO;
 import com.guanyu.haigui.pojo.model.*;
+import com.guanyu.haigui.pojo.result.DecompositionResult;
 import com.guanyu.haigui.pojo.vo.ClueMatchResult;
 import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
 import com.guanyu.haigui.pojo.vo.SoupRankInfo;
@@ -117,16 +118,21 @@ public class TurtleSoupService {
 
             // 2. 使用AI拆解汤底并分析用户线索（合并处理）
             List<ClueFragment> aiFragments = new ArrayList<>();
+            List<Map<String, Object>> aiInferenceTasks = new ArrayList<>();
             try {
-                log.info("开始为海龟汤生成AI拆解的线索片段，同时分析用户线索，用户线索数量: {}", clues.size());
+                log.info("开始为海龟汤生成AI拆解的线索片段和推理任务，同时分析用户线索，用户线索数量: {}", clues.size());
 
                 // 使用ClueDecompositionService拆解汤底并分析用户线索
-                aiFragments = clueDecompositionService.decomposeSoupBottomWithUserClues(
-                    savedSoup.getSoupTitle(),
-                    savedSoup.getSoupSurface(),
-                    savedSoup.getSoupBottom(),
-                    clues
-                );
+                DecompositionResult decompositionResult =
+                    clueDecompositionService.decomposeSoupBottomWithUserClues(
+                        savedSoup.getSoupTitle(),
+                        savedSoup.getSoupSurface(),
+                        savedSoup.getSoupBottom(),
+                        clues
+                    );
+
+                aiFragments = decompositionResult.getFragments();
+                aiInferenceTasks = decompositionResult.getInferenceTasks();
 
                 // 3. 保存AI生成的线索片段到数据库并存储到Redis
                 for (ClueFragment fragment : aiFragments) {
@@ -177,12 +183,16 @@ public class TurtleSoupService {
                     }
                 }
 
-                log.info("AI拆解线索片段完成，生成{}个片段", aiFragments.size());
+                log.info("AI拆解线索片段完成，生成{}个片段和{}个推理任务", aiFragments.size(), aiInferenceTasks.size());
+
+                // AI拆解成功时，使用AI生成的推理任务并关联线索
+                generateInferenceTasksWithAITasks(savedSoup.getSoupId(), aiInferenceTasks, aiFragments);
 
             } catch (Exception e) {
                 log.warn("AI拆解线索片段失败: {}", e.getMessage());
-                // AI拆解失败时，仍然生成推理任务
-                generateInferenceTasksForSoup(savedSoup.getSoupId());
+                // AI拆解失败时，仍然生成推理任务并关联线索
+                // 即使没有AI生成的任务，也要确保线索片段有关联的任务ID
+                generateInferenceTasksWithClueAssociation(savedSoup.getSoupId(), aiFragments);
             }
 
 
@@ -1229,6 +1239,172 @@ public class TurtleSoupService {
 
         } catch (Exception e) {
             log.error("生成推理任务失败: soupId={}", soupId, e);
+        }
+    }
+
+    /**
+     * 使用AI生成的推理任务并关联线索（新方案）
+     * @param soupId 海龟汤ID
+     * @param aiInferenceTasks AI生成的推理任务（taskOrder为1,2,3等）
+     * @param aiFragments AI拆解的线索片段
+     */
+    @Transactional
+    public void generateInferenceTasksWithAITasks(String soupId, List<Map<String, Object>> aiInferenceTasks, List<ClueFragment> aiFragments) {
+        try {
+            if (aiInferenceTasks == null || aiInferenceTasks.isEmpty()) {
+                log.warn("AI未生成推理任务，使用默认方案");
+                generateInferenceTasksWithClueAssociation(soupId, aiFragments);
+                return;
+            }
+
+            log.info("开始使用AI生成的推理任务，任务数量: {}", aiInferenceTasks.size());
+
+            // 保存AI生成的推理任务并获取真实ID
+            Map<Integer, Long> taskOrderToIdMap = new HashMap<>();
+
+            for (Map<String, Object> taskData : aiInferenceTasks) {
+                try {
+                    // 解析AI任务数据
+                    String taskName = (String) taskData.get("taskName");
+                    String description = (String) taskData.get("description");
+                    Integer understandingLevel = (Integer) taskData.getOrDefault("understandingLevel", 1);
+                    List<String> targetKeywords = (List<String>) taskData.getOrDefault("targetKeywords", new ArrayList<>());
+                    String reasoningGoal = (String) taskData.get("reasoningGoal");
+                    Double progressWeight = ((Number) taskData.getOrDefault("progressWeight", 30.0)).doubleValue();
+                    Boolean isMandatory = (Boolean) taskData.getOrDefault("isMandatory", false);
+                    Integer taskOrder = (Integer) taskData.getOrDefault("taskOrder", 1);
+
+                    // 创建推理任务对象
+                    InferenceTask task = new InferenceTask(soupId, taskName, description, understandingLevel);
+                    task.setReasoningGoal(reasoningGoal);
+                    task.setProgressWeight(progressWeight);
+                    task.setIsMandatory(isMandatory);
+                    task.setTaskOrder(taskOrder);
+
+                    // 保存任务并获取真实ID
+                    InferenceTask savedTask = inferenceTaskRepository.save(task);
+                    taskOrderToIdMap.put(taskOrder, savedTask.getTaskId());
+
+                    log.info("保存AI推理任务成功: taskOrder={}, taskName={}, taskId={}",
+                        taskOrder, taskName, savedTask.getTaskId());
+
+                } catch (Exception e) {
+                    log.error("保存AI推理任务失败", e);
+                }
+            }
+
+            // 如果AI任务保存失败，回退到默认方案
+            if (taskOrderToIdMap.isEmpty()) {
+                log.warn("AI推理任务全部保存失败，使用默认方案");
+                generateInferenceTasksWithClueAssociation(soupId, aiFragments);
+                return;
+            }
+
+            // 更新线索片段的任务关联（将AI返回的taskOrder 1,2,3替换为真实ID）
+            int updatedFragments = 0;
+            for (ClueFragment fragment : aiFragments) {
+                try {
+                    if (fragment.getAssociatedTaskIds() != null && !fragment.getAssociatedTaskIds().isEmpty()) {
+                        List<Integer> taskOrders = fragment.getAssociatedTaskIds();
+                        List<Integer> realTaskIds = taskOrders.stream()
+                                .filter(taskOrderToIdMap::containsKey)
+                                .map(taskOrderToIdMap::get)
+                                .map(Long::intValue)  // 转换Long到Integer
+                                .collect(java.util.stream.Collectors.toList());
+
+                        // 只有成功关联到真实任务的线索才更新
+                        if (!realTaskIds.isEmpty()) {
+                            fragment.setAssociatedTaskIds(realTaskIds);
+                            clueFragmentRepository.save(fragment);
+                            updatedFragments++;
+
+                            log.debug("更新线索片段任务关联: fragmentId={}, taskOrders={}, realTaskIds={}",
+                                fragment.getFragmentId(), taskOrders, realTaskIds);
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("更新线索片段任务关联失败: fragmentId={}", fragment.getFragmentId(), e);
+                }
+            }
+
+            log.info("AI推理任务生成完成: soupId={}, 任务数量={}, 关联线索数量={}",
+                soupId, taskOrderToIdMap.size(), updatedFragments);
+
+        } catch (Exception e) {
+            log.error("使用AI推理任务失败，回退到默认方案: soupId={}", soupId, e);
+            generateInferenceTasksWithClueAssociation(soupId, aiFragments);
+        }
+    }
+
+    /**
+     * 更新现有线索片段的任务关联ID
+     * 用于当推理任务更新后，将真实任务ID更新到线索的associatedTaskIds字段
+     * @param soupId 海龟汤ID
+     */
+    @Transactional
+    public void updateClueFragmentTaskAssociations(String soupId) {
+        try {
+            log.info("开始更新海龟汤线索片段的任务关联: soupId={}", soupId);
+
+            // 获取该海龟汤的所有推理任务
+            List<InferenceTask> tasks = inferenceTaskRepository.findBySoupIdAndIsDeletedFalseOrderByTaskOrderAsc(soupId);
+            if (tasks.isEmpty()) {
+                log.warn("未找到海龟汤的推理任务: soupId={}", soupId);
+                return;
+            }
+
+            // 创建taskOrder到taskId的映射
+            Map<Integer, Long> taskOrderToIdMap = tasks.stream()
+                    .collect(Collectors.toMap(
+                        InferenceTask::getTaskOrder,
+                        InferenceTask::getTaskId
+                    ));
+
+            log.info("找到推理任务映射: {}", taskOrderToIdMap);
+
+            // 获取该海龟汤的所有线索片段
+            List<ClueFragment> fragments = clueFragmentRepository.findBySoupIdAndIsDeletedFalse(soupId);
+
+            int updatedCount = 0;
+            for (ClueFragment fragment : fragments) {
+                try {
+                    List<Integer> associatedTaskIds = fragment.getAssociatedTaskIds();
+
+                    // 跳过没有任务关联的线索
+                    if (associatedTaskIds == null || associatedTaskIds.isEmpty()) {
+                        continue;
+                    }
+
+                    // 将taskOrder替换为真实的taskId
+                    List<Integer> realTaskIds = associatedTaskIds.stream()
+                            .filter(taskOrderToIdMap::containsKey)
+                            .map(taskOrderToIdMap::get)
+                            .map(Long::intValue)  // 转换Long到Integer
+                            .distinct()
+                            .collect(Collectors.toList());
+
+                    // 只有当任务ID发生变化时才更新
+                    if (!realTaskIds.equals(associatedTaskIds)) {
+                        fragment.setAssociatedTaskIds(realTaskIds);
+                        clueFragmentRepository.save(fragment);
+                        updatedCount++;
+
+                        log.info("更新线索片段任务关联: fragmentId={}, fragmentContent={}, oldTaskIds={}, newTaskIds={}",
+                            fragment.getFragmentId(),
+                            fragment.getFragmentContent().length() > 50 ? fragment.getFragmentContent().substring(0, 50) + "..." : fragment.getFragmentContent(),
+                            associatedTaskIds,
+                            realTaskIds);
+                    }
+                } catch (Exception e) {
+                    log.error("更新线索片段任务关联失败: fragmentId={}, error={}", fragment.getFragmentId(), e.getMessage());
+                }
+            }
+
+            log.info("海龟汤线索片段任务关联更新完成: soupId={}, 总线索数={}, 更新线索数={}",
+                soupId, fragments.size(), updatedCount);
+
+        } catch (Exception e) {
+            log.error("更新海龟汤线索片段任务关联失败: soupId={}", soupId, e);
         }
     }
 

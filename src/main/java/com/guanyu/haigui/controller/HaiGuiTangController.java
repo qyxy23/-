@@ -1,15 +1,15 @@
 package com.guanyu.haigui.controller;
 
+import com.guanyu.haigui.pojo.dto.TitleGenerateDTO;
 import com.guanyu.haigui.pojo.dto.TurtleSoupDTO;
 import com.guanyu.haigui.pojo.dto.TurtleSoupEnhanceDTO;
 import com.guanyu.haigui.pojo.dto.TurtleSoupSignalDTO;
-import com.guanyu.haigui.pojo.dto.TitleGenerateDTO;
 import com.guanyu.haigui.pojo.vo.BatchEncodeResponse;
 import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
 import com.guanyu.haigui.pojo.vo.TitleGenerateResultVO;
 import com.guanyu.haigui.pojo.vo.TurtleSoupEnhanceResultVO;
 import com.guanyu.haigui.result.Result;
-import com.guanyu.haigui.service.ServicesImpl.haiGuiTangServiceImpl;
+import com.guanyu.haigui.service.ServicesImpl.HaiGuiTangServiceImpl;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @Tag(name = "海龟汤接口", description = "海龟汤接口")
 public class HaiGuiTangController {
-    private final haiGuiTangServiceImpl haiGuiTangService;
+    private final HaiGuiTangServiceImpl haiGuiTangService;
 
     @Operation(summary = "调用ai生成相对应的主持人手册模块")
     @PostMapping("/generateHostManual")
@@ -82,4 +82,6 @@ public class HaiGuiTangController {
             return Result.error("标题生成失败: " + e.getMessage());
         }
     }
+
+
 }

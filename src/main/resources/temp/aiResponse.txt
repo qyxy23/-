@@ -1,11 +1,228 @@
 {
-  "code": 1,
-  "msg": null,
-  "data": {
-    "progressSettings": "[{\"taskName\":\"询问旅行地点\",\"description\":\"询问玩家和父母旅行的地点\",\"difficulty\":\"easy\",\"increment\":20.0},{\"taskName\":\"了解意外情况\",\"description\":\"了解旅行回来时遇到的意外\",\"difficulty\":\"medium\",\"increment\":30.0},{\"taskName\":\"探究墓碑文字\",\"description\":\"探究孙子给父母墓碑上的文字\",\"difficulty\":\"hard\",\"increment\":50.0}]",
-    "keyClues": "[{\"content\":\"星际旅行\",\"isKey\":true,\"clueType\":\"PLACE\"},{\"content\":\"虫洞\",\"isKey\":true,\"clueType\":\"PLOT\"},{\"content\":\"亚当和夏娃\",\"isKey\":true,\"clueType\":\"CHARACTER\"}]",
-    "hostManual": "游戏开始后，玩家提问，主持人根据玩家提问给出是或不是的回答。玩家通过提问逐步获取线索，完成任务。任务1询问旅行地点，玩家答对则进度增加20.0；任务2了解意外情况，玩家答对则进度增加30.0；任务3探究墓碑文字，玩家答对则进度增加50.0。当进度达到100.0时游戏结束。",
-    "status": "success",
-    "promptType": "TYPE_1_SURFACE_BOTTOM_ONLY"
-  }
+  "fragments": [
+    {
+      "content": "我和爸妈一起去旅行，回来时出了意外",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 1,
+      "difficulty": 3,
+      "importance": 5,
+      "keywords": ["旅行", "意外"],
+      "isCoreClue": false,
+      "similarityThreshold": 0.6,
+      "associatedTaskIds": [1],
+      "order": 1,
+      "source": "AI"
+    },
+    {
+      "content": "爸妈立马打算要二胎",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 1,
+      "difficulty": 3,
+      "importance": 5,
+      "keywords": ["二胎", "打算"],
+      "isCoreClue": false,
+      "similarityThreshold": 0.6,
+      "associatedTaskIds": [1, 2],
+      "order": 2,
+      "source": "AI"
+    },
+    {
+      "content": "五十年后，儿孙满堂，爸妈去世了",
+      "fragmentType": "TIME",
+      "inferenceLevel": 1,
+      "difficulty": 3,
+      "importance": 5,
+      "keywords": ["五十年后", "儿孙满堂", "去世"],
+      "isCoreClue": false,
+      "similarityThreshold": 0.6,
+      "associatedTaskIds": [1, 3],
+      "order": 3,
+      "source": "AI"
+    },
+    {
+      "content": "我的孙子给爸妈操办了葬礼",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 1,
+      "difficulty": 3,
+      "importance": 5,
+      "keywords": ["孙子", "葬礼", "操办"],
+      "isCoreClue": false,
+      "similarityThreshold": 0.6,
+      "associatedTaskIds": [1, 3],
+      "order": 4,
+      "source": "AI"
+    },
+    {
+      "content": "我看着墓碑上的文字，突然头皮发麻",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 1,
+      "difficulty": 4,
+      "importance": 6,
+      "keywords": ["墓碑文字", "头皮发麻"],
+      "isCoreClue": false,
+      "similarityThreshold": 0.7,
+      "associatedTaskIds": [1, 4],
+      "order": 5,
+      "source": "AI"
+    },
+    {
+      "content": "在科技极度发展后的未来，人类可以在宇宙中旅行",
+      "fragmentType": "TIME",
+      "inferenceLevel": 2,
+      "difficulty": 5,
+      "importance": 7,
+      "keywords": ["未来", "科技发展", "宇宙旅行"],
+      "isCoreClue": false,
+      "similarityThreshold": 0.7,
+      "associatedTaskIds": [2],
+      "order": 6,
+      "source": "AI"
+    },
+    {
+      "content": "星际旅行，回到地球时遇到虫洞",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 2,
+      "difficulty": 6,
+      "importance": 8,
+      "keywords": ["星际旅行", "虫洞", "地球"],
+      "isCoreClue": true,
+      "similarityThreshold": 0.8,
+      "associatedTaskIds": [2, 3],
+      "order": 7,
+      "source": "AUGMENTED_USER"
+    },
+    {
+      "content": "地球上没有人类生活的痕迹",
+      "fragmentType": "PLACE",
+      "inferenceLevel": 2,
+      "difficulty": 6,
+      "importance": 8,
+      "keywords": ["地球", "无人类痕迹"],
+      "isCoreClue": true,
+      "similarityThreshold": 0.8,
+      "associatedTaskIds": [2, 3],
+      "order": 8,
+      "source": "AI"
+    },
+    {
+      "content": "我们误以为穿越到人类文明灭绝的未来",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 3,
+      "difficulty": 7,
+      "importance": 9,
+      "keywords": ["误以为", "未来", "文明灭绝"],
+      "isCoreClue": true,
+      "similarityThreshold": 0.9,
+      "associatedTaskIds": [3],
+      "order": 9,
+      "source": "AI"
+    },
+    {
+      "content": "父母察觉我们可能是人类最后的火种，开始繁衍后代",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 3,
+      "difficulty": 8,
+      "importance": 9,
+      "keywords": ["父母", "火种", "繁衍后代"],
+      "isCoreClue": true,
+      "similarityThreshold": 0.9,
+      "associatedTaskIds": [3],
+      "order": 10,
+      "source": "AI"
+    },
+    {
+      "content": "五十年后繁衍出自己的部落",
+      "fragmentType": "TIME",
+      "inferenceLevel": 3,
+      "difficulty": 7,
+      "importance": 8,
+      "keywords": ["五十年后", "部落", "繁衍"],
+      "isCoreClue": true,
+      "similarityThreshold": 0.8,
+      "associatedTaskIds": [3],
+      "order": 11,
+      "source": "AI"
+    },
+    {
+      "content": "孙子在墓碑上尊称父母为亚当和夏娃",
+      "fragmentType": "CHARACTER",
+      "inferenceLevel": 3,
+      "difficulty": 8,
+      "importance": 9,
+      "keywords": ["孙子", "墓碑", "亚当和夏娃"],
+      "isCoreClue": true,
+      "similarityThreshold": 0.9,
+      "associatedTaskIds": [4],
+      "order": 12,
+      "source": "AUGMENTED_USER"
+    },
+    {
+      "content": "我们其实是穿越到了几十万年前的地球",
+      "fragmentType": "TIME",
+      "inferenceLevel": 4,
+      "difficulty": 9,
+      "importance": 10,
+      "keywords": ["其实", "穿越", "几十万年前", "地球"],
+      "isCoreClue": true,
+      "similarityThreshold": 1.0,
+      "associatedTaskIds": [4],
+      "order": 13,
+      "source": "AI"
+    },
+    {
+      "content": "我的父母成为了人类的祖先",
+      "fragmentType": "CHARACTER",
+      "inferenceLevel": 4,
+      "difficulty": 9,
+      "importance": 10,
+      "keywords": ["父母", "人类祖先"],
+      "isCoreClue": true,
+      "similarityThreshold": 1.0,
+      "associatedTaskIds": [4],
+      "order": 14,
+      "source": "AI"
+    }
+  ],
+  "inferenceTasks": [
+    {
+      "taskName": "了解故事基本情节",
+      "description": "梳理汤面中所描述的主要事件和时间顺序",
+      "understandingLevel": 1,
+      "targetKeywords": ["旅行", "意外", "二胎", "五十年后", "葬礼"],
+      "reasoningGoal": "能够清晰复述汤面中的基本情节",
+      "progressWeight": 20.0,
+      "isMandatory": true,
+      "taskOrder": 1
+    },
+    {
+      "taskName": "推测旅行意外的性质",
+      "description": "根据已知线索，推断旅行回来时出的意外与星际旅行、虫洞的关系",
+      "understandingLevel": 2,
+      "targetKeywords": ["星际旅行", "虫洞", "地球", "无人类痕迹"],
+      "reasoningGoal": "能够合理推测出意外是遇到虫洞并导致回到了没有人类痕迹的地球",
+      "progressWeight": 20.0,
+      "isMandatory": true,
+      "taskOrder": 2
+    },
+    {
+      "taskName": "分析父母行为的原因",
+      "description": "结合前面的线索，思考父母打算要二胎以及繁衍后代的动机",
+      "understandingLevel": 3,
+      "targetKeywords": ["误以为", "未来", "文明灭绝", "火种", "繁衍后代"],
+      "reasoningGoal": "能够理解父母是因为误以为穿越到人类文明灭绝的未来，想成为人类最后的火种而繁衍后代",
+      "progressWeight": 30.0,
+      "isMandatory": true,
+      "taskOrder": 3
+    },
+    {
+      "taskName": "揭示故事的真相",
+      "description": "综合所有线索，推理出故事的真正结局以及“一切都错了”的含义",
+      "understandingLevel": 4,
+      "targetKeywords": ["其实", "穿越", "几十万年前", "地球", "亚当和夏娃", "人类祖先"],
+      "reasoningGoal": "能够准确说出我们其实是穿越到了几十万年前的地球，父母成为了人类的祖先",
+      "progressWeight": 30.0,
+      "isMandatory": true,
+      "taskOrder": 4
+    }
+  ]
 }
