@@ -4,13 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.context.BaseContext;
-import com.guanyu.haigui.manager.AIManager;
 import com.guanyu.haigui.pojo.dto.CreateHaiGuiSoupDTO;
 import com.guanyu.haigui.pojo.model.*;
 import com.guanyu.haigui.pojo.result.DecompositionResult;
 import com.guanyu.haigui.pojo.vo.ClueMatchResult;
 import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
-import com.guanyu.haigui.pojo.vo.SoupRankInfo;
 import com.guanyu.haigui.repository.ClueFragmentRepository;
 import com.guanyu.haigui.repository.HaiGuiSoupRepository;
 import com.guanyu.haigui.repository.InferenceTaskRepository;
@@ -21,12 +19,14 @@ import com.guanyu.haigui.utils.RedisStackClient;
 import com.guanyu.haigui.utils.SoupJsonParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.MessageDigest;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -39,11 +39,9 @@ import java.util.stream.Collectors;
 public class TurtleSoupService {
 
     private final VectorService vectorService;
-    private final HaiGuiVectorService haiGuiVectorService;
     private final RedisStackClient redisClient;
     private final BgeVectorClientUtil vectorClient;
     private final UserInfoRepository userInfoRepository;
-    private final HaiGuiRankingService haiGuiRankingService;
     private final SoupJsonParser soupJsonParser;
     private final HaiGuiSoupRepository haiGuiSoupRepository;
     private final ClueFragmentRepository clueFragmentRepository;
@@ -55,8 +53,6 @@ public class TurtleSoupService {
 
     private final boolean debugMode = false;
 
-    @Autowired
-    private AIManager aiManager;
 
     /**
      * 新增海龟汤（包含向量化处理和智能线索解析）
@@ -118,13 +114,12 @@ public class TurtleSoupService {
 
             // 2. 使用AI拆解汤底并分析用户线索（合并处理）
             List<ClueFragment> aiFragments = new ArrayList<>();
-            List<Map<String, Object>> aiInferenceTasks = new ArrayList<>();
+            List<Map<String, Object>> aiInferenceTasks;
             try {
                 log.info("开始为海龟汤生成AI拆解的线索片段和推理任务，同时分析用户线索，用户线索数量: {}", clues.size());
 
                 // 使用ClueDecompositionService拆解汤底并分析用户线索
-                DecompositionResult decompositionResult =
-                    clueDecompositionService.decomposeSoupBottomWithUserClues(
+                DecompositionResult decompositionResult = clueDecompositionService.decomposeSoupBottomWithUserClues(
                         savedSoup.getSoupTitle(),
                         savedSoup.getSoupSurface(),
                         savedSoup.getSoupBottom(),
@@ -134,11 +129,70 @@ public class TurtleSoupService {
                 aiFragments = decompositionResult.getFragments();
                 aiInferenceTasks = decompositionResult.getInferenceTasks();
 
-                // 3. 保存AI生成的线索片段到数据库并存储到Redis
+                log.info("AI拆解完成，生成{}个片段和{}个推理任务", aiFragments.size(), aiInferenceTasks.size());
+
+                // 3. 优先生成推理任务（关键修复：先生成任务）
+                Map<Integer, Long> taskOrderToIdMap = new HashMap<>();
+                if (aiInferenceTasks != null && !aiInferenceTasks.isEmpty()) {
+                    log.info("开始保存AI生成的推理任务，任务数量: {}", aiInferenceTasks.size());
+
+                    for (Map<String, Object> taskData : aiInferenceTasks) {
+                        try {
+                            // 解析AI任务数据
+                            String taskName = (String) taskData.get("taskName");
+                            String description = (String) taskData.get("description");
+                            Integer understandingLevel = (Integer) taskData.getOrDefault("understandingLevel", 1);
+                            String reasoningGoal = (String) taskData.get("reasoningGoal");
+                            Double progressWeight = ((Number) taskData.getOrDefault("progressWeight", 30.0)).doubleValue();
+                            Boolean isMandatory = (Boolean) taskData.getOrDefault("isMandatory", false);
+                            Integer taskOrder = (Integer) taskData.getOrDefault("taskOrder", 1);
+
+                            // 创建推理任务对象
+                            InferenceTask task = new InferenceTask(savedSoup.getSoupId(), taskName, description, understandingLevel);
+                            task.setReasoningGoal(reasoningGoal);
+                            task.setProgressWeight(progressWeight);
+                            task.setIsMandatory(isMandatory);
+                            task.setTaskOrder(taskOrder);
+
+                            // 保存任务并获取真实ID
+                            InferenceTask savedTask = inferenceTaskRepository.save(task);
+                            taskOrderToIdMap.put(taskOrder, savedTask.getTaskId());
+
+                            log.info("保存AI推理任务成功: taskOrder={}, taskName={}, taskId={}",
+                                taskOrder, taskName, savedTask.getTaskId());
+
+                        } catch (Exception e) {
+                            log.error("保存AI推理任务失败", e);
+                        }
+                    }
+                }
+
+                // 如果AI任务保存失败，生成默认任务
+                if (taskOrderToIdMap.isEmpty()) {
+                    log.warn("AI推理任务全部保存失败，生成默认推理任务");
+                    taskOrderToIdMap = generateDefaultInferenceTasks(savedSoup.getSoupId());
+                }
+
+                // 4. 保存AI生成的线索片段到数据库（现在有了任务ID）
                 for (ClueFragment fragment : aiFragments) {
                     fragment.setSoupId(savedSoup.getSoupId());
                     // 确保fragmentId为null，让JPA自动生成
                     fragment.setFragmentId(null);
+
+                    // 关键修复：将任务序号转换为真实的任务ID
+                    if (fragment.getAssociatedTaskIds() != null && !fragment.getAssociatedTaskIds().isEmpty()) {
+                        List<Integer> taskOrders = fragment.getAssociatedTaskIds();
+                        List<Integer> realTaskIds = taskOrders.stream()
+                                .filter(taskOrderToIdMap::containsKey)
+                                .map(taskOrderToIdMap::get)
+                                .map(Long::intValue)  // 转换Long到Integer
+                                .collect(java.util.stream.Collectors.toList());
+
+                        fragment.setAssociatedTaskIds(realTaskIds);
+                        log.debug("更新线索片段任务关联: fragmentContent={}, taskOrders={}, realTaskIds={}",
+                            fragment.getFragmentContent(), taskOrders, realTaskIds);
+                    }
+
                     ClueFragment savedFragment = clueFragmentRepository.save(fragment);
 
                     // 将AI生成的线索片段向量存储到Redis
@@ -169,8 +223,8 @@ public class TurtleSoupService {
                                     savedFragment.getIsCoreClue());
                             redisClient.getCommands().set(metadataKey, metadata);
 
-                            log.info("AI线索片段向量存储到Redis成功: soupId={}, fragmentId={}, dimension={}",
-                                    savedSoup.getSoupId(), savedFragment.getFragmentId(), floatVector.size());
+                            log.info("AI线索片段向量存储到Redis成功: soupId={}, fragmentId={}, dimension={}, taskIds={}",
+                                    savedSoup.getSoupId(), savedFragment.getFragmentId(), floatVector.size(), savedFragment.getAssociatedTaskIds());
                         } else {
                             log.warn("AI线索片段缺少向量数据或ID: fragmentId={}, hasVector={}",
                                     savedFragment.getFragmentId(),
@@ -183,10 +237,7 @@ public class TurtleSoupService {
                     }
                 }
 
-                log.info("AI拆解线索片段完成，生成{}个片段和{}个推理任务", aiFragments.size(), aiInferenceTasks.size());
-
-                // AI拆解成功时，使用AI生成的推理任务并关联线索
-                generateInferenceTasksWithAITasks(savedSoup.getSoupId(), aiInferenceTasks, aiFragments);
+                log.info("AI拆解线索片段完成，生成{}个片段和{}个推理任务", aiFragments.size(), taskOrderToIdMap.size());
 
             } catch (Exception e) {
                 log.warn("AI拆解线索片段失败: {}", e.getMessage());
@@ -265,7 +316,7 @@ public class TurtleSoupService {
                         result.setSimilarity(similarity);
 
                         // 计算匹配原因
-                        String matchReason = generateMatchReason(question, fragment.getFragmentContent(), similarity);
+                        String matchReason = generateMatchReason(similarity);
                         result.setMatchReason(matchReason);
 
                         results.add(result);
@@ -295,7 +346,7 @@ public class TurtleSoupService {
     /**
      * 生成匹配原因说明
      */
-    private String generateMatchReason(String question, String fragmentContent, double similarity) {
+    private String generateMatchReason(double similarity) {
         if (similarity > 0.8) {
             return "高度相关，与问题非常匹配";
         } else if (similarity > 0.6) {
@@ -307,172 +358,6 @@ public class TurtleSoupService {
         }
     }
 
-    /**
-     * 根据玩家问题检索相似海龟汤（向量搜索）
-     *
-     * @param question 玩家输入的问题
-     * @param topK     返回前K个结果
-     * @return 匹配的海龟汤ID及其相似度分数
-     */
-    public Map<String, Double> findMatchingSoup(String question, int topK) {
-        try {
-            log.info("开始搜索相似海龟汤: question={}, topK={}", question, topK);
-
-            // 优先使用Redis向量搜索，如果失败则使用原有方法
-            try {
-                return findMatchingSoupWithRedis(question, topK);
-            } catch (Exception redisEx) {
-                log.warn("Redis向量搜索失败，使用原有方法: {}", redisEx.getMessage());
-                return haiGuiVectorService.searchSimilarSoups(question, topK);
-            }
-
-        } catch (Exception e) {
-            log.error("搜索相似海龟汤失败: question={}", question, e);
-            return Map.of();
-        }
-    }
-
-    /**
-     * 使用Redis搜索相似海龟汤（基于片段向量）
-     *
-     * @param question 玩家输入的问题
-     * @param topK     返回前K个结果
-     * @return 匹配的海龟汤ID及其相似度分数
-     */
-    public Map<String, Double> findMatchingSoupWithRedis(String question, int topK) {
-        try {
-            log.info("使用Redis搜索相似海龟汤: question={}, topK={}", question, topK);
-
-            // 1. 将问题向量化
-            com.guanyu.haigui.pojo.vo.SingleEncodeResponse response = vectorClient.encodeSingle(question);
-            List<Float> queryVector = response.getEmbeddings().get(0);
-
-            // 2. 优先使用新的搜索方法（全局搜索）
-            Map<String, Double> fragmentResults = redisClient.searchSimilarClueFragments(
-                    queryVector, null, topK * 3); // 搜索更多片段，后续按海龟汤聚合
-
-            // 3. 将片段相似度聚合为海龟汤相似度
-            Map<String, List<Double>> soupSimilarities = new HashMap<>();
-            for (Map.Entry<String, Double> entry : fragmentResults.entrySet()) {
-                String fragmentId = entry.getKey();
-                Double similarity = entry.getValue();
-
-                // 根据片段ID查找海龟汤ID（使用Redis元数据或数据库查询）
-                String soupId = null;
-                try {
-                    // 首先尝试从Redis元数据获取
-                    String metadataKey = String.format("hai_gui:fragment:%s:meta", fragmentId);
-                    String metadata = redisClient.getCommands().get(metadataKey);
-                    if (metadata != null && !metadata.isEmpty()) {
-                        // 从JSON中解析soupId
-                        soupId = extractSoupIdFromMetadata(metadata);
-                    }
-
-                    // 如果Redis中没有，则从数据库查询
-                    if (soupId == null) {
-                        Long fragId = Long.parseLong(fragmentId);
-                        ClueFragment fragment = clueFragmentRepository.findById(fragId).orElse(null);
-                        if (fragment != null && fragment.getSoupId() != null) {
-                            soupId = fragment.getSoupId();
-                        }
-                    }
-
-                    if (soupId != null) {
-                        soupSimilarities.computeIfAbsent(soupId, k -> new ArrayList<>()).add(similarity);
-                    }
-                } catch (Exception ex) {
-                    log.warn("解析片段ID失败: fragmentId={}, error={}", fragmentId, ex.getMessage());
-                }
-            }
-
-            // 4. 计算每个海龟汤的综合相似度
-            Map<String, Double> results = new HashMap<>();
-            for (Map.Entry<String, List<Double>> entry : soupSimilarities.entrySet()) {
-                String soupId = entry.getKey();
-                List<Double> similarities = entry.getValue();
-
-                // 使用加权平均：最高相似度权重更大，片段数量也有影响
-                double maxSimilarity = similarities.stream()
-                        .mapToDouble(Double::doubleValue)
-                        .max()
-                        .orElse(0.0);
-
-                double avgSimilarity = similarities.stream()
-                        .mapToDouble(Double::doubleValue)
-                        .average()
-                        .orElse(0.0);
-
-                // 综合相似度：最高相似度 * 0.7 + 平均相似度 * 0.3
-                double combinedSimilarity = maxSimilarity * 0.7 + avgSimilarity * 0.3;
-
-                results.put(soupId, combinedSimilarity);
-            }
-
-            // 5. 按相似度排序并返回topK结果
-            return results.entrySet().stream()
-                    .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
-                    .limit(topK)
-                    .collect(Collectors.toMap(
-                            Map.Entry::getKey,
-                            Map.Entry::getValue,
-                            (oldValue, newValue) -> oldValue,
-                            LinkedHashMap::new
-                    ));
-
-        } catch (Exception e) {
-            log.error("Redis搜索相似海龟汤失败: question={}", question, e);
-            throw e; // 重新抛出异常，让上层方法使用备选方案
-        }
-    }
-
-    /**
-     * 从元数据中提取海龟汤ID
-     */
-    private String extractSoupIdFromMetadata(String metadata) {
-        try {
-            // 简单的JSON解析，提取soupId
-            int soupIdIndex = metadata.indexOf("\"soupId\":\"");
-            if (soupIdIndex >= 0) {
-                int start = soupIdIndex + 10; // "\"soupId\":\"".length()
-                int end = metadata.indexOf("\"", start);
-                if (end > start) {
-                    return metadata.substring(start, end);
-                }
-            }
-            return null;
-        } catch (Exception e) {
-            log.warn("解析元数据失败: metadata={}", metadata, e);
-            return null;
-        }
-    }
-
-    /**
-     * 更新海龟汤信息（包含向量更新）
-     *
-     * @param soup 更新后的海龟汤对象
-     * @return 是否成功
-     */
-    public boolean updateTurtleSoup(HaiGuiSoup soup) {
-        try {
-            log.info("开始更新海龟汤: soupId={}", soup.getSoupId());
-
-            // 获取关联的线索
-            // 使用新的线索片段表
-            List<ClueFragment> fragments = clueFragmentRepository.findBySoupIdAndIsDeletedFalse(soup.getSoupId());
-            // 注意：vectorizeAndStoreSoupContext方法需要适配新的数据结构
-            // boolean vectorSuccess = vectorService.vectorizeAndStoreSoupContext(soup, fragments);
-
-            // 使用新的向量服务更新向量数据
-            log.info("向量更新功能暂时跳过: soupId={}", soup.getSoupId());
-
-            log.info("海龟汤更新成功: soupId={}", soup.getSoupId());
-            return true;
-
-        } catch (Exception e) {
-            log.error("更新海龟汤失败: soupId={}", soup.getSoupId(), e);
-            return false;
-        }
-    }
 
     /**
      * 删除海龟汤（包含向量数据清理）
@@ -501,123 +386,6 @@ public class TurtleSoupService {
         }
     }
 
-    /**
-     * 批量向量化现有海龟汤
-     *
-     * @param soups 海龟汤列表
-     * @return 成功数量
-     */
-    public int batchVectorizeSoups(List<HaiGuiSoup> soups) {
-        log.info("开始批量向量化海龟汤: count={}", soups.size());
-        return haiGuiVectorService.batchVectorizeSoups(soups);
-    }
-
-    /**
-     * 获取海龟汤推荐（基于向量相似度）
-     *
-     * @param soupId 基准海龟汤ID
-     * @param topK   推荐数量
-     * @return 推荐的海龟汤ID及其相似度分数
-     */
-    public Map<String, Double> recommendSoups(String soupId, int topK) {
-        try {
-            log.info("开始获取海龟汤推荐: soupId={}, topK={}", soupId, topK);
-
-            // 获取基准海龟汤的汤面向量
-            List<Float> soupVector = haiGuiVectorService.getSoupVector(soupId, "SURFACE");
-            if (soupVector == null || soupVector.isEmpty()) {
-                log.error("获取基准海龟汤向量失败: soupId={}", soupId);
-                return Map.of();
-            }
-
-            // 基于向量搜索推荐相似海龟汤
-            return redisClient.searchSimilarSoups(soupVector, "SURFACE", topK);
-
-        } catch (Exception e) {
-            log.error("获取海龟汤推荐失败: soupId={}", soupId, e);
-            return Map.of();
-        }
-    }
-
-    /**
-     * 检查海龟汤是否已向量化
-     *
-     * @param soupId 海龟汤ID
-     * @return 是否已向量化
-     */
-    public boolean isSoupVectorized(String soupId) {
-        try {
-            return vectorService.isSoupVectorized(soupId);
-
-        } catch (Exception e) {
-            log.error("检查海龟汤向量化状态失败: soupId={}", soupId, e);
-            return false;
-        }
-    }
-
-    /**
-     * 记录用户玩海龟汤的行为（自动记录播放行为）
-     *
-     * @param soupId 海龟汤ID
-     */
-    public void recordPlayAction(String soupId) {
-        try {
-            Long userId = BaseContext.getCurrentId();
-            haiGuiRankingService.recordUserAction(soupId, userId, "play");
-            log.info("记录用户播放行为: userId={}, soupId={}", userId, soupId);
-
-        } catch (Exception e) {
-            log.error("记录用户播放行为失败: soupId={}", soupId, e);
-        }
-    }
-
-    /**
-     * 记录用户点赞行为
-     *
-     * @param soupId 海龟汤ID
-     */
-    public void recordLikeAction(String soupId) {
-        try {
-            Long userId = BaseContext.getCurrentId();
-            haiGuiRankingService.recordUserAction(soupId, userId, "like");
-            log.info("记录用户点赞行为: userId={}, soupId={}", userId, soupId);
-
-        } catch (Exception e) {
-            log.error("记录用户点赞行为失败: soupId={}", soupId, e);
-        }
-    }
-
-    /**
-     * 记录用户分享行为
-     *
-     * @param soupId 海龟汤ID
-     */
-    public void recordShareAction(String soupId) {
-        try {
-            Long userId = BaseContext.getCurrentId();
-            haiGuiRankingService.recordUserAction(soupId, userId, "share");
-            log.info("记录用户分享行为: userId={}, soupId={}", userId, soupId);
-
-        } catch (Exception e) {
-            log.error("记录用户分享行为失败: soupId={}", soupId, e);
-        }
-    }
-
-    /**
-     * 记录用户评论行为
-     *
-     * @param soupId 海龟汤ID
-     */
-    public void recordCommentAction(String soupId) {
-        try {
-            Long userId = BaseContext.getCurrentId();
-            haiGuiRankingService.recordUserAction(soupId, userId, "comment");
-            log.info("记录用户评论行为: userId={}, soupId={}", userId, soupId);
-
-        } catch (Exception e) {
-            log.error("记录用户评论行为失败: soupId={}", soupId, e);
-        }
-    }
 
     /**
      * 获取海龟汤的线索（兼容新旧两种格式）
@@ -636,7 +404,7 @@ public class TurtleSoupService {
             }
 
             // 尝试解析为线索ID列表（新格式）
-            List<String> clueIds = deserializeClueIds(soup.getKeyClues());
+            List clueIds = deserializeClueIds(soup.getKeyClues());
             if (!clueIds.isEmpty()) {
                 // 新格式：使用线索片段表
                 List<ClueFragment> fragments = clueFragmentRepository.findBySoupIdAndIsDeletedFalse(soupId);
@@ -670,381 +438,7 @@ public class TurtleSoupService {
         }
     }
 
-    /**
-     * 获取海龟汤的关键线索（兼容新旧两种格式）
-     *
-     * @param soupId 海龟汤ID
-     * @return 关键线索列表
-     */
-    public List<GameClue> getSoupKeyClues(String soupId) {
-        try {
-            HaiGuiSoup soup = haiGuiSoupRepository.findById(soupId).orElse(null);
-            if (soup == null || soup.getKeyClues() == null) {
-                log.warn("海龟汤不存在或keyClues为空: soupId={}", soupId);
-                return List.of();
-            }
 
-            // 尝试解析为线索ID列表（新格式）
-            List<String> clueIds = deserializeClueIds(soup.getKeyClues());
-            if (!clueIds.isEmpty()) {
-                // 新格式：使用线索片段表查询核心线索
-                List<ClueFragment> fragments = clueFragmentRepository.findBySoupIdAndIsCoreClueTrueAndIsDeletedFalse(soupId);
-                List<GameClue> gameClues = fragments.stream()
-                        .map(fragment -> {
-                            GameClue clue = new GameClue();
-                            clue.setContent(fragment.getFragmentContent());
-                            try {
-                                clue.setClueType(com.guanyu.haigui.Enum.ClueType.valueOf(fragment.getFragmentType()));
-                            } catch (Exception e) {
-                                clue.setClueType(com.guanyu.haigui.Enum.ClueType.PLOT);
-                            }
-                            clue.setIsKey(true);
-                            return clue;
-                        })
-                        .toList();
-
-                log.info("获取海龟汤关键线索成功（新格式）: soupId={}, 关键线索数量={}", soupId, gameClues.size());
-                return gameClues;
-            }
-
-            // 如果解析线索ID失败，使用旧格式兼容
-            List<GameClue> allClues = getSoupClues(soupId);
-            List<GameClue> keyClues = allClues.stream()
-                    .filter(GameClue::isKeyClue)
-                    .toList();
-            log.info("获取海龟汤关键线索成功（旧格式兼容）: soupId={}, 关键线索数量={}", soupId, keyClues.size());
-            return keyClues;
-
-        } catch (Exception e) {
-            log.error("获取海龟汤关键线索失败: soupId={}", soupId, e);
-            return List.of();
-        }
-    }
-
-    /**
-     * 根据线索类型获取海龟汤线索
-     *
-     * @param soupId 海龟汤ID
-     * @param clueType 线索类型
-     * @return 指定类型的线索列表
-     */
-    public List<GameClue> getSoupCluesByType(String soupId, com.guanyu.haigui.Enum.ClueType clueType) {
-        try {
-            List<GameClue> allClues = getSoupClues(soupId);
-            List<GameClue> filteredClues = allClues.stream()
-                    .filter(clue -> clueType.equals(clue.getClueType()))
-                    .toList();
-            log.info("获取海龟汤线索成功: soupId={}, 类型={}, 线索数量={}", soupId, clueType, filteredClues.size());
-            return filteredClues;
-        } catch (Exception e) {
-            log.error("获取海龟汤线索失败: soupId={}, 类型={}", soupId, clueType, e);
-            return List.of();
-        }
-    }
-
-    /**
-     * 获取海龟汤热度排名
-     *
-     * @param soupId 海龟汤ID
-     * @return 排名信息
-     */
-    public SoupRankInfo getSoupRankInfo(String soupId) {
-        return haiGuiRankingService.getSoupRankInfo(soupId);
-    }
-
-    /**
-     * 保存用户输入线索片段并进行向量化
-     * @param soupId 海龟汤ID
-     * @param clues 游戏线索列表
-     */
-    @Transactional
-    public void saveUserCluesWithVectorization(String soupId, List<GameClue> clues) {
-        for (int i = 0; i < clues.size(); i++) {
-            try {
-                GameClue gameClue = clues.get(i);
-
-                // 创建线索片段
-                ClueFragment fragment = new ClueFragment();
-                fragment.setSoupId(soupId);
-                fragment.setFragmentContent(gameClue.getContent());
-                fragment.setFragmentType(gameClue.getClueType().toString());
-                fragment.setInferenceLevel(1); // 用户线索默认为表层信息
-                fragment.setIsCoreClue(gameClue.getIsKey());
-                fragment.setFragmentOrder(i);
-                fragment.setTriggerKeywords(java.util.Arrays.asList(gameClue.getContent().split(" ")));
-                fragment.setGenerationSource("USER"); // 标记为用户输入
-                fragment.setAiAnalysisConfidence(1.0); // 用户输入置信度为100%
-
-                // 向量化处理
-                try {
-                    // 生成向量化文本（内容+关键词）
-                    String keywords = fragment.getTriggerKeywords() != null ? String.join(" ", fragment.getTriggerKeywords()) : "";
-                    String vectorText = fragment.getFragmentContent() + " " + keywords;
-
-                    // 调用BGE向量服务
-                    com.guanyu.haigui.pojo.vo.SingleEncodeResponse response = vectorClient.encodeSingle(vectorText);
-                    List<Double> vector = response.getEmbeddings().get(0)
-                            .stream()
-                            .map(Float::doubleValue)
-                            .collect(java.util.stream.Collectors.toList());
-
-                    // 生成向量哈希
-                    String vectorHash = generateVectorHash(vector);
-
-                    fragment.setVectorData(vector);
-                    fragment.setVectorHash(vectorHash);
-
-                    // 将向量存储到Redis中，用于快速搜索
-                    try {
-                        // 新键结构：包含海龟汤ID和片段ID，便于指定汤内搜索
-                        String redisKey = String.format("hai_gui:soup:%s:fragment:%s", soupId, fragment.getFragmentId());
-                        List<Float> floatVector = vector.stream()
-                                .map(Double::floatValue)
-                                .collect(java.util.stream.Collectors.toList());
-                        redisClient.storeVector(redisKey, floatVector);
-
-
-                        // 不再使用集合键，直接使用具体片段键
-
-                        // 将海龟汤ID添加到所有汤的集合中
-                        redisClient.getCommands().sadd("hai_gui:soups:all", soupId);
-
-                        // 在片段键中存储元数据（可选，用于调试）
-                        String metadataKey = String.format("hai_gui:fragment:%s:meta", fragment.getFragmentId());
-                        String metadata = String.format("{\"soupId\":\"%s\",\"content\":\"%s\",\"type\":\"%s\",\"isCore\":%s}",
-                                soupId,
-                                fragment.getFragmentContent().length() > 50 ? fragment.getFragmentContent().substring(0, 50) + "..." : fragment.getFragmentContent(),
-                                fragment.getFragmentType(),
-                                fragment.getIsCoreClue());
-                        redisClient.getCommands().set(metadataKey, metadata);
-
-                        log.debug("向量存储到Redis成功: soupId={}, fragmentId={}, dimension={}",
-                                soupId, fragment.getFragmentId(), floatVector.size());
-                    } catch (Exception redisEx) {
-                        log.warn("向量存储到Redis失败: fragmentId={}, error={}",
-                                fragment.getFragmentId(), redisEx.getMessage());
-                        // Redis存储失败不影响MySQL存储
-                    }
-
-                    log.debug("用户线索片段向量化完成: {}", fragment.getFragmentContent());
-
-                } catch (Exception e) {
-                    log.error("用户线索片段向量化失败: {}", fragment.getFragmentContent(), e);
-                    // 向量化失败时使用空向量，但不中断流程
-                    fragment.setVectorData(new ArrayList<>());
-                    fragment.setVectorHash("");
-                }
-
-                // 保存到数据库
-                clueFragmentRepository.save(fragment);
-
-                log.info("保存用户线索片段成功: content={}, type={}, isKey={}, vectorSize={}, fragmentId={}",
-                        gameClue.getContent(), gameClue.getClueType(), gameClue.getIsKey(),
-                        fragment.getVectorData() != null ? fragment.getVectorData().size() : 0, fragment.getFragmentId());
-            } catch (Exception e) {
-                log.error("保存用户线索片段失败: content={}", clues.get(i).getContent(), e);
-            }
-        }
-    }
-
-    /**
-     * 保存线索片段到数据库（混合方案）- 保留兼容性
-     * @param soupId 海龟汤ID
-     * @param clues 游戏线索列表
-     */
-    @Transactional
-    public void saveClueFragmentsToDatabase(String soupId, List<GameClue> clues) {
-        saveUserCluesWithVectorization(soupId, clues);
-    }
-
-    // 注意：saveCluesToDatabase方法已被删除，现在所有线索保存都通过saveUserCluesWithVectorization处理
-
-    /**
-     * 构建用户线索分析的系统提示词
-     */
-    private String buildUserCluesAnalysisSystemPrompt(HaiGuiSoup soup) {
-        return String.format("""
-            你是一个海龟汤线索分析师。请分析用户上传的每条线索的属性。
-
-            === 海龟汤信息 ===
-            标题：%s
-            汤面：%s
-            汤底：%s
-
-            === 分析要求 ===
-            请对每条用户线索进行分析，包括：
-            1. 线索类型（TIME/PLACE/CHARACTER/PLOT/OBJECT/TRUTH）
-            2. 难度等级（1-5级，1最简单，5最核心）
-            3. 是否关键线索（true/false）
-            4. 关联的推理任务层级（1-3）
-            5. 重要性评分（1-10）
-            6. 分析理由
-
-            === 输出格式要求 ===
-            请严格按照以下格式返回，每行一个线索的分析结果：
-            [线索内容]|[类型]|[难度]|[是否关键]|[任务层级]|[重要性]
-
-            示例：凶手是男性|CHARACTER|3|true|2|8
-            """, soup.getSoupTitle(), soup.getSoupSurface(), soup.getSoupBottom());
-    }
-
-    /**
-     * 构建用户线索分析的用户提示词
-     */
-    private String buildUserCluesAnalysisPrompt(List<String> userClueContents) {
-        StringBuilder prompt = new StringBuilder("请分析以下用户提供的线索：\n\n");
-
-        for (int i = 0; i < userClueContents.size(); i++) {
-            prompt.append(String.format("%d. %s\n", i + 1, userClueContents.get(i)));
-        }
-
-        prompt.append("\n请按照前面要求的格式返回每条线索的分析结果。");
-        return prompt.toString();
-    }
-
-    /**
-     * 保存AI分析后的用户线索
-     */
-    private void saveAiAnalyzedUserClues(String soupId, List<GameClue> clues, List<String> userClueContents, String[] aiResults) {
-        for (int i = 0; i < clues.size(); i++) {
-            GameClue gameClue = clues.get(i);
-            try {
-                String aiResult = i < aiResults.length ? aiResults[i] : "";
-
-                // 解析AI分析结果
-                String[] parts = aiResult.split("\\|");
-                String fragmentType = parts.length > 1 ? parts[1] : "PLOT";
-                Integer difficulty = parts.length > 2 ? tryParseInt(parts[2]) : 2;
-                Boolean isCore = parts.length > 3 ? tryParseBoolean(parts[3]) : false;
-                Integer associatedTask = parts.length > 4 ? tryParseInt(parts[4]) : 1;
-                Integer importance = parts.length > 5 ? tryParseInt(parts[5]) : 5;
-
-                // 创建线索片段
-                ClueFragment fragment = new ClueFragment();
-                fragment.setSoupId(soupId);
-                fragment.setFragmentContent(gameClue.getContent());
-                fragment.setFragmentType(fragmentType);
-                fragment.setInferenceLevel(associatedTask);
-                fragment.setIsCoreClue(isCore);
-                fragment.setDifficulty(difficulty);
-                fragment.setImportance(importance);
-                fragment.setFragmentOrder(i);
-                fragment.setTriggerKeywords(java.util.Arrays.asList(gameClue.getContent().split(" ")));
-                fragment.setGenerationSource("USER_AI_ANALYZED"); // 标记为用户输入+AI分析
-                fragment.setAiAnalysisConfidence(0.9); // AI分析的置信度
-                fragment.setAssociatedTaskIds(List.of(associatedTask));
-
-                // 向量化处理
-                try {
-                    String keywords = fragment.getTriggerKeywords() != null ? String.join(" ", fragment.getTriggerKeywords()) : "";
-                    String vectorText = fragment.getFragmentContent() + " " + keywords;
-
-                    SingleEncodeResponse response = BgeVectorClientUtil.encodeSingle(vectorText);
-                    List<Double> vector = response.getEmbeddings().get(0)
-                            .stream()
-                            .map(Float::doubleValue)
-                            .collect(java.util.stream.Collectors.toList());
-
-                    String vectorHash = generateVectorHash(vector);
-                    fragment.setVectorData(vector);
-                    fragment.setVectorHash(vectorHash);
-
-                    // 存储到Redis
-                    String redisKey = String.format("hai_gui:soup:%s:fragment:%s", soupId, fragment.getFragmentId());
-                    List<Float> floatVector = vector.stream()
-                            .map(Double::floatValue)
-                            .collect(java.util.stream.Collectors.toList());
-                    redisClient.storeVector(redisKey, floatVector);
-
-                    log.debug("用户线索向量存储完成: fragmentId={}", fragment.getFragmentId());
-
-                } catch (Exception e) {
-                    log.error("用户线索向量化失败: {}", gameClue.getContent(), e);
-                    fragment.setVectorData(new ArrayList<>());
-                    fragment.setVectorHash("");
-                }
-
-                // 保存到数据库
-                ClueFragment savedFragment = clueFragmentRepository.save(fragment);
-
-                log.info("保存AI分析用户线索: content={}, type={}, difficulty={}, importance={}, isCore={}, associatedTask={}, fragmentId={}",
-                        gameClue.getContent(), fragmentType, difficulty, importance, isCore, associatedTask, savedFragment.getFragmentId());
-
-            } catch (Exception e) {
-                log.error("保存AI分析用户线索失败: content={}", gameClue.getContent(), e);
-            }
-        }
-    }
-
-    /**
-     * 保存用户线索（使用默认属性）
-     */
-    private void saveUserCluesWithDefaultAttributes(String soupId, List<GameClue> clues) {
-        for (int i = 0; i < clues.size(); i++) {
-            GameClue gameClue = clues.get(i);
-            try {
-                // 创建线索片段（使用默认属性）
-                ClueFragment fragment = new ClueFragment();
-                fragment.setSoupId(soupId);
-                fragment.setFragmentContent(gameClue.getContent());
-                fragment.setFragmentType(gameClue.getClueType().toString());
-                fragment.setInferenceLevel(1); // 默认为表层信息
-                fragment.setIsCoreClue(gameClue.getIsKey());
-                // 设置difficulty和importance字段的默认值
-                fragment.setDifficulty(2); // 默认中等难度
-                fragment.setImportance(5); // 默认中等重要性
-                fragment.setFragmentOrder(i);
-                fragment.setTriggerKeywords(java.util.Arrays.asList(gameClue.getContent().split(" ")));
-                fragment.setGenerationSource("USER_DEFAULT");
-                fragment.setAiAnalysisConfidence(0.3); // 低置信度
-                fragment.setAssociatedTaskIds(List.of(1));
-
-                // 保存到数据库
-                ClueFragment savedFragment = clueFragmentRepository.save(fragment);
-
-                log.info("保存默认用户线索: fragmentId={}", savedFragment.getFragmentId());
-
-            } catch (Exception e) {
-                log.error("保存默认用户线索失败: content={}", gameClue.getContent(), e);
-            }
-        }
-    }
-
-    /**
-     * 尝试解析整数
-     */
-    private Integer tryParseInt(String str) {
-        try {
-            return Integer.parseInt(str);
-        } catch (Exception e) {
-            return 2; // 默认中等难度
-        }
-    }
-
-    /**
-     * 尝试解析布尔值
-     */
-    private Boolean tryParseBoolean(String str) {
-        try {
-            return Boolean.parseBoolean(str);
-        } catch (Exception e) {
-            return false; // 默认非关键线索
-        }
-    }
-
-    /**
-     * 将线索ID列表序列化为JSON数组
-     * @param clueIds 线索ID列表
-     * @return JSON数组字符串
-     */
-    private String serializeClueIds(List<String> clueIds) {
-        try {
-            return new ObjectMapper().writeValueAsString(clueIds);
-        } catch (Exception e) {
-            log.error("序列化线索ID列表失败", e);
-            return "[]"; // 返回空数组作为fallback
-        }
-    }
 
     /**
      * 将线索ID列表序列化为JSON数组（支持Long类型）
@@ -1065,10 +459,11 @@ public class TurtleSoupService {
 
     /**
      * 从JSON数组反序列化线索ID列表
+     *
      * @param clueIdsJson JSON数组字符串
      * @return 线索ID列表
      */
-    public List<String> deserializeClueIds(String clueIdsJson) {
+    public List deserializeClueIds(String clueIdsJson) {
         try {
             if (clueIdsJson == null || clueIdsJson.trim().isEmpty()) {
                 return new ArrayList<>();
@@ -1080,33 +475,6 @@ public class TurtleSoupService {
         }
     }
 
-    /**
-     * 获取海龟汤的所有线索片段（从数据库查询）
-     * @param soupId 海龟汤ID
-     * @return 线索片段列表
-     */
-    public List<ClueFragment> getSoupClueFragmentsFromDatabase(String soupId) {
-        try {
-            return clueFragmentRepository.findBySoupIdAndIsDeletedFalse(soupId);
-        } catch (Exception e) {
-            log.error("从数据库获取海龟汤线索片段失败: soupId={}", soupId, e);
-            return new ArrayList<>();
-        }
-    }
-
-    /**
-     * 获取海龟汤的关键线索片段（从数据库查询）
-     * @param soupId 海龟汤ID
-     * @return 关键线索片段列表
-     */
-    public List<ClueFragment> getSoupKeyClueFragmentsFromDatabase(String soupId) {
-        try {
-            return clueFragmentRepository.findBySoupIdAndIsCoreClueTrueAndIsDeletedFalse(soupId);
-        } catch (Exception e) {
-            log.error("从数据库获取海龟汤关键线索片段失败: soupId={}", soupId, e);
-            return new ArrayList<>();
-        }
-    }
 
     /**
      * 更新海龟汤的线索信息（包括线索ID列表和拆解配置）
@@ -1146,8 +514,6 @@ public class TurtleSoupService {
             decompositionConfig.put("decomposition_method", debugMode ? "AI_DEBUG" : "AI_REAL");
             decompositionConfig.put("decomposition_time", java.time.LocalDateTime.now());
 
-            // 4. 序列化配置为JSON
-            String configJson = objectMapper.writeValueAsString(decompositionConfig);
 
             // 5. 如果HaiGuiSoup模型有clue_decomposition_config字段，则保存
             // 这里我们使用现有的字段，如果需要新增字段，需要修改HaiGuiSoup模型
@@ -1268,7 +634,6 @@ public class TurtleSoupService {
                     String taskName = (String) taskData.get("taskName");
                     String description = (String) taskData.get("description");
                     Integer understandingLevel = (Integer) taskData.getOrDefault("understandingLevel", 1);
-                    List<String> targetKeywords = (List<String>) taskData.getOrDefault("targetKeywords", new ArrayList<>());
                     String reasoningGoal = (String) taskData.get("reasoningGoal");
                     Double progressWeight = ((Number) taskData.getOrDefault("progressWeight", 30.0)).doubleValue();
                     Boolean isMandatory = (Boolean) taskData.getOrDefault("isMandatory", false);
@@ -1337,83 +702,12 @@ public class TurtleSoupService {
     }
 
     /**
-     * 更新现有线索片段的任务关联ID
-     * 用于当推理任务更新后，将真实任务ID更新到线索的associatedTaskIds字段
+     * 生成默认推理任务（当AI失败时）
      * @param soupId 海龟汤ID
+     * @return 任务序号到真实ID的映射
      */
-    @Transactional
-    public void updateClueFragmentTaskAssociations(String soupId) {
-        try {
-            log.info("开始更新海龟汤线索片段的任务关联: soupId={}", soupId);
-
-            // 获取该海龟汤的所有推理任务
-            List<InferenceTask> tasks = inferenceTaskRepository.findBySoupIdAndIsDeletedFalseOrderByTaskOrderAsc(soupId);
-            if (tasks.isEmpty()) {
-                log.warn("未找到海龟汤的推理任务: soupId={}", soupId);
-                return;
-            }
-
-            // 创建taskOrder到taskId的映射
-            Map<Integer, Long> taskOrderToIdMap = tasks.stream()
-                    .collect(Collectors.toMap(
-                        InferenceTask::getTaskOrder,
-                        InferenceTask::getTaskId
-                    ));
-
-            log.info("找到推理任务映射: {}", taskOrderToIdMap);
-
-            // 获取该海龟汤的所有线索片段
-            List<ClueFragment> fragments = clueFragmentRepository.findBySoupIdAndIsDeletedFalse(soupId);
-
-            int updatedCount = 0;
-            for (ClueFragment fragment : fragments) {
-                try {
-                    List<Integer> associatedTaskIds = fragment.getAssociatedTaskIds();
-
-                    // 跳过没有任务关联的线索
-                    if (associatedTaskIds == null || associatedTaskIds.isEmpty()) {
-                        continue;
-                    }
-
-                    // 将taskOrder替换为真实的taskId
-                    List<Integer> realTaskIds = associatedTaskIds.stream()
-                            .filter(taskOrderToIdMap::containsKey)
-                            .map(taskOrderToIdMap::get)
-                            .map(Long::intValue)  // 转换Long到Integer
-                            .distinct()
-                            .collect(Collectors.toList());
-
-                    // 只有当任务ID发生变化时才更新
-                    if (!realTaskIds.equals(associatedTaskIds)) {
-                        fragment.setAssociatedTaskIds(realTaskIds);
-                        clueFragmentRepository.save(fragment);
-                        updatedCount++;
-
-                        log.info("更新线索片段任务关联: fragmentId={}, fragmentContent={}, oldTaskIds={}, newTaskIds={}",
-                            fragment.getFragmentId(),
-                            fragment.getFragmentContent().length() > 50 ? fragment.getFragmentContent().substring(0, 50) + "..." : fragment.getFragmentContent(),
-                            associatedTaskIds,
-                            realTaskIds);
-                    }
-                } catch (Exception e) {
-                    log.error("更新线索片段任务关联失败: fragmentId={}, error={}", fragment.getFragmentId(), e.getMessage());
-                }
-            }
-
-            log.info("海龟汤线索片段任务关联更新完成: soupId={}, 总线索数={}, 更新线索数={}",
-                soupId, fragments.size(), updatedCount);
-
-        } catch (Exception e) {
-            log.error("更新海龟汤线索片段任务关联失败: soupId={}", soupId, e);
-        }
-    }
-
-    /**
-     * 生成推理任务（混合方案）
-     * @param soupId 海龟汤ID
-     */
-    @Transactional
-    public void generateInferenceTasksForSoup(String soupId) {
+    private Map<Integer, Long> generateDefaultInferenceTasks(String soupId) {
+        Map<Integer, Long> taskOrderToIdMap = new HashMap<>();
         try {
             // 生成基础推理任务
             InferenceTask task1 = new InferenceTask(soupId, "发现基本信息", "询问故事的基本背景和设定", 1);
@@ -1431,15 +725,22 @@ public class TurtleSoupService {
             task3.setProgressWeight(50.0);
             task3.setTaskOrder(3);
 
-            // 保存推理任务
-            inferenceTaskRepository.save(task1);
-            inferenceTaskRepository.save(task2);
-            inferenceTaskRepository.save(task3);
+            // 保存推理任务并获取真实ID
+            InferenceTask savedTask1 = inferenceTaskRepository.save(task1);
+            InferenceTask savedTask2 = inferenceTaskRepository.save(task2);
+            InferenceTask savedTask3 = inferenceTaskRepository.save(task3);
 
-            log.info("生成推理任务成功: soupId={}, 任务数量=3", soupId);
+            // 创建任务序号到真实ID的映射
+            taskOrderToIdMap.put(1, savedTask1.getTaskId());
+            taskOrderToIdMap.put(2, savedTask2.getTaskId());
+            taskOrderToIdMap.put(3, savedTask3.getTaskId());
+
+            log.info("生成默认推理任务成功: soupId={}, 任务数量=3", soupId);
 
         } catch (Exception e) {
-            log.error("生成推理任务失败: soupId={}", soupId, e);
+            log.error("生成默认推理任务失败: soupId={}", soupId, e);
         }
+        return taskOrderToIdMap;
     }
+
 }

@@ -88,4 +88,10 @@ public interface ClueFragmentRepository extends JpaRepository<ClueFragment, Long
      * 根据生成来源查找线索片段
      */
     List<ClueFragment> findBySoupIdAndGenerationSourceAndIsDeletedFalse(String soupId, String generationSource);
+
+    /**
+     * 获取所有不重复的海龟汤ID
+     */
+    @Query("SELECT DISTINCT f.soupId FROM ClueFragment f WHERE f.isDeleted = false")
+    List<String> findAllDistinctSoupIds();
 }

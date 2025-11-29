@@ -77,7 +77,6 @@ public class ClueDecompositionService {
                 DecompositionResult debugResult = loadDebugFragments(soupTitle, soupSurface, soupBottom);
                 List<ClueFragment> debugFragments = debugResult.getFragments();
                 // 添加用户线索（模拟AI分析）
-                debugFragments.addAll(analyzeUserCluesWithAI(userClues, soupTitle, soupSurface, soupBottom));
                 return new DecompositionResult(debugFragments, debugResult.getInferenceTasks());
             }
 
@@ -402,7 +401,7 @@ public class ClueDecompositionService {
             - 为每个片段设置合适的难度、重要性和相似度阈值
             - 明确标记来源：用户分析结果标记为"AUGMENTED_USER"
             - 推理任务要层次递进，总权重100分
-            """, soupTitle, soupSurface, soupBottom, userCluesText.toString());
+            """, soupTitle, soupSurface, soupBottom, userCluesText);
     }
 
     /**
@@ -472,7 +471,7 @@ public class ClueDecompositionService {
         fragment.setTriggerKeywords((List<String>) data.get("keywords"));
         fragment.setIsCoreClue((Boolean) data.getOrDefault("isCoreClue", false));
         fragment.setSimilarityThreshold(((Number) data.getOrDefault("similarityThreshold", 0.7)).doubleValue());
-        fragment.setAssociatedTaskIds((List<Integer>) data.getOrDefault("associatedTasks", new ArrayList<>()));
+        fragment.setAssociatedTaskIds((List<Integer>) data.getOrDefault("associatedTaskIds", new ArrayList<>()));
         fragment.setFragmentOrder((Integer) data.getOrDefault("order", 0));
 
         // 设置增强的属性
@@ -568,59 +567,7 @@ public class ClueDecompositionService {
         return fragments;
     }
 
-    /**
-     * 基于AI分析用户线索（调试模式）
-     */
-    private List<ClueFragment> analyzeUserCluesWithAI(List<GameClue> userClues, String soupTitle, String soupSurface, String soupBottom) {
-        List<ClueFragment> fragments = new ArrayList<>();
 
-        for (int i = 0; i < userClues.size(); i++) {
-            GameClue clue = userClues.get(i);
-
-            ClueFragment fragment = new ClueFragment();
-            fragment.setFragmentContent(clue.getContent());
-            fragment.setFragmentType(clue.getClueType().toString());
-            fragment.setInferenceLevel(1); // 用户线索默认为表层，AI会进行分析
-            fragment.setIsCoreClue(clue.getIsKey());
-            fragment.setFragmentOrder(i);
-            fragment.setTriggerKeywords(Arrays.asList(clue.getContent().split(" ")));
-            fragment.setGenerationSource("AUGMENTED_USER");
-            fragment.setAiAnalysisConfidence(0.95); // 模拟AI分析的高置信度
-
-            // 设置difficulty和importance字段的默认值
-            fragment.setDifficulty(2); // 默认中等难度
-            fragment.setImportance(5); // 默认中等重要性
-
-            fragment.setSimilarityThreshold(0.8); // 用户线索相似度阈值稍高
-            fragment.setAssociatedTaskIds(Arrays.asList(1, 2)); // 关联前两个推理任务
-
-            // 向量化处理
-            try {
-                String keywords = fragment.getTriggerKeywords() != null ? String.join(" ", fragment.getTriggerKeywords()) : "";
-                String vectorText = fragment.getFragmentContent() + " " + keywords;
-
-                SingleEncodeResponse response = vectorClient.encodeSingle(vectorText);
-                List<Double> vector = response.getEmbeddings().get(0)
-                        .stream()
-                        .map(Float::doubleValue)
-                        .collect(java.util.stream.Collectors.toList());
-
-                String vectorHash = generateVectorHash(vector);
-                fragment.setVectorData(vector);
-                fragment.setVectorHash(vectorHash);
-
-            } catch (Exception e) {
-                log.error("模拟AI分析用户线索向量化失败: {}", clue.getContent(), e);
-                fragment.setVectorData(new ArrayList<>());
-                fragment.setVectorHash("");
-            }
-
-            fragments.add(fragment);
-        }
-
-        log.info("模拟AI分析用户线索完成，生成{}个增强线索片段", fragments.size());
-        return fragments;
-    }
 
     /**
      * 基本分析用户线索（当AI失败时）
