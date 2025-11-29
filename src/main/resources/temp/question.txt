@@ -1,4 +1,55 @@
-这是一个海龟汤游戏的后端，我的游戏步骤的思路是创建海龟汤时用生成式ai将汤底拆成许多个线索并进行向量化，在玩家提出问题
-  时将问题向量化，然后进行线索匹配，然后将匹配到的线索发给生成式ai从而保证效率的同时保证质量，当前的问题时创建海龟汤时
-  ，数据库中显示d6dd0b56-b188-4dc2-a1ab-c0e03cf892af	《墓碑上的文字》	我和爸妈一起去旅行，回来时却出了意外，爸妈立马打算要二胎。五十年后，儿孙满堂，爸妈去世了，我的孙子给爸妈操办了葬礼，我看着墓碑上的文字，却突然头皮发麻！原来一切都错了！	在科技极度发展后的未来，人类已经可以在宇宙中旅行。我和父母去星际旅行，回到地球时却意外遇到了虫洞。此时的地球上没有一点人类生活的痕痕，因此我们误以为穿越到人类文明灭绝的未来，父母察觉到我们可能是人类最后的火种，于是开始繁衍后代，延续人类文明。五十年后，我们繁衍出了自己的部落，此时我的父母已经去世了，孙子在父母的墓碑上居然尊称他们为亚当和夏娃，而我们之前并没有人提起过这个称呼。我这才意识到，原来我们都错了，我们其实是穿越到了几十万年前的地球，而我的父母，则成为了人类的祖先……	游戏开始后，玩家提问，主持人根据玩家提问给出是或不是的回答。玩家通过提问逐步获取线索，完成任务。任务1询问旅行地点，玩家答对则进度增加20.0；任务2了解意外情况，玩家答对则进度增加30.0；任务3探究墓碑文字，玩家答对则进度增加50.0。当进度达到100.0时游戏结束。	[]			HYBRID		0.70	3	3	2025-11-24 18:28:02.008410	0	0	2025-11-24 18:28:07.630429	2025-11-24 18:28:07.942366
-  也就是汤面和汤底向量化数据为空，且线索的id列表也为空，clue_decomposition_config也是空的，是不是根本调用线索向量化
+{
+    "soupTitle": "失踪的古董画",
+    "soupSurface": "一幅珍贵的古董画在博物馆展出时突然消失了",
+    "soupBottom": "实际上这幅画是赝品，是盗窃团伙为了转移注意力制造的假象",
+    "hostManual": "这是一个典型的障眼法魔术，需要玩家识破",
+    "keyClues": [
+      {
+        "content": "画作的年代是清朝",
+        "clueType": "TIME",
+        "isKey": true
+      },
+      {
+        "content": "画家的身份很可疑",
+        "clueType": "CHARACTER",
+        "isKey": false
+      }
+    ],
+    "progressSettings": [
+      {
+        "taskName": "调查画作背景",
+        "description": "了解画作的历史背景和创作年代",
+        "understandingLevel": 1,
+        "targetKeywords": ["年代", "历史", "背景", "年代鉴定"],
+        "reasoningGoal": "确定画作的真实年代和历史背景",
+        "progressWeight": 25.0,
+        "isMandatory": true,
+        "taskOrder": 1
+      },
+      {
+        "taskName": "分析画家动机",
+        "description": "探究画家的创作动机和目的",
+        "understandingLevel": 2,
+        "targetKeywords": ["动机", "目的", "创作者", "意图"],
+        "reasoningGoal": "理解画家的真实动机和创作意图",
+        "progressWeight": 35.0,
+        "isMandatory": true,
+        "taskOrder": 2
+      },
+      {
+        "taskName": "揭露画作真相",
+        "description": "发现画作的真相和秘密",
+        "understandingLevel": 3,
+        "targetKeywords": ["真相", "秘密", "赝品", "鉴定"],
+        "reasoningGoal": "揭示画作的真实性质和隐藏的秘密",
+        "progressWeight": 40.0,
+        "isMandatory": true,
+        "taskOrder": 3
+      }
+    ]
+  }
+  创建海龟汤时为什么后端报错
+  com.fasterxml.jackson.core.JsonParseException: Unexpected character ('t' (code 116)): was expecting double-quote to start field name
+   at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); line: 1, column: 3]
+  	at com.fasterxml.jackson.core.JsonParser._constructReadException(JsonParser.java:2648) ~[jackson-core-2.17.2.jar:2.17.2]
+  	at com.fasterxml.jackson.core.base.ParserMinimalBase._reportUnexpectedChar(ParserMinimalBase.java:685) ~[jackson-core-2.17.2.jar:2.17.2]

@@ -87,10 +87,17 @@ public class TurtleSoupService {
                     soup.getKeyClues() != null ? soup.getKeyClues().getClass().getSimpleName() : "null",
                     keyCluesInput);
 
+            log.info("原始progressSettings输入类型: {}, 值: '{}'",
+                    soup.getProgressSettings() != null ? soup.getProgressSettings().getClass().getSimpleName() : "null",
+                    progressSettingsInput);
+
             // 解析线索列表（使用GameClue业务实体）
             List<GameClue> clues = soupJsonParser.parseKeyClues(keyCluesInput);
-
             log.info("解析得到的线索数量: {}", clues.size());
+
+            // 解析进度设置中的任务列表（在非调试模式下使用）
+            List<InferenceTask> userProvidedTasks = parseUserProvidedTasks(progressSettingsInput);
+            log.info("解析得到的用户任务数量: {}", userProvidedTasks.size());
 
             UserInfo userInfo = userInfoRepository.findById(BaseContext.getCurrentId())
                     .orElseThrow(() -> new BusinessException(404, "用户不存在"));
@@ -118,12 +125,13 @@ public class TurtleSoupService {
             try {
                 log.info("开始为海龟汤生成AI拆解的线索片段和推理任务，同时分析用户线索，用户线索数量: {}", clues.size());
 
-                // 使用ClueDecompositionService拆解汤底并分析用户线索
-                DecompositionResult decompositionResult = clueDecompositionService.decomposeSoupBottomWithUserClues(
+                // 使用ClueDecompositionService拆解汤底并分析用户线索，同时传递用户提供的任务
+                DecompositionResult decompositionResult = clueDecompositionService.decomposeSoupBottomWithUserCluesAndTasks(
                         savedSoup.getSoupTitle(),
                         savedSoup.getSoupSurface(),
                         savedSoup.getSoupBottom(),
-                        clues
+                        clues,
+                        userProvidedTasks
                     );
 
                 aiFragments = decompositionResult.getFragments();
@@ -741,6 +749,73 @@ public class TurtleSoupService {
             log.error("生成默认推理任务失败: soupId={}", soupId, e);
         }
         return taskOrderToIdMap;
+    }
+
+    /**
+     * 解析用户提供的推理任务列表
+     * @param progressSettingsInput 进度设置字符串（JSON格式）
+     * @return 用户提供的推理任务列表
+     */
+    private List<InferenceTask> parseUserProvidedTasks(String progressSettingsInput) {
+        if (progressSettingsInput == null || progressSettingsInput.trim().isEmpty()) {
+            log.debug("用户未提供推理任务，使用默认任务");
+            return new ArrayList<>();
+        }
+
+        try {
+            // 尝试解析为JSON
+            Object progressSettingsObj = objectMapper.readValue(progressSettingsInput, Object.class);
+
+            // 如果是数组，直接解析为任务列表
+            if (progressSettingsObj instanceof List) {
+                List<Map<String, Object>> tasksData = (List<Map<String, Object>>) progressSettingsObj;
+                List<InferenceTask> tasks = new ArrayList<>();
+
+                for (Map<String, Object> taskData : tasksData) {
+                    try {
+                        String taskName = (String) taskData.getOrDefault("taskName", "未知任务");
+                        String description = (String) taskData.getOrDefault("description", "");
+                        Integer understandingLevel = (Integer) taskData.getOrDefault("understandingLevel", 1);
+                        String reasoningGoal = (String) taskData.getOrDefault("reasoningGoal", "");
+                        Double progressWeight = ((Number) taskData.getOrDefault("progressWeight", 30.0)).doubleValue();
+                        Boolean isMandatory = (Boolean) taskData.getOrDefault("isMandatory", true);
+                        Integer taskOrder = (Integer) taskData.getOrDefault("taskOrder", tasks.size() + 1);
+                        List<String> targetKeywords = (List<String>) taskData.getOrDefault("targetKeywords", new ArrayList<>());
+
+                        InferenceTask task = new InferenceTask();
+                        task.setTaskName(taskName);
+                        task.setTaskDescription(description);
+                        task.setUnderstandingLevel(understandingLevel);
+                        task.setReasoningGoal(reasoningGoal);
+                        task.setProgressWeight(progressWeight);
+                        task.setIsMandatory(isMandatory);
+                        task.setTaskOrder(taskOrder);
+                        task.setTargetKeywords(targetKeywords);
+                        task.setIsDeleted(false);
+
+                        tasks.add(task);
+
+                        log.debug("解析用户任务: taskName={}, taskOrder={}, isMandatory={}",
+                            taskName, taskOrder, isMandatory);
+
+                    } catch (Exception e) {
+                        log.warn("解析单个用户任务失败", e);
+                    }
+                }
+
+                log.info("成功解析{}个用户提供的推理任务", tasks.size());
+                return tasks;
+
+            } else {
+                // 如果是其他格式，暂时忽略
+                log.debug("progressSettings不是任务列表格式，忽略: {}", progressSettingsInput);
+                return new ArrayList<>();
+            }
+
+        } catch (Exception e) {
+            log.warn("解析用户提供的推理任务失败: {}", progressSettingsInput, e);
+            return new ArrayList<>();
+        }
     }
 
 }
