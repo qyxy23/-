@@ -1,14 +1,15 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
 import com.guanyu.haigui.Enum.VectorType;
+import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.dto.SoupQuestionRequest;
 import com.guanyu.haigui.pojo.model.ClueFragment;
 import com.guanyu.haigui.pojo.model.HaiGuiSoup;
-import com.guanyu.haigui.pojo.vo.ClueMatchResult;
-import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
+import com.guanyu.haigui.pojo.model.InferenceTask;
 import com.guanyu.haigui.pojo.vo.SoupQuestionResponse;
 import com.guanyu.haigui.repository.ClueFragmentRepository;
 import com.guanyu.haigui.repository.HaiGuiSoupRepository;
+import com.guanyu.haigui.repository.InferenceTaskRepository;
 import com.guanyu.haigui.service.SoupQuestionService;
 import com.guanyu.haigui.service.VectorService;
 import com.guanyu.haigui.utils.AiClientUtil;
@@ -35,30 +36,32 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
     private final TurtleSoupService turtleSoupService;
     private final HaiGuiSoupRepository haiGuiSoupRepository;
     private final ClueFragmentRepository clueFragmentRepository;
+    private final InferenceTaskRepository inferenceTaskRepository;
     private final AiClientUtil aiClientUtil;
     private final BgeVectorClientUtil bgeVectorClientUtil;
     private final RedisStackClient redisClient;
 
+
     @Override
     @Transactional
-    public String processSoupQuestion(SoupQuestionRequest request) {
+    public SoupQuestionResponse processSoupQuestion1(SoupQuestionRequest request) {
         long startTime = System.currentTimeMillis();
 
-        // try {
+        try {
             log.info("开始处理海龟汤问题: soupId={}, question={}",
                     request.getSoupId(),
                     request.getQuestion().substring(0, Math.min(50, request.getQuestion().length())));
 
             // 1. 参数验证
-            // if (!validateRequest(request)) {
-            //     return SoupQuestionResponse.failure("请求参数无效");
-            // }
+            if (!validateRequest(request)) {
+                return SoupQuestionResponse.failure("请求参数无效");
+            }
 
             // 2. 向量化问题
             List<Float> questionVector = vectorizeQuestion(request.getQuestion());
-            // if (questionVector.isEmpty()) {
-            //     return SoupQuestionResponse.failure("问题向量化失败");
-            // }
+            if (questionVector.isEmpty()) {
+                return SoupQuestionResponse.failure("问题向量化失败");
+            }
 
             log.info("问题向量化成功，维度: {}", questionVector.size());
 
@@ -80,60 +83,94 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
 
             log.info("构建AI提示词成功: {}", aiPrompt);
 
-            return aiPrompt;
 
-        //     // 6. 调用AI生成判断
-        //     String aiResponse = generateAIResponse(aiPrompt);
-        //     if (aiResponse == null || aiResponse.trim().isEmpty()) {
-        //         return SoupQuestionResponse.failure("AI判断生成失败");
-        //     }
-        //
-        //     // 7. 解析AI判断结果
-        //     String answer = parseAnswer(aiResponse);
-        //
-        //     // 8. 计算最高相似度
-        //     double maxSimilarity = calculateMaxSimilarity(relevantClues);
-        //
-        //     // 9. 构建响应
-        //     SoupQuestionResponse response = SoupQuestionResponse.success(
-        //             request.getSoupId(),
-        //             request.getQuestion(),
-        //             answer,
-        //             generateExplanation(answer, relevantClues, aiResponse)
-        //     );
-        //
-        //     // 设置处理时间
-        //     response.setProcessingTime(System.currentTimeMillis() - startTime);
-        //
-        //     // 设置匹配详情
-        //     if (Boolean.TRUE.equals(request.getIncludeMatchDetails())) {
-        //         response.setMatchedClues(buildMatchedClues(relevantClues));
-        //         response.setVectorMatches(buildVectorMatches(relevantClues));
-        //     }
-        //     response.setMaxSimilarity(maxSimilarity > 0 ? maxSimilarity : null);
-        //     response.setMatchedClueCount(calculateMatchedClueCount(relevantClues));
-        //
-        //     // 设置会话信息
-        //     response.setSessionInfo(new SoupQuestionResponse.SessionInfo(
-        //             "soup-question-" + System.currentTimeMillis(),
-        //             soupInfo.getSoupTitle(),
-        //             soupInfo.getCurrentProgress()
-        //     ));
-        //
-        //     // 10. 记录统计信息
-        //     Long userId = request.getUserId() != null ? request.getUserId() : BaseContext.getCurrentId();
-        //     recordQuestionStats(request.getSoupId(), userId, request.getQuestion(), answer, maxSimilarity);
-        //
-        //     log.info("海龟汤问题处理完成: soupId={}, 耗时={}ms, 判断结果={}, 最高相似度={}",
-        //             request.getSoupId(), response.getProcessingTime(), answer, maxSimilarity);
-        //
-        //     return response;
-        //
-        // } catch (Exception e) {
-        //     log.error("处理海龟汤问题失败: soupId={}, question={}",
-        //             request.getSoupId(), request.getQuestion(), e);
-        //     return SoupQuestionResponse.failure("处理失败: " + e.getMessage());
-        // }
+            // 6. 调用AI生成判断
+            String aiResponse = generateAIResponse(aiPrompt);
+            if (aiResponse == null || aiResponse.trim().isEmpty()) {
+                return SoupQuestionResponse.failure("AI判断生成失败");
+            }
+
+            // 7. 解析AI判断结果
+            String answer = parseAnswer(aiResponse);
+
+            // 8. 计算最高相似度
+            double maxSimilarity = calculateMaxSimilarity(relevantClues);
+
+            // 9. 构建响应
+            SoupQuestionResponse response = SoupQuestionResponse.success(
+                    request.getSoupId(),
+                    request.getQuestion(),
+                    answer,
+                    generateExplanation(answer, relevantClues, aiResponse)
+            );
+
+            // 设置处理时间
+            response.setProcessingTime(System.currentTimeMillis() - startTime);
+
+            // 设置匹配详情
+            if (Boolean.TRUE.equals(request.getIncludeMatchDetails())) {
+                response.setMatchedClues(buildMatchedClues(relevantClues));
+                response.setVectorMatches(buildVectorMatches(relevantClues));
+            }
+            response.setMaxSimilarity(maxSimilarity > 0 ? maxSimilarity : null);
+            response.setMatchedClueCount(calculateMatchedClueCount(relevantClues));
+
+            // 设置会话信息
+            response.setSessionInfo(new SoupQuestionResponse.SessionInfo(
+                    "soup-question-" + System.currentTimeMillis(),
+                    soupInfo.getSoupTitle(),
+                    soupInfo.getCurrentProgress()
+            ));
+
+            // 10. 记录统计信息
+            Long userId = request.getUserId() != null ? request.getUserId() : BaseContext.getCurrentId();
+            recordQuestionStats(request.getSoupId(), userId, request.getQuestion(), answer, maxSimilarity);
+
+            log.info("海龟汤问题处理完成: soupId={}, 耗时={}ms, 判断结果={}, 最高相似度={}",
+                    request.getSoupId(), response.getProcessingTime(), answer, maxSimilarity);
+
+            return response;
+
+        } catch (Exception e) {
+            log.error("处理海龟汤问题失败: soupId={}, question={}",
+                    request.getSoupId(), request.getQuestion(), e);
+            return SoupQuestionResponse.failure("处理失败: " + e.getMessage());
+        }
+    }
+
+    @Override
+    @Transactional
+    public String processSoupQuestion(SoupQuestionRequest request) {
+
+        log.info("开始处理海龟汤问题: soupId={}, question={}",
+                request.getSoupId(),
+                request.getQuestion().substring(0, Math.min(50, request.getQuestion().length())));
+
+        // 2. 向量化问题
+        List<Float> questionVector = vectorizeQuestion(request.getQuestion());
+
+
+        log.info("问题向量化成功，维度: {}", questionVector.size());
+
+        // 3. 搜索相关线索
+        Map<String, List<VectorService.ContextMatchResult>> relevantClues = searchRelevantClues(
+                request.getSoupId(),
+                questionVector,
+                request.getTopK(),
+                request.getMinSimilarity(),
+                request.getQuestion()
+        );
+        log.info("搜索相关线索成功，数量: {}", relevantClues.size());
+
+        // 4. 获取海龟汤信息
+        SoupInfo soupInfo = getSoupInfo(request.getSoupId());
+
+        // 5. 构建AI提示词
+        String aiPrompt = buildAIPrompt(request.getQuestion(), relevantClues, soupInfo);
+
+        log.info("构建AI提示词成功: {}", aiPrompt);
+
+        return aiPrompt;
     }
 
     @Override
@@ -191,10 +228,10 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
 
     @Override
     public Map<String, List<VectorService.ContextMatchResult>> searchRelevantClues(String soupId,
-                                                                               List<Float> questionVector,
-                                                                               int topK,
-                                                                               double minSimilarity,
-                                                                               String question) {
+                                                                                   List<Float> questionVector,
+                                                                                   int topK,
+                                                                                   double minSimilarity,
+                                                                                   String question) {
         try {
             log.info("开始搜索相关线索: soupId={}, topK={}, minSimilarity={}, question={}",
                     soupId, topK, minSimilarity, question.substring(0, Math.min(30, question.length())));
@@ -258,8 +295,8 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
 
     @Override
     public String buildAIPrompt(String question,
-                               Map<String, List<VectorService.ContextMatchResult>> relevantClues,
-                               SoupInfo soupInfo) {
+                                Map<String, List<VectorService.ContextMatchResult>> relevantClues,
+                                SoupInfo soupInfo) {
         StringBuilder prompt = new StringBuilder();
 
         // 系统角色定义
@@ -273,6 +310,33 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         prompt.append(String.format("汤底：%s\n", soupInfo.getSoupBottom()));
         prompt.append(String.format("主持人手册：%s\n\n", soupInfo.getHostManual()));
 
+        // 获取相关任务信息
+        Map<Integer, InferenceTask> relevantTasks = getRelevantTasks(relevantClues);
+
+        // 相关推理任务信息
+        prompt.append("=== 相关推理任务 ===\n");
+        if (relevantTasks.isEmpty()) {
+            prompt.append("未找到直接相关的推理任务。\n\n");
+        } else {
+            int taskIndex = 1;
+            for (Map.Entry<Integer, InferenceTask> entry : relevantTasks.entrySet()) {
+                InferenceTask task = entry.getValue();
+                prompt.append(String.format("%d. [任务ID:%d] %s\n",
+                        taskIndex++,
+                        task.getTaskId(),
+                        task.getTaskName()));
+                prompt.append(String.format("   描述：%s\n", task.getTaskDescription()));
+                prompt.append(String.format("   理解层次：%d，权重：%.1f\n",
+                        task.getUnderstandingLevel(),
+                        task.getProgressWeight()));
+
+                if (task.getTargetKeywords() != null && !task.getTargetKeywords().isEmpty()) {
+                    prompt.append(String.format("   目标关键词：%s\n", String.join("、", task.getTargetKeywords())));
+                }
+                prompt.append(String.format("   推理目标：%s\n\n", task.getReasoningGoal()));
+            }
+        }
+
         // 相关线索信息
         prompt.append("=== 相关线索信息 ===\n");
         if (relevantClues.isEmpty()) {
@@ -282,10 +346,19 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
             for (Map.Entry<String, List<VectorService.ContextMatchResult>> entry : relevantClues.entrySet()) {
                 prompt.append(String.format("【%s类型线索】\n", entry.getKey()));
                 for (VectorService.ContextMatchResult result : entry.getValue()) {
-                    prompt.append(String.format("%d. %s (相似度: %.2f)\n",
+                    // 获取该线索关联的任务ID
+                    List<Integer> associatedTaskIds = getAssociatedTaskIds(result.getId());
+                    String taskInfo = associatedTaskIds.isEmpty() ?
+                            "" : String.format(" (关联任务ID: %s)",
+                            associatedTaskIds.stream()
+                                    .map(String::valueOf)
+                                    .collect(Collectors.joining(", ")));
+
+                    prompt.append(String.format("%d. %s (相似度: %.2f)%s\n",
                             clueIndex++,
                             result.getContent(),
-                            result.getSimilarity()));
+                            result.getSimilarity(),
+                            taskInfo));
                 }
                 prompt.append("\n");
             }
@@ -297,14 +370,16 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
 
         // 输出要求
         prompt.append("=== 回答要求 ===\n");
-        prompt.append("请基于上述线索，对玩家的问题给出判断。回答格式如下：\n");
+        prompt.append("请基于上述线索和推理任务，对玩家的问题给出判断。回答格式如下：\n");
         prompt.append("ANSWER: [YES/NO/PARTIAL/UNKNOWN]\n");
-        prompt.append("EXPLANATION: [详细的解释说明]\n\n");
+        prompt.append("EXPLANATION: [详细的解释说明]\n");
+        prompt.append("AFFECTED_TASKS: [任务ID1,任务ID2,...] (被此问题影响或推进的任务ID列表)\n\n");
         prompt.append("说明：\n");
         prompt.append("- YES: 线索明确支持问题的肯定回答\n");
         prompt.append("- NO: 线索明确支持问题的否定回答\n");
         prompt.append("- PARTIAL: 线索部分支持，但不能完全确定\n");
         prompt.append("- UNKNOWN: 线索不足以判断\n");
+        prompt.append("- AFFECTED_TASKS: 列出此问题直接关联或推进的推理任务ID，用于进度更新\n");
 
         return prompt.toString();
     }
@@ -345,7 +420,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
                 String answer = answerLine.replace("ANSWER:", "").trim().toUpperCase();
 
                 if (answer.equals("YES") || answer.equals("NO") ||
-                    answer.equals("PARTIAL") || answer.equals("UNKNOWN")) {
+                        answer.equals("PARTIAL") || answer.equals("UNKNOWN")) {
                     log.debug("解析到有效回答: {}", answer);
                     return answer;
                 }
@@ -426,8 +501,8 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
      * 生成解释说明
      */
     private String generateExplanation(String answer,
-                                     Map<String, List<VectorService.ContextMatchResult>> relevantClues,
-                                     String aiResponse) {
+                                       Map<String, List<VectorService.ContextMatchResult>> relevantClues,
+                                       String aiResponse) {
         try {
             // 尝试从AI响应中提取EXPLANATION
             if (aiResponse.contains("EXPLANATION:")) {
@@ -450,7 +525,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
      * 生成默认解释说明
      */
     private String generateDefaultExplanation(String answer,
-                                           Map<String, List<VectorService.ContextMatchResult>> relevantClues) {
+                                              Map<String, List<VectorService.ContextMatchResult>> relevantClues) {
         StringBuilder explanation = new StringBuilder();
 
         switch (answer) {
@@ -526,5 +601,91 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         return relevantClues.values().stream()
                 .mapToInt(List::size)
                 .sum();
+    }
+
+    /**
+     * 获取相关推理任务信息
+     */
+    private Map<Integer, InferenceTask> getRelevantTasks(Map<String, List<VectorService.ContextMatchResult>> relevantClues) {
+        Map<Integer, InferenceTask> relevantTasks = new HashMap<>();
+
+        try {
+            // 收集所有相关的任务ID
+            Set<Long> taskIds = new HashSet<>();
+            for (List<VectorService.ContextMatchResult> results : relevantClues.values()) {
+                for (VectorService.ContextMatchResult result : results) {
+                    List<Integer> associatedTaskIds = getAssociatedTaskIds(result.getId());
+                    for (Integer taskId : associatedTaskIds) {
+                        taskIds.add(taskId.longValue());
+                    }
+                }
+            }
+
+            if (taskIds.isEmpty()) {
+                return relevantTasks;
+            }
+
+            // 批量查询相关任务
+            List<InferenceTask> tasks = inferenceTaskRepository.findByTaskIdInAndIsDeletedFalse(new ArrayList<>(taskIds));
+            for (InferenceTask task : tasks) {
+                relevantTasks.put(task.getTaskId().intValue(), task);
+            }
+
+            log.info("获取到相关推理任务: 数量={}, 任务ID={}",
+                    relevantTasks.size(), relevantTasks.keySet());
+
+        } catch (Exception e) {
+            log.error("获取相关推理任务失败", e);
+        }
+
+        return relevantTasks;
+    }
+
+    /**
+     * 获取线索关联的任务ID
+     */
+    private List<Integer> getAssociatedTaskIds(String fragmentId) {
+        try {
+            // 这里fragmentId可能来自不同向量类型，需要处理
+            if (fragmentId.startsWith("clue_")) {
+                // 这是线索ID，需要查找关联的任务
+                String clueId = fragmentId.replace("clue_", "");
+                try {
+                    ClueFragment clueFragment = clueFragmentRepository.findById(Long.parseLong(clueId)).orElse(null);
+                    if (clueFragment != null && clueFragment.getAssociatedTaskIds() != null) {
+                        return clueFragment.getAssociatedTaskIds();
+                    }
+                } catch (NumberFormatException e) {
+                    log.warn("无效的线索ID格式: {}", fragmentId);
+                }
+            } else if (fragmentId.startsWith("fragment_")) {
+                // 这是片段ID，需要查找关联的任务
+                String fragmentIdStr = fragmentId.replace("fragment_", "");
+                try {
+                    ClueFragment clueFragment = clueFragmentRepository.findById(Long.parseLong(fragmentIdStr)).orElse(null);
+                    if (clueFragment != null && clueFragment.getAssociatedTaskIds() != null) {
+                        return clueFragment.getAssociatedTaskIds();
+                    }
+                } catch (NumberFormatException e) {
+                    log.warn("无效的片段ID格式: {}", fragmentId);
+                }
+            } else if (fragmentId.matches("\\d+")) {
+                // 直接的片段ID
+                try {
+                    ClueFragment clueFragment = clueFragmentRepository.findById(Long.parseLong(fragmentId)).orElse(null);
+                    if (clueFragment != null && clueFragment.getAssociatedTaskIds() != null) {
+                        return clueFragment.getAssociatedTaskIds();
+                    }
+                } catch (NumberFormatException e) {
+                    log.warn("无效的片段ID格式: {}", fragmentId);
+                }
+            }
+
+            return Collections.emptyList();
+
+        } catch (Exception e) {
+            log.error("获取线索关联任务ID失败: fragmentId={}", fragmentId, e);
+            return Collections.emptyList();
+        }
     }
 }

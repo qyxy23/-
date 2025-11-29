@@ -3,6 +3,7 @@ package com.guanyu.haigui.controller;
 import com.guanyu.haigui.pojo.dto.CreateHaiGuiSoupDTO;
 import com.guanyu.haigui.pojo.dto.SoupQuestionRequest;
 import com.guanyu.haigui.pojo.vo.ClueMatchResult;
+import com.guanyu.haigui.pojo.vo.SoupQuestionResponse;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.service.ServicesImpl.TurtleSoupService;
 import com.guanyu.haigui.service.SoupQuestionService;
@@ -122,12 +123,6 @@ public class HaiGuiSoupController {
 
             String response = soupQuestionService.processSoupQuestion(request);
             return Result.success(response);
-            // if ("SUCCESS".equals(response.getStatus())) {
-            //     return Result.success("问题判断成功", response);
-            // } else {
-            //     return Result.error("问题判断失败: " + response.getMessage());
-            // }
-
         } catch (Exception e) {
             log.error("处理海龟汤问题判断失败", e);
             return Result.error("问题判断失败: " + e.getMessage());
@@ -138,7 +133,7 @@ public class HaiGuiSoupController {
      * 简化版问题判断接口（GET方式）
      */
     @GetMapping("/question")
-    @Operation(summary = "简化版问题判断", description = "GET方式的问题判断接口，简化参数")
+    @Operation(summary = "简化版问题匹配数据查询", description = "GET方式的问题判断接口，简化参数")
     public Result<String> processSoupQuestionSimple(
             @Parameter(description = "海龟汤ID", required = true) @RequestParam String soupId,
             @Parameter(description = "玩家问题", required = true) @RequestParam String question,
@@ -154,12 +149,37 @@ public class HaiGuiSoupController {
 
             String response = soupQuestionService.processSoupQuestion(request);
             return Result.success(response);
+        } catch (Exception e) {
+            log.error("简化版问题判断失败: soupId={}, question={}", soupId, question, e);
+            return Result.error("问题判断失败: " + e.getMessage());
+        }
+    }
 
-            // if ("SUCCESS".equals(response.getStatus())) {
-            //     return Result.success("问题判断成功", response);
-            // } else {
-            //     return Result.error("问题判断失败: " + response.getMessage());
-            // }
+    /**
+     * 简化版问题判断接口（GET方式）
+     */
+    @GetMapping("/questionAndAI")
+    @Operation(summary = "简化版问题判断", description = "GET方式的问题判断接口，简化参数")
+    public Result<SoupQuestionResponse> processSoupQuestionSimple1(
+            @Parameter(description = "海龟汤ID", required = true) @RequestParam String soupId,
+            @Parameter(description = "玩家问题", required = true) @RequestParam String question,
+            @Parameter(description = "返回相关上下文数量") @RequestParam(defaultValue = "5") int topK,
+            @Parameter(description = "最小匹配阈值") @RequestParam(defaultValue = "0.3") double minSimilarity) {
+        try {
+            SoupQuestionRequest request = new SoupQuestionRequest();
+            request.setSoupId(soupId);
+            request.setQuestion(question);
+            request.setTopK(topK);
+            request.setMinSimilarity(minSimilarity);
+            request.setIncludeMatchDetails(false);
+
+            SoupQuestionResponse response = soupQuestionService.processSoupQuestion1(request);
+
+            if ("SUCCESS".equals(response.getStatus())) {
+                return Result.success("问题判断成功", response);
+            } else {
+                return Result.error("问题判断失败: " + response.getMessage());
+            }
 
         } catch (Exception e) {
             log.error("简化版问题判断失败: soupId={}, question={}", soupId, question, e);

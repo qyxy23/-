@@ -1,6 +1,7 @@
 package com.guanyu.haigui.service;
 
 import com.guanyu.haigui.pojo.dto.SoupQuestionRequest;
+import com.guanyu.haigui.pojo.vo.SoupQuestionResponse;
 
 /**
  * 海龟汤问题处理服务接口
@@ -98,6 +99,8 @@ public interface SoupQuestionService {
      * @param similarity 最高相似度
      */
     void recordQuestionStats(String soupId, Long userId, String question, String answer, Double similarity);
+
+    SoupQuestionResponse processSoupQuestion1(SoupQuestionRequest request);
 
     /**
      * 海龟汤信息类
