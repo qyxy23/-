@@ -80,8 +80,6 @@ CREATE TABLE IF NOT EXISTS `hai_gui_soup_inference_task` (
   `target_keywords` JSON COMMENT '目标关键词（玩家能说出这些词才算理解）',
   `reasoning_goal` TEXT NOT NULL COMMENT '推理目标（AI判断任务的完成标准）',
   `progress_weight` DECIMAL(5,2) NOT NULL COMMENT '进度权重',
-  `required_fragments` JSON COMMENT '需要关联的线索片段ID',
-  `evaluation_prompt` TEXT COMMENT 'AI评估任务完成度的专用提示词',
   `is_mandatory` TINYINT(1) DEFAULT 1 COMMENT '是否为必做任务（核心逻辑必须理解）',
   `task_order` INT DEFAULT 0 COMMENT '任务逻辑顺序',
   `is_deleted` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除标记',
@@ -177,7 +175,6 @@ CREATE TABLE IF NOT EXISTS `hai_gui_question_processing_log` (
   `match_time_ms` BIGINT COMMENT '向量匹配耗时（毫秒）',
 
   -- AI判断结果
-  `ai_evaluation_prompt` TEXT COMMENT '发送给AI的完整提示词',
   `ai_evaluation_response` JSON COMMENT 'AI的评估结果',
   `ai_evaluation_time_ms` BIGINT COMMENT 'AI评估耗时（毫秒）',
 

@@ -1,12 +1,11 @@
 package com.guanyu.haigui.pojo.model;
 
-import com.guanyu.haigui.converter.ListIntegerConverter;
 import com.guanyu.haigui.converter.ListStringConverter;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -52,13 +51,6 @@ public class InferenceTask {
 
     @Column(name = "progress_weight", columnDefinition = "DECIMAL(5,2)", nullable = false)
     private Double progressWeight;
-
-    @Column(name = "required_fragments", nullable = true, columnDefinition = "JSON")
-    @Convert(converter = ListIntegerConverter.class)
-    private List<Integer> requiredFragments;
-
-    @Column(name = "evaluation_prompt", columnDefinition = "TEXT")
-    private String evaluationPrompt;
 
     @Column(name = "is_mandatory", nullable = false, columnDefinition = "TINYINT(1)")
     private Boolean isMandatory = true;
