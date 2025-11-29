@@ -1,0 +1,50 @@
+{
+  "soupTitle": "失踪的古董画",
+  "soupSurface": "一幅珍贵的古董画在博物馆展出时突然消失了",
+  "soupBottom": "实际上这幅画是赝品，是盗窃团伙为了转移注意力制造的假象",
+  "hostManual": "这是一个典型的障眼法魔术，需要玩家识破",
+  "keyClues": [
+    {
+      "content": "画作的年代是清朝",
+      "clueType": "TIME",
+      "isKey": true
+    },
+    {
+      "content": "画家的身份很可疑",
+      "clueType": "CHARACTER",
+      "isKey": false
+    }
+  ],
+  "progressSettings": [
+    {
+      "taskName": "调查画作背景",
+      "description": "了解画作的历史背景和创作年代",
+      "understandingLevel": 1,
+      "targetKeywords": ["年代", "历史", "背景", "年代鉴定"],
+      "reasoningGoal": "确定画作的真实年代和历史背景",
+      "progressWeight": 25.0,
+      "isMandatory": true,
+      "taskOrder": 1
+    },
+    {
+      "taskName": "分析画家动机",
+      "description": "探究画家的创作动机和目的",
+      "understandingLevel": 2,
+      "targetKeywords": ["动机", "目的", "创作者", "意图"],
+      "reasoningGoal": "理解画家的真实动机和创作意图",
+      "progressWeight": 35.0,
+      "isMandatory": true,
+      "taskOrder": 2
+    },
+    {
+      "taskName": "揭露画作真相",
+      "description": "发现画作的真相和秘密",
+      "understandingLevel": 3,
+      "targetKeywords": ["真相", "秘密", "赝品", "鉴定"],
+      "reasoningGoal": "揭示画作的真实性质和隐藏的秘密",
+      "progressWeight": 40.0,
+      "isMandatory": true,
+      "taskOrder": 3
+    }
+  ]
+}

@@ -814,7 +814,7 @@ public class TurtleSoupService {
 
         } catch (Exception e) {
             log.warn("解析用户提供的推理任务失败: {}", progressSettingsInput, e);
-            return new ArrayList<>();
+            throw new BusinessException(500, "解析用户提供的推理任务失败");
         }
     }
 

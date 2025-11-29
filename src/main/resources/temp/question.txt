@@ -47,9 +47,4 @@
         "taskOrder": 3
       }
     ]
-  }
-  创建海龟汤时为什么后端报错
-  com.fasterxml.jackson.core.JsonParseException: Unexpected character ('t' (code 116)): was expecting double-quote to start field name
-   at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); line: 1, column: 3]
-  	at com.fasterxml.jackson.core.JsonParser._constructReadException(JsonParser.java:2648) ~[jackson-core-2.17.2.jar:2.17.2]
-  	at com.fasterxml.jackson.core.base.ParserMinimalBase._reportUnexpectedChar(ParserMinimalBase.java:685) ~[jackson-core-2.17.2.jar:2.17.2]
+}

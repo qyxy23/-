@@ -3,8 +3,11 @@ package com.guanyu.haigui.pojo.dto;
 import lombok.Data;
 import com.guanyu.haigui.pojo.model.SoupClue;
 import com.guanyu.haigui.pojo.model.ProgressRule;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 
 import java.util.List;
+import java.util.ArrayList;
 
 @Data
 public class CreateHaiGuiSoupDTO {
@@ -30,6 +33,8 @@ public class CreateHaiGuiSoupDTO {
     // 2. 对象：完整的进度设置对象
     private Object progressSettings;
 
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+
     /**
      * 获取线索字符串（向后兼容）
      */
@@ -40,12 +45,18 @@ public class CreateHaiGuiSoupDTO {
         if (keyClues instanceof String) {
             return (String) keyClues;
         }
-        if (keyClues instanceof List) {
-            return String.join("；", ((List<?>) keyClues).stream()
-                    .map(Object::toString)
-                    .toArray(String[]::new));
+        try {
+            // 使用ObjectMapper正确序列化对象为JSON字符串
+            return objectMapper.writeValueAsString(keyClues);
+        } catch (JsonProcessingException e) {
+            // 如果序列化失败，对于List类型使用join方式作为fallback
+            if (keyClues instanceof List) {
+                return String.join("；", ((List<?>) keyClues).stream()
+                        .map(Object::toString)
+                        .toArray(String[]::new));
+            }
+            return keyClues.toString();
         }
-        return keyClues.toString();
     }
 
     /**
@@ -58,6 +69,12 @@ public class CreateHaiGuiSoupDTO {
         if (progressSettings instanceof String) {
             return (String) progressSettings;
         }
-        return progressSettings.toString();
+        try {
+            // 使用ObjectMapper正确序列化对象为JSON字符串
+            return objectMapper.writeValueAsString(progressSettings);
+        } catch (JsonProcessingException e) {
+            // 如果序列化失败，返回toString()作为fallback
+            return progressSettings.toString();
+        }
     }
 }

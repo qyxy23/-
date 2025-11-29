@@ -10,7 +10,9 @@
       "Bash(find:*)",
       "Bash(javac:*)",
       "Bash(mysql:*)",
-      "Bash(src/main/java/com/guanyu/haigui/service/ServicesImpl/DynamicTaskService.java)"
+      "Bash(src/main/java/com/guanyu/haigui/service/ServicesImpl/DynamicTaskService.java)",
+      "Bash(java:*)",
+      "Bash(mvn exec:java:*)"
     ],
     "deny": [],
     "ask": []
