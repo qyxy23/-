@@ -1,5 +1,6 @@
 package com.guanyu.haigui.service;
 
+import com.guanyu.haigui.pojo.Info.SoupInfo;
 import com.guanyu.haigui.pojo.dto.SoupQuestionRequest;
 import com.guanyu.haigui.pojo.vo.SoupQuestionResponse;
 
@@ -102,32 +103,4 @@ public interface SoupQuestionService {
 
     SoupQuestionResponse processSoupQuestion1(SoupQuestionRequest request);
 
-    /**
-     * 海龟汤信息类
-     */
-    class SoupInfo {
-        private String soupId;
-        private String soupTitle;
-        private String soupSurface;
-        private String soupBottom;
-        private String hostManual;
-        private Double currentProgress;
-
-        // 构造函数和getter/setter方法
-        public SoupInfo(String soupId, String soupTitle, String soupSurface, String soupBottom, String hostManual) {
-            this.soupId = soupId;
-            this.soupTitle = soupTitle;
-            this.soupSurface = soupSurface;
-            this.soupBottom = soupBottom;
-            this.hostManual = hostManual;
-        }
-
-        public String getSoupId() { return soupId; }
-        public String getSoupTitle() { return soupTitle; }
-        public String getSoupSurface() { return soupSurface; }
-        public String getSoupBottom() { return soupBottom; }
-        public String getHostManual() { return hostManual; }
-        public Double getCurrentProgress() { return currentProgress; }
-        public void setCurrentProgress(Double currentProgress) { this.currentProgress = currentProgress; }
-    }
 }

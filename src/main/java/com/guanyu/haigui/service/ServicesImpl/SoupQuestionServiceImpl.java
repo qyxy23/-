@@ -2,6 +2,8 @@ package com.guanyu.haigui.service.ServicesImpl;
 
 import com.guanyu.haigui.Enum.VectorType;
 import com.guanyu.haigui.context.BaseContext;
+import com.guanyu.haigui.manager.AIManager;
+import com.guanyu.haigui.pojo.Info.SoupInfo;
 import com.guanyu.haigui.pojo.dto.SoupQuestionRequest;
 import com.guanyu.haigui.pojo.model.ClueFragment;
 import com.guanyu.haigui.pojo.model.HaiGuiSoup;
@@ -12,7 +14,6 @@ import com.guanyu.haigui.repository.HaiGuiSoupRepository;
 import com.guanyu.haigui.repository.InferenceTaskRepository;
 import com.guanyu.haigui.service.SoupQuestionService;
 import com.guanyu.haigui.service.VectorService;
-import com.guanyu.haigui.utils.AiClientUtil;
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
 import com.guanyu.haigui.utils.RedisStackClient;
 import lombok.RequiredArgsConstructor;
@@ -32,14 +33,12 @@ import java.util.stream.Collectors;
 @Slf4j
 public class SoupQuestionServiceImpl implements SoupQuestionService {
 
-    private final VectorService vectorService;
-    private final TurtleSoupService turtleSoupService;
     private final HaiGuiSoupRepository haiGuiSoupRepository;
     private final ClueFragmentRepository clueFragmentRepository;
     private final InferenceTaskRepository inferenceTaskRepository;
-    private final AiClientUtil aiClientUtil;
     private final BgeVectorClientUtil bgeVectorClientUtil;
     private final RedisStackClient redisClient;
+    private final AIManager aiManager;
 
 
     @Override
@@ -299,9 +298,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
                                 SoupInfo soupInfo) {
         StringBuilder prompt = new StringBuilder();
 
-        // 系统角色定义
-        prompt.append("你是一个海龟汤游戏的AI助手，专门负责根据线索判断玩家问题的答案。");
-        prompt.append("请基于提供的线索信息，对玩家的问题给出准确的判断。\n\n");
+
 
         // 海龟汤背景信息
         prompt.append("=== 海龟汤背景 ===\n");
@@ -389,7 +386,10 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         try {
             log.debug("调用AI生成判断，提示词长度: {}", prompt.length());
 
-            String response = aiClientUtil.generateResponse(prompt);
+
+            // 系统角色定义
+            String systemPrompt = "你是一个海龟汤游戏的AI助手,专门负责根据线索判断玩家问题的答案,请基于提供的线索信息,对玩家的问题给出准确的判断。";
+            String response = aiManager.doChat(systemPrompt,prompt);
 
             if (response == null || response.trim().isEmpty()) {
                 log.error("AI返回空响应");

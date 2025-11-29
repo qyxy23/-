@@ -2,14 +2,16 @@ package com.guanyu.haigui.service.ServicesImpl;
 
 import com.guanyu.haigui.Enum.VectorType;
 import com.guanyu.haigui.context.BaseContext;
+import com.guanyu.haigui.manager.AIManager;
 import com.guanyu.haigui.pojo.dto.QuestionRequest;
 import com.guanyu.haigui.pojo.dto.QuestionResponse;
 import com.guanyu.haigui.pojo.model.GameSession;
 import com.guanyu.haigui.pojo.model.HaiGuiSoup;
+import com.guanyu.haigui.repository.GameSessionRepository;
+import com.guanyu.haigui.repository.HaiGuiSoupRepository;
 import com.guanyu.haigui.service.GameQuestionService;
 import com.guanyu.haigui.service.VectorService;
 import com.guanyu.haigui.service.VectorService.ContextMatchResult;
-import com.guanyu.haigui.utils.AiClientUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,11 +29,9 @@ import java.util.*;
 public class GameQuestionServiceImpl implements GameQuestionService {
 
     private final VectorService vectorService;
-    private final TurtleSoupService turtleSoupService;
-    private final com.guanyu.haigui.repository.GameSessionRepository gameSessionRepository;
-    private final com.guanyu.haigui.repository.HaiGuiSoupRepository haiGuiSoupRepository;
-    // private final com.guanyu.haigui.repository.haigui_player_ai_dialog_statsRepository dialogStatsRepository; // TODO: 实现对话统计Repository
-    private final AiClientUtil aiClientUtil;
+    private final GameSessionRepository gameSessionRepository;
+    private final HaiGuiSoupRepository haiGuiSoupRepository;
+    private final AIManager aiManager;
 
     @Override
     @Transactional
@@ -149,14 +149,7 @@ public class GameQuestionServiceImpl implements GameQuestionService {
     public String buildPromptForAI(String question, Map<String, List<ContextMatchResult>> contextMap, SoupInfo soupInfo) {
         StringBuilder prompt = new StringBuilder();
 
-        // 1. 系统角色和规则说明
-        prompt.append("你是一个海龟汤游戏的AI主持人。你需要根据玩家的问题，结合提供的上下文信息，给出准确的回答。\n\n");
 
-        prompt.append("游戏规则：\n");
-        prompt.append("- 对于可以用当前上下文明确回答的问题，直接给出YES或NO的回答\n");
-        prompt.append("- 如果信息不足，给出MAYBE并说明需要更多信息\n");
-        prompt.append("- 可以适当提供相关的细节信息，但不要直接透露汤底\n");
-        prompt.append("- 回答要简洁明了，避免冗长\n\n");
 
         // 2. 海龟汤基本信息
         prompt.append("当前游戏信息：\n");
@@ -205,18 +198,13 @@ public class GameQuestionServiceImpl implements GameQuestionService {
      * 获取上下文类型的显示名称
      */
     private String getContextTypeDisplayName(String contextType) {
-        switch (contextType) {
-            case "SURFACE":
-                return "汤面相关";
-            case "BOTTOM":
-                return "汤底相关";
-            case "MANUAL":
-                return "主持人手册";
-            case "CLUE":
-                return "相关线索";
-            default:
-                return "其他信息";
-        }
+        return switch (contextType) {
+            case "SURFACE" -> "汤面相关";
+            case "BOTTOM" -> "汤底相关";
+            case "MANUAL" -> "主持人手册";
+            case "CLUE" -> "相关线索";
+            default -> "其他信息";
+        };
     }
 
     @Override
@@ -224,7 +212,14 @@ public class GameQuestionServiceImpl implements GameQuestionService {
         try {
             log.info("开始调用AI生成回答，提示词长度: {}", prompt.length());
 
-            String response = aiClientUtil.generateResponse(prompt);
+            String SystemPrompt = "你是一个海龟汤游戏的AI主持人。你需要根据玩家的问题，结合提供的上下文信息，给出准确的回答。" +
+                    "游戏规则：" +
+                    "- 对于可以用当前上下文明确回答的问题，直接给出YES或NO的回答" +
+                    "- 如果信息不足，给出MAYBE并说明需要更多信息" +
+                    "- 可以适当提供相关的细节信息，但不要直接透露汤底" +
+                    "- 回答要简洁明了，避免冗长";
+
+            String response = aiManager.doChat(SystemPrompt,prompt);
 
             if (response == null || response.trim().isEmpty()) {
                 log.error("AI返回空回答");
