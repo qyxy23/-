@@ -3,6 +3,7 @@ package com.guanyu.haigui.controller;
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.model.MultipleRankingsResponse;
 import com.guanyu.haigui.pojo.model.RankingStatistics;
+import com.guanyu.haigui.pojo.model.SoupListPageResponse;
 import com.guanyu.haigui.pojo.vo.HotSoupItem;
 import com.guanyu.haigui.pojo.vo.SoupRankInfo;
 import com.guanyu.haigui.result.Result;
@@ -28,6 +29,31 @@ import java.util.List;
 public class HaiGuiRankingController {
 
     private final HaiGuiRankingService haiGuiRankingService;
+
+    /**
+     * 获取海龟汤列表（分页查询）
+     */
+    @GetMapping("/soup-list")
+    @Operation(summary = "获取海龟汤列表", description = "分页查询海龟汤列表，返回ID、标题、汤面、汤底、游玩次数、上传者信息等")
+    public Result<SoupListPageResponse> getSoupListWithPagination(
+            @Parameter(description = "页码，从1开始，默认1") @RequestParam(defaultValue = "1") int page,
+            @Parameter(description = "每页大小，默认10，最大100") @RequestParam(defaultValue = "10") int pageSize) {
+        try {
+            if (page < 1) {
+                return Result.error("页码必须大于0");
+            }
+            if (pageSize < 1 || pageSize > 100) {
+                return Result.error("每页大小必须在1-100之间");
+            }
+
+            SoupListPageResponse response = haiGuiRankingService.getSoupListWithPagination(page, pageSize);
+            return Result.success("获取海龟汤列表成功", response);
+
+        } catch (Exception e) {
+            log.error("获取海龟汤列表失败", e);
+            return Result.error("获取失败: " + e.getMessage());
+        }
+    }
 
     /**
      * 获取最火爆的前十个海龟汤

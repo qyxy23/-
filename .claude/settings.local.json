@@ -12,7 +12,8 @@
       "Bash(mysql:*)",
       "Bash(src/main/java/com/guanyu/haigui/service/ServicesImpl/DynamicTaskService.java)",
       "Bash(java:*)",
-      "Bash(mvn exec:java:*)"
+      "Bash(mvn exec:java:*)",
+      "Bash(mvn clean package:*)"
     ],
     "deny": [],
     "ask": []

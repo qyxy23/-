@@ -10,11 +10,13 @@ import lombok.Data;
 @Data
 @Schema(description = "海龟汤问题请求")
 public class SoupQuestionRequest {
+    @Schema(description = "房间ID", example = "uuid-haigui-room-id")
+    private String roomId;
 
-    @Schema(description = "海龟汤ID", required = true, example = "uuid-haigui-soup-id")
+    @Schema(description = "海龟汤ID", example = "uuid-haigui-soup-id")
     private String soupId;
 
-    @Schema(description = "玩家问题", required = true, example = "凶手是男性吗？")
+    @Schema(description = "玩家问题", example = "凶手是男性吗？")
     private String question;
 
     @Schema(description = "返回相关上下文数量", defaultValue = "5", example = "5")

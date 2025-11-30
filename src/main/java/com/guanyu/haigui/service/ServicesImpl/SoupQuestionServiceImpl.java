@@ -1,17 +1,16 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
+import com.guanyu.haigui.Enum.RoomStatus;
 import com.guanyu.haigui.Enum.VectorType;
+import com.guanyu.haigui.Exception.RoomNotFoundException;
+import com.guanyu.haigui.Exception.UserNotInRoomException;
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.manager.AIManager;
 import com.guanyu.haigui.pojo.Info.SoupInfo;
 import com.guanyu.haigui.pojo.dto.SoupQuestionRequest;
-import com.guanyu.haigui.pojo.model.ClueFragment;
-import com.guanyu.haigui.pojo.model.HaiGuiSoup;
-import com.guanyu.haigui.pojo.model.InferenceTask;
+import com.guanyu.haigui.pojo.model.*;
 import com.guanyu.haigui.pojo.vo.SoupQuestionResponse;
-import com.guanyu.haigui.repository.ClueFragmentRepository;
-import com.guanyu.haigui.repository.HaiGuiSoupRepository;
-import com.guanyu.haigui.repository.InferenceTaskRepository;
+import com.guanyu.haigui.repository.*;
 import com.guanyu.haigui.service.SoupQuestionService;
 import com.guanyu.haigui.service.VectorService;
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
@@ -39,11 +38,23 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
     private final BgeVectorClientUtil bgeVectorClientUtil;
     private final RedisStackClient redisClient;
     private final AIManager aiManager;
-
+    private final ChatGameRepository chatGameRepository;
+    private final ChatGameMemberRepository chatGameMemberRepository;
+    private final HaiGuiGameRepository haiGuiGameRepository;
 
     @Override
     @Transactional
     public SoupQuestionResponse processSoupQuestion1(SoupQuestionRequest request) {
+        Long userId = BaseContext.getCurrentId();
+        String roomId = request.getRoomId();
+        ChatGame room = chatGameRepository.findById(roomId)
+                .orElseThrow(() -> new RoomNotFoundException("房间不存在：ID=" + roomId));
+        ChatGameMemberId memberId = new ChatGameMemberId(userId, roomId);
+        ChatGameMember member = chatGameMemberRepository.findById(memberId)
+                .orElseThrow(() -> new UserNotInRoomException("用户未在房间中：ID=" + userId));
+        if(room.getStatus() != RoomStatus.ACTIVE){
+            throw new RuntimeException("房间不在进行中，无法提问");
+        }
         long startTime = System.currentTimeMillis();
 
         try {
@@ -122,7 +133,6 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
             ));
 
             // 10. 记录统计信息
-            Long userId = request.getUserId() != null ? request.getUserId() : BaseContext.getCurrentId();
             recordQuestionStats(request.getSoupId(), userId, request.getQuestion(), answer, maxSimilarity);
 
             log.info("海龟汤问题处理完成: soupId={}, 耗时={}ms, 判断结果={}, 最高相似度={}",

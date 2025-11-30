@@ -114,14 +114,13 @@ public class HaiGuiSoupController {
      */
     @PostMapping("/question")
     @Operation(summary = "海龟汤问题判断", description = "基于向量匹配相关线索，让AI判断问题答案为是或否")
-    public Result<String> processSoupQuestion(@RequestBody SoupQuestionRequest request) {
-    // public Result<SoupQuestionResponse> processSoupQuestion(@RequestBody SoupQuestionRequest request) {
+    public Result<SoupQuestionResponse> processSoupQuestion(@RequestBody SoupQuestionRequest request) {
         try {
             log.info("接收到海龟汤问题判断请求: soupId={}, question={}",
                     request.getSoupId(),
                     request.getQuestion().substring(0, Math.min(50, request.getQuestion().length())));
 
-            String response = soupQuestionService.processSoupQuestion(request);
+            SoupQuestionResponse response = soupQuestionService.processSoupQuestion1(request);
             return Result.success(response);
         } catch (Exception e) {
             log.error("处理海龟汤问题判断失败", e);
@@ -186,4 +185,6 @@ public class HaiGuiSoupController {
             return Result.error("问题判断失败: " + e.getMessage());
         }
     }
+
+
 }

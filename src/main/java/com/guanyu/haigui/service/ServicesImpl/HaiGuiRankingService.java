@@ -1,12 +1,19 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
+import com.guanyu.haigui.pojo.dto.SoupProjectionDTO;
 import com.guanyu.haigui.pojo.model.HaiGuiSoup;
 import com.guanyu.haigui.pojo.model.RankingStatistics;
+import com.guanyu.haigui.pojo.model.SoupListPageResponse;
 import com.guanyu.haigui.pojo.vo.HotSoupItem;
+import com.guanyu.haigui.pojo.vo.SoupListItem;
 import com.guanyu.haigui.pojo.vo.SoupRankInfo;
+import com.guanyu.haigui.repository.HaiGuiSoupRepository;
 import com.guanyu.haigui.utils.RedisStackClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -26,6 +33,7 @@ import java.util.Map;
 public class HaiGuiRankingService {
 
     private final RedisStackClient redisStackClient;
+    private final HaiGuiSoupRepository haiGuiSoupRepository;
 
     /**
      * 获取最火爆的前十个海龟汤
@@ -278,6 +286,78 @@ public class HaiGuiRankingService {
         } catch (Exception e) {
             log.error("获取榜单统计信息失败", e);
             return RankingStatistics.builder().build();
+        }
+    }
+
+    /**
+     * 获取海龟汤分页列表
+     * @param page 页码（从1开始）
+     * @param pageSize 每页大小，默认10
+     * @return 分页后的海龟汤列表
+     */
+    public SoupListPageResponse getSoupListWithPagination(int page, int pageSize) {
+        try {
+            log.info("开始获取海龟汤分页列表: page={}, pageSize={}", page, pageSize);
+
+            // 参数校验
+            if (page < 1) {
+                page = 1;
+            }
+            if (pageSize < 1) {
+                pageSize = 10;
+            }
+            if (pageSize > 100) {
+                pageSize = 100; // 限制最大每页数量
+            }
+
+            // 创建分页参数（Spring Data JPA的页码从0开始）
+            Pageable pageable = PageRequest.of(page - 1, pageSize);
+
+            // 查询分页数据
+            Page<SoupProjectionDTO> soupPage =
+                haiGuiSoupRepository.findSoupsWithPagination(pageable);
+
+            // 转换为VO列表
+            List<SoupListItem> soupList = soupPage.getContent().stream()
+                .map(projection -> SoupListItem.builder()
+                    .soupId(projection.getSoupId())
+                    .soupTitle(projection.getSoupTitle())
+                    .soupSurface(projection.getSoupSurface())
+                    .playCount(projection.getPlayCount())
+                    .uploaderId(projection.getUploaderId())
+                    .uploaderAvatar(projection.getUploaderAvatar())
+                    .uploadTime(projection.getUploadTime())
+                    .build())
+                .toList();
+
+            // 构建分页响应
+            SoupListPageResponse response = SoupListPageResponse.builder()
+                .soupList(soupList)
+                .currentPage(page)
+                .pageSize(pageSize)
+                .totalRecords(soupPage.getTotalElements())
+                .totalPages(soupPage.getTotalPages())
+                .hasNext(soupPage.hasNext())
+                .hasPrevious(soupPage.hasPrevious())
+                .build();
+
+            log.info("获取海龟汤分页列表完成，返回{}条记录，总记录数: {}",
+                soupList.size(), soupPage.getTotalElements());
+
+            return response;
+
+        } catch (Exception e) {
+            log.error("获取海龟汤分页列表失败: page={}, pageSize={}", page, pageSize, e);
+            // 返回空结果
+            return SoupListPageResponse.builder()
+                .soupList(new ArrayList<>())
+                .currentPage(page)
+                .pageSize(pageSize)
+                .totalRecords(0)
+                .totalPages(0)
+                .hasNext(false)
+                .hasPrevious(false)
+                .build();
         }
     }
 
