@@ -368,14 +368,14 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         // 输出要求
         prompt.append("=== 回答要求 ===\n");
         prompt.append("请基于上述线索和推理任务，对玩家的问题给出判断。回答格式如下：\n");
-        prompt.append("ANSWER: [YES/NO/PARTIAL/UNKNOWN]\n");
+        prompt.append("ANSWER: [是/不是/是或不是/不重要]\n");
         prompt.append("EXPLANATION: [详细的解释说明]\n");
         prompt.append("AFFECTED_TASKS: [任务ID1,任务ID2,...] (被此问题影响或推进的任务ID列表)\n\n");
         prompt.append("说明：\n");
-        prompt.append("- YES: 线索明确支持问题的肯定回答\n");
-        prompt.append("- NO: 线索明确支持问题的否定回答\n");
-        prompt.append("- PARTIAL: 线索部分支持，但不能完全确定\n");
-        prompt.append("- UNKNOWN: 线索不足以判断\n");
+        prompt.append("- 是: 线索明确支持问题的肯定回答\n");
+        prompt.append("- 不是: 线索明确支持问题的否定回答\n");
+        prompt.append("- 是或不是: 线索部分支持，但不能完全确定\n");
+        prompt.append("- 不重要: 线索不足以判断\n");
         prompt.append("- AFFECTED_TASKS: 列出此问题直接关联或推进的推理任务ID，用于进度更新\n");
 
         return prompt.toString();
@@ -419,8 +419,8 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
 
                 String answer = answerLine.replace("ANSWER:", "").trim().toUpperCase();
 
-                if (answer.equals("YES") || answer.equals("NO") ||
-                        answer.equals("PARTIAL") || answer.equals("UNKNOWN")) {
+                if (answer.equals("是") || answer.equals("不是") ||
+                        answer.equals("是或不是") || answer.equals("不重要")) {
                     log.debug("解析到有效回答: {}", answer);
                     return answer;
                 }
@@ -454,18 +454,16 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
                 return null;
             }
 
-            SoupInfo soupInfo = new SoupInfo(
+            // 可以在这里添加进度计算逻辑
+            // soupInfo.setCurrentProgress(calculateProgress(soupId));
+
+            return new SoupInfo(
                     soup.getSoupId(),
                     soup.getSoupTitle(),
                     soup.getSoupSurface(),
                     soup.getSoupBottom(),
                     soup.getHostManual()
             );
-
-            // 可以在这里添加进度计算逻辑
-            // soupInfo.setCurrentProgress(calculateProgress(soupId));
-
-            return soupInfo;
 
         } catch (Exception e) {
             log.error("获取海龟汤信息失败: soupId={}", soupId, e);
