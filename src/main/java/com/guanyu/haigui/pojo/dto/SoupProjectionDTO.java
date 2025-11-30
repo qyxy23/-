@@ -1,5 +1,6 @@
 package com.guanyu.haigui.pojo.dto;
 
+import com.guanyu.haigui.Enum.DifficultyLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -54,4 +55,24 @@ public class SoupProjectionDTO {
      * 上传时间
      */
     private LocalDateTime uploadTime;
+
+    /**
+     * 预计游玩时间（分钟）
+     */
+    private Integer estimatedDuration;
+
+    /**
+     * 游玩人数限制，0表示不限制，最多10人
+     */
+    private Integer playerCount;
+
+    /**
+     * 难度等级
+     */
+    private DifficultyLevel difficultyLevel;
+
+    /**
+     * 海龟汤标签（单个标签，JSON字符串）
+     */
+    private String tags;
 }

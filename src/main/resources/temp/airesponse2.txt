@@ -1,0 +1,121 @@
+{
+  "fragments": [
+    {
+      "content": "古董画在博物馆展出时消失，这是玩家直接观察到的事实",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 1,
+      "difficulty": 3,
+      "importance": 5,
+      "keywords": ["古董画", "博物馆", "消失"],
+      "isCoreClue": false,
+      "similarityThreshold": 0.6,
+      "associatedTaskIds": [1],
+      "order": 1,
+      "source": "AI"
+    },
+    {
+      "content": "画作的年代是清朝，这是关于画作本身的时间信息",
+      "fragmentType": "TIME",
+      "inferenceLevel": 1,
+      "difficulty": 4,
+      "importance": 4,
+      "keywords": ["清朝", "画作年代"],
+      "isCoreClue": false,
+      "similarityThreshold": 0.6,
+      "associatedTaskIds": [1],
+      "order": 2,
+      "source": "AUGMENTED_USER"
+    },
+    {
+      "content": "画家的身份很可疑，这可能暗示画家与古董画的失踪有关",
+      "fragmentType": "CHARACTER",
+      "inferenceLevel": 2,
+      "difficulty": 6,
+      "importance": 7,
+      "keywords": ["画家", "身份可疑", "失踪关联"],
+      "isCoreClue": true,
+      "similarityThreshold": 0.7,
+      "associatedTaskIds": [1, 2],
+      "order": 3,
+      "source": "AUGMENTED_USER"
+    },
+    {
+      "content": "博物馆内有监控设备，但部分监控画面缺失",
+      "fragmentType": "OBJECT",
+      "inferenceLevel": 2,
+      "difficulty": 5,
+      "importance": 6,
+      "keywords": ["博物馆", "监控设备", "画面缺失"],
+      "isCoreClue": false,
+      "similarityThreshold": 0.65,
+      "associatedTaskIds": [1, 2],
+      "order": 4,
+      "source": "AI"
+    },
+    {
+      "content": "展览期间博物馆的安保人员数量没有明显变化",
+      "fragmentType": "CHARACTER",
+      "inferenceLevel": 2,
+      "difficulty": 4,
+      "importance": 5,
+      "keywords": ["展览期间", "安保人员", "数量不变"],
+      "isCoreClue": false,
+      "similarityThreshold": 0.6,
+      "associatedTaskIds": [1, 2],
+      "order": 5,
+      "source": "AI"
+    },
+    {
+      "content": "古董画消失后，博物馆工作人员在展厅角落发现了一个可疑的脚印",
+      "fragmentType": "OBJECT",
+      "inferenceLevel": 2,
+      "difficulty": 5,
+      "importance": 6,
+      "keywords": ["古董画消失", "展厅角落", "可疑脚印"],
+      "isCoreClue": false,
+      "similarityThreshold": 0.65,
+      "associatedTaskIds": [1, 2],
+      "order": 6,
+      "source": "AI"
+    },
+    {
+      "content": "调查发现盗窃团伙之前有过类似制造假象转移注意力的作案手法",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 3,
+      "difficulty": 7,
+      "importance": 8,
+      "keywords": ["盗窃团伙", "作案手法", "制造假象"],
+      "isCoreClue": true,
+      "similarityThreshold": 0.75,
+      "associatedTaskIds": [2, 3],
+      "order": 7,
+      "source": "AI"
+    },
+    {
+      "content": "实际上这幅画是赝品，这是整个事件的关键真相",
+      "fragmentType": "TRUTH",
+      "inferenceLevel": 3,
+      "difficulty": 8,
+      "importance": 9,
+      "keywords": ["古董画", "赝品"],
+      "isCoreClue": true,
+      "similarityThreshold": 0.8,
+      "associatedTaskIds": [2, 3],
+      "order": 8,
+      "source": "AI"
+    },
+    {
+      "content": "盗窃团伙制造古董画失踪的假象是为了掩盖他们真正的盗窃目标",
+      "fragmentType": "TRUTH",
+      "inferenceLevel": 4,
+      "difficulty": 9,
+      "importance": 10,
+      "keywords": ["盗窃团伙", "掩盖目标", "假象"],
+      "isCoreClue": true,
+      "similarityThreshold": 0.85,
+      "associatedTaskIds": [3],
+      "order": 9,
+      "source": "AI"
+    }
+  ]
+}

@@ -19,7 +19,8 @@ public interface HaiGuiSoupRepository extends JpaRepository<HaiGuiSoup, String> 
      */
     @Query("SELECT new com.guanyu.haigui.pojo.dto.SoupProjectionDTO(" +
            "h.soupId, h.soupTitle, h.soupSurface, h.soupBottom, " +
-           "h.playCount, h.uploaderId, u.avatar, h.uploadTime) " +
+           "h.playCount, h.uploaderId, u.avatar, h.uploadTime, " +
+           "h.estimatedDuration, h.playerCount, h.difficultyLevel, h.tags) " +
            "FROM HaiGuiSoup h " +
            "LEFT JOIN UserInfo u ON h.uploaderId = u.userId " +
            "WHERE h.isDeleted = false " +

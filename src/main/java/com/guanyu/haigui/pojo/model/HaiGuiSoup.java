@@ -1,5 +1,6 @@
 package com.guanyu.haigui.pojo.model;
 
+import com.guanyu.haigui.Enum.DifficultyLevel;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -69,6 +70,23 @@ public class HaiGuiSoup {
     // 游玩次数
     @Column(name = "play_count", columnDefinition = "INT UNSIGNED", nullable = false)
     private Integer playCount;
+
+    // 预计游玩时间（分钟）
+    @Column(name = "estimated_duration", columnDefinition = "INT")
+    private Integer estimatedDuration = 30; // 默认30分钟
+
+    // 游玩人数限制，0表示不限制，最多10人
+    @Column(name = "player_count", columnDefinition = "INT")
+    private Integer playerCount = 0; // 默认0（不限制）
+
+    // 难度等级
+    @Enumerated(EnumType.STRING)
+    @Column(name = "difficulty_level", columnDefinition = "ENUM('BEGINNER','INTERMEDIATE','ADVANCED')", nullable = false)
+    private DifficultyLevel difficultyLevel = DifficultyLevel.BEGINNER;
+
+    // 海龟汤标签（单个标签，JSON格式）
+    @Column(name = "tags", columnDefinition = "JSON")
+    private String tags;
 
     // 是否删除
     @Column(name = "is_deleted", columnDefinition = "TINYINT(1)", nullable = false)

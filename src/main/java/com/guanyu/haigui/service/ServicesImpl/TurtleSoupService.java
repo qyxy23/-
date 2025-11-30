@@ -79,6 +79,12 @@ public class TurtleSoupService {
             haiGuiSoup.setSoupBottom(soup.getSoupBottom());
             haiGuiSoup.setHostManual(soup.getHostManual());
 
+            // 设置新增的业务字段
+            haiGuiSoup.setEstimatedDuration(soup.getEstimatedDuration());
+            haiGuiSoup.setPlayerCount(soup.getPlayerCount());
+            haiGuiSoup.setDifficultyLevel(soup.getDifficultyLevel());
+            haiGuiSoup.setTags(soup.getTagsAsString());
+
             // 解析线索和进度设置
             String keyCluesInput = soup.getKeyCluesAsString();
             String progressSettingsInput = soup.getProgressSettingsAsString();

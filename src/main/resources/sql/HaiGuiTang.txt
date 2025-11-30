@@ -17,6 +17,12 @@ CREATE TABLE IF NOT EXISTS `hai_gui_soup` (
   `uploader_id` BIGINT UNSIGNED COMMENT '上传者ID（外键：sys_user.user_id）',
   `upload_time` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) COMMENT '上传时间',
   `play_count` INT NOT NULL DEFAULT 0 COMMENT '游玩次数',
+
+  -- 新增业务字段
+  `estimated_duration` INT DEFAULT 30 COMMENT '预计游玩时间（分钟），默认30分钟',
+  `player_count` INT DEFAULT 0 COMMENT '游玩人数限制，0表示不限制，最多10人，默认0',
+  `difficulty_level` ENUM('BEGINNER','INTERMEDIATE','ADVANCED') NOT NULL DEFAULT 'BEGINNER' COMMENT '难度等级：BEGINNER-入门，INTERMEDIATE-中等，ADVANCED-困难',
+  `tags` JSON COMMENT '海龟汤标签：["惊悚","欢乐","情感","脑洞","奇幻","日常","其他"]',
   `is_deleted` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除标记（0=未删，1=已删）',
   `created_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) COMMENT '创建时间',
   `updated_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6) COMMENT '更新时间',
@@ -26,6 +32,12 @@ CREATE TABLE IF NOT EXISTS `hai_gui_soup` (
   INDEX `idx_created_at` (`created_at`),
   INDEX `idx_key_clues` ((CAST(key_clues AS CHAR(255) ARRAY))), -- MySQL 8.0+ JSON数组索引优化
   INDEX `idx_generation_strategy` (`task_generation_strategy`),
+
+  -- 新增字段索引
+  INDEX `idx_difficulty_level` (`difficulty_level`),
+  INDEX `idx_estimated_duration` (`estimated_duration`),
+  INDEX `idx_player_count` (`player_count`),
+  INDEX `idx_upload_time` (`upload_time`),
 
   CONSTRAINT `fk_hai_gui_soup_creator`
     FOREIGN KEY (`creator_id`)

@@ -1,5 +1,6 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
+import com.guanyu.haigui.Enum.DifficultyLevel;
 import com.guanyu.haigui.pojo.dto.SoupProjectionDTO;
 import com.guanyu.haigui.pojo.model.HaiGuiSoup;
 import com.guanyu.haigui.pojo.model.RankingStatistics;
@@ -319,15 +320,7 @@ public class HaiGuiRankingService {
 
             // 转换为VO列表
             List<SoupListItem> soupList = soupPage.getContent().stream()
-                .map(projection -> SoupListItem.builder()
-                    .soupId(projection.getSoupId())
-                    .soupTitle(projection.getSoupTitle())
-                    .soupSurface(projection.getSoupSurface())
-                    .playCount(projection.getPlayCount())
-                    .uploaderId(projection.getUploaderId())
-                    .uploaderAvatar(projection.getUploaderAvatar())
-                    .uploadTime(projection.getUploadTime())
-                    .build())
+                .map(this::convertToSoupListItem)
                 .toList();
 
             // 构建分页响应
@@ -361,10 +354,45 @@ public class HaiGuiRankingService {
         }
     }
 
+
     /**
-     * 根据soupId获取海龟汤详细信息
-     * 使用RedisStackClient提供的安全方法，避免类型转换问题
+     * 将投影DTO转换为VO
      */
+    private SoupListItem convertToSoupListItem(SoupProjectionDTO projection) {
+        try {
+            return SoupListItem.builder()
+                    .soupId(projection.getSoupId())
+                    .soupTitle(projection.getSoupTitle())
+                    .soupSurface(projection.getSoupSurface())
+                    .playCount(projection.getPlayCount())
+                    .uploaderId(projection.getUploaderId())
+                    .uploaderAvatar(projection.getUploaderAvatar())
+                    .uploadTime(projection.getUploadTime())
+                    .estimatedDuration(projection.getEstimatedDuration())
+                    .playerCount(projection.getPlayerCount())
+                    .difficultyLevel(projection.getDifficultyLevel())
+                    .tag(projection.getTags())
+                    .build();
+        } catch (Exception e) {
+            log.error("转换海龟汤投影到VO失败: soupId={}", projection.getSoupId(), e);
+            return SoupListItem.builder()
+                    .soupId(projection.getSoupId())
+                    .soupTitle(projection.getSoupTitle())
+                    .soupSurface(projection.getSoupSurface())
+                    .playCount(projection.getPlayCount())
+                    .uploaderId(projection.getUploaderId())
+                    .uploaderAvatar(projection.getUploaderAvatar())
+                    .uploadTime(projection.getUploadTime())
+                    .estimatedDuration(30)
+                    .playerCount(0)
+                    .difficultyLevel(DifficultyLevel.BEGINNER)
+                    .tag("")
+                    .build();
+        }
+    }
+
+
+
     private HaiGuiSoup getSoupById(String soupId) {
         try {
             // 先检查海龟汤是否存在

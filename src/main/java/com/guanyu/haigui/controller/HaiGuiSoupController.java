@@ -42,6 +42,10 @@ public class HaiGuiSoupController {
             log.info("  soupSurface: '{}'", soup.getSoupSurface());
             log.info("  soupBottom: '{}'", soup.getSoupBottom());
             log.info("  hostManual: '{}'", soup.getHostManual());
+            log.info("  estimatedDuration: '{}分钟'", soup.getEstimatedDuration());
+            log.info("  playerCount: '{}人'", soup.getPlayerCount());
+            log.info("  difficultyLevel: '{}'", soup.getDifficultyLevel());
+            log.info("  tag: '{}'", soup.getTag());
             log.info("  keyClues类型: {}, 值: '{}'",
                     soup.getKeyClues() != null ? soup.getKeyClues().getClass().getSimpleName() : "null",
                     soup.getKeyClues());
