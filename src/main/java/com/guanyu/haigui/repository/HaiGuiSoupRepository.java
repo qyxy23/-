@@ -12,33 +12,40 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface HaiGuiSoupRepository extends JpaRepository<HaiGuiSoup, String> {
 
+
+
+
+
     /**
-     * 分页查询海龟汤列表，返回指定字段
+     * 查询 Soup 列表
+     *
      * @param pageable 分页参数
-     * @param tags 标签筛选
-     * @param difficultyLevel 难度筛选
-     * @param playerCount 人数筛选
-     * @param minDuration 最小时长筛选
-     * @param maxDuration 最大时长筛选
-     * @return 分页后的海龟汤列表
+     * @param tagList 标签列表
+     * @param difficultyLevel 难度等级
+     * @param playerCount 玩家数量
+     * @param minDuration 最小时长
+     * @param maxDuration 最大时长
+     * @return Soup 列表
      */
     @Query("SELECT new com.guanyu.haigui.pojo.dto.SoupProjectionDTO(" +
-           "h.soupId, h.soupTitle, h.soupSurface, h.soupBottom, " +
-           "h.playCount, h.uploaderId, u.avatar, h.uploadTime, " +
-           "h.estimatedDuration, h.playerCount, h.difficultyLevel, h.tags) " +
-           "FROM HaiGuiSoup h " +
-           "LEFT JOIN UserInfo u ON h.uploaderId = u.userId " +
-           "WHERE h.isDeleted = false " +
-           "AND (:tags IS NULL OR h.tags LIKE CONCAT('%', :tags, '%') OR h.tags LIKE CONCAT('%\"', :tags, '\"%')) " +
-           "AND (:difficultyLevel IS NULL OR h.difficultyLevel = :difficultyLevel) " +
-           "AND (:playerCount IS NULL OR h.playerCount = :playerCount OR :playerCount = 0) " +
-           "AND (:minDuration IS NULL OR h.estimatedDuration >= :minDuration) " +
-           "AND (:maxDuration IS NULL OR h.estimatedDuration <= :maxDuration) " +
-           "ORDER BY h.uploadTime DESC")
+            "h.soupId, h.soupTitle, h.soupSurface, h.soupBottom, " +
+            "h.playCount, h.uploaderId, u.avatar, h.uploadTime, " +
+            "h.estimatedDuration, h.playerCount, h.difficultyLevel, h.tags) " +
+            "FROM HaiGuiSoup h " +
+            "LEFT JOIN UserInfo u ON h.uploaderId = u.userId " +
+            "WHERE h.isDeleted = false " +
+            "AND (:tagList IS NULL OR :tagList = '' OR h.tags LIKE CONCAT('%', :tagList, '%')) " +
+            "AND (:difficultyLevel IS NULL OR h.difficultyLevel = :difficultyLevel) " +
+            "AND (:playerCount IS NULL OR h.playerCount = :playerCount OR :playerCount = 0) " +
+            "AND (:minDuration IS NULL OR h.estimatedDuration >= :minDuration) " +
+            "AND (:maxDuration IS NULL OR h.estimatedDuration <= :maxDuration) " +
+            "ORDER BY h.uploadTime DESC")
     Page<SoupProjectionDTO> findSoupsWithPagination(Pageable pageable,
-                                                   @Param("tags") String tags,
-                                                   @Param("difficultyLevel") String difficultyLevel,
-                                                   @Param("playerCount") Integer playerCount,
-                                                   @Param("minDuration") Integer minDuration,
-                                                   @Param("maxDuration") Integer maxDuration);
+                                                    @Param("tagList") String tagList,
+                                                    @Param("difficultyLevel") String difficultyLevel,
+                                                    @Param("playerCount") Integer playerCount,
+                                                    @Param("minDuration") Integer minDuration,
+                                                    @Param("maxDuration") Integer maxDuration);
+
+
 }

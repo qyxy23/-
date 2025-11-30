@@ -6,9 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.guanyu.haigui.Enum.DifficultyLevel;
 import com.guanyu.haigui.pojo.dto.SoupProjectionDTO;
 import com.guanyu.haigui.pojo.model.HaiGuiSoup;
-import com.guanyu.haigui.pojo.model.RankingStatistics;
 import com.guanyu.haigui.pojo.model.SoupListPageResponse;
-import com.guanyu.haigui.pojo.vo.HotSoupItem;
 import com.guanyu.haigui.pojo.vo.SoupListItem;
 import com.guanyu.haigui.repository.HaiGuiSoupRepository;
 import com.guanyu.haigui.utils.RedisStackClient;
@@ -39,109 +37,7 @@ public class HaiGuiRankingService {
     private final HaiGuiSoupRepository haiGuiSoupRepository;
     private final ObjectMapper objectMapper;
 
-    /**
-     * 获取最火爆的前十个海龟汤
-     *
-     * @return 热门海龟汤排行（包含详细信息）
-     */
-    public List<HotSoupItem> getTop10HotSoups() {
-        try {
-            log.info("开始获取热门海龟汤TOP10");
-            // 1. 获取热度排行榜前10名
-            Map<String, Double> hotnessRanking = redisStackClient.getHotnessRanking(10);
 
-            if (hotnessRanking.isEmpty()) {
-                log.warn("热度排行榜为空");
-                return new ArrayList<>();
-            }
-
-            // 2. 转换为热门海龟汤项目列表
-            List<HotSoupItem> hotSoups = new ArrayList<>();
-            int rank = 1;
-
-            for (Map.Entry<String, Double> entry : hotnessRanking.entrySet()) {
-                String soupId = entry.getKey();
-                Double hotnessScore = entry.getValue();
-
-                // 获取海龟汤详细信息
-                HaiGuiSoup soup = getSoupById(soupId);
-                if (soup != null) {
-                    HotSoupItem item = HotSoupItem.builder()
-                            .rank(rank)
-                            .soupId(soupId)
-                            .title(soup.getSoupTitle())
-                            .surface(soup.getSoupSurface())
-                            .playCount(soup.getPlayCount())
-                            .hotnessScore(hotnessScore)
-                            .createdAt(soup.getCreatedAt())
-                            .build();
-
-                    hotSoups.add(item);
-                    rank++;
-                }
-            }
-
-            log.info("获取热门海龟汤TOP10完成，返回{}个结果", hotSoups.size());
-            return hotSoups;
-
-        } catch (Exception e) {
-            log.error("获取热门海龟汤TOP10失败", e);
-            return new ArrayList<>();
-        }
-    }
-
-    /**
-     * 获取近期热门榜单
-     *
-     * @param days 近期天数（默认7天）
-     * @param topN 返回前N名（默认10名）
-     * @return 近期热门海龟汤排行
-     */
-    public List<HotSoupItem> getRecentHotSoups(int days, int topN) {
-        try {
-            log.info("开始获取近期热门榜单: days={}, topN={}", days, topN);
-
-            Map<String, Double> recentHotSoups = redisStackClient.getRecentHotSoups(days, topN);
-
-            if (recentHotSoups.isEmpty()) {
-                log.warn("近期热门榜单为空");
-                return new ArrayList<>();
-            }
-
-            // 转换为热门海龟汤项目列表
-            List<HotSoupItem> hotSoups = new ArrayList<>();
-            int rank = 1;
-
-            for (Map.Entry<String, Double> entry : recentHotSoups.entrySet()) {
-                String soupId = entry.getKey();
-                Double recentScore = entry.getValue();
-
-                // 获取海龟汤详细信息
-                HaiGuiSoup soup = getSoupById(soupId);
-                if (soup != null) {
-                    HotSoupItem item = HotSoupItem.builder()
-                            .rank(rank)
-                            .soupId(soupId)
-                            .title(soup.getSoupTitle())
-                            .surface(soup.getSoupSurface())
-                            .playCount(soup.getPlayCount())
-                            .hotnessScore(recentScore)
-                            .createdAt(soup.getCreatedAt())
-                            .build();
-
-                    hotSoups.add(item);
-                    rank++;
-                }
-            }
-
-            log.info("获取近期热门榜单完成，返回{}个结果", hotSoups.size());
-            return hotSoups;
-
-        } catch (Exception e) {
-            log.error("获取近期热门榜单失败", e);
-            return new ArrayList<>();
-        }
-    }
 
     /**
      * 获取海龟汤分页列表
@@ -155,7 +51,7 @@ public class HaiGuiRankingService {
                                                           Map<String, Object> filterParams) {
         try {
             // 从filterParams中提取筛选条件
-            List<String> tags = (List<String>) filterParams.get("tags");
+            String tags = (String) filterParams.get("tags");
             String difficultyLevel = (String) filterParams.get("difficultyLevel");
             Integer playerCount = (Integer) filterParams.get("playerCount");
             Integer minDuration = (Integer) filterParams.get("minDuration");
@@ -180,11 +76,15 @@ public class HaiGuiRankingService {
             Pageable pageable = PageRequest.of(page - 1, pageSize);
 
             // 处理标签筛选参数 - 支持多个标签筛选
-            String tagParam = null;
+            String tagParam;
             if (tags != null && !tags.isEmpty()) {
                 // 对于单个标签筛选，使用第一个标签
-                tagParam = tags.get(0);
+                tagParam = tags;
                 log.info("标签筛选参数: 原始标签列表={}, 查询标签={}", tags, tagParam);
+            } else {
+                // 处理tags为null或空的情况
+                log.info("用户没有选择标签，或标签为空，将使用null进行筛选");
+                tagParam = null;
             }
 
             // 处理难度筛选参数
@@ -208,9 +108,8 @@ public class HaiGuiRankingService {
                     haiGuiSoupRepository.findSoupsWithPagination(pageable, tagParam, difficultyParam, playerCountParam, minDuration, maxDuration);
 
             // 转换为VO列表
-            String tagForConvert = (tags != null && !tags.isEmpty()) ? tags.get(0) : null;
             List<SoupListItem> soupList = soupPage.getContent().stream()
-                    .map(projection -> convertToSoupListItem(projection, tagForConvert, difficultyLevel, playerCount, minDuration, maxDuration))
+                    .map(this::convertToSoupListItem)
                     .toList();
 
             // 构建分页响应
@@ -246,12 +145,7 @@ public class HaiGuiRankingService {
     /**
      * 将投影DTO转换为VO
      */
-    private SoupListItem convertToSoupListItem(SoupProjectionDTO projection,
-                                               String tag,
-                                               String difficultyLevel,
-                                               Integer playerCount,
-                                               Integer minDuration,
-                                               Integer maxDuration) {
+    private SoupListItem convertToSoupListItem(SoupProjectionDTO projection) {
         try {
             // 构建基础信息
             SoupListItem.SoupListItemBuilder builder = SoupListItem.builder()
@@ -263,46 +157,9 @@ public class HaiGuiRankingService {
                     .uploaderAvatar(projection.getUploaderAvatar())
                     .uploadTime(projection.getUploadTime())
                     .difficultyLevel(projection.getDifficultyLevel())
-                    .playerCount(projection.getPlayerCount());
-
-            // 处理标签
-            if (tag != null && !tag.isEmpty()) {
-                builder.tag(tag);
-            }
-
-            // 处理时长筛选 - 使用数据库中的值或默认值30分钟
-            Integer estimatedDuration = projection.getEstimatedDuration();
-            if (estimatedDuration != null) {
-                // 根据筛选条件调整时长
-                if (minDuration != null && maxDuration != null) {
-                    if (estimatedDuration < minDuration) {
-                        builder.estimatedDuration(minDuration);
-                    } else if (estimatedDuration > maxDuration) {
-                        builder.estimatedDuration(maxDuration);
-                    } else {
-                        // 在范围内，使用原值
-                        builder.estimatedDuration(estimatedDuration);
-                    }
-                } else if (minDuration != null) {
-                    if (estimatedDuration < minDuration) {
-                        builder.estimatedDuration(minDuration);
-                    }
-                    // 不小于最小值，使用原值
-                    builder.estimatedDuration(estimatedDuration);
-                } else if (maxDuration != null) {
-                    if (estimatedDuration > maxDuration) {
-                        builder.estimatedDuration(maxDuration);
-                    }
-                    // 不大于最大值，使用原值
-                    builder.estimatedDuration(estimatedDuration);
-                }
-                // 无筛选条件，使用数据库中的值
-                builder.estimatedDuration(estimatedDuration);
-            } else {
-                // 数据库中没有时长，使用默认值30分钟
-                builder.estimatedDuration(30);
-            }
-
+                    .playerCount(projection.getPlayerCount())
+                    .tag(projection.getTag())
+                    .estimatedDuration(projection.getEstimatedDuration());
             return builder.build();
         } catch (Exception e) {
             log.error("转换海龟汤投影到VO失败: soupId={}", projection.getSoupId(), e);
@@ -407,39 +264,6 @@ public class HaiGuiRankingService {
         } catch (Exception e) {
             log.error("获取海龟汤信息失败: soupId={}", soupId, e);
             return null;
-        }
-    }
-
-    /**
-     * 获取榜单统计信息
-     *
-     * @return 榜单统计数据
-     */
-    public RankingStatistics getRankingStatistics() {
-        try {
-            Map<String, Double> top10Ranking = redisStackClient.getHotnessRanking(10);
-            Map<String, Double> top100Ranking = redisStackClient.getHotnessRanking(100);
-
-            // 计算总热度分数
-            double totalHotness = top100Ranking.values().stream()
-                    .mapToDouble(Double::doubleValue)
-                    .sum();
-
-            // 获取TOP10的热度占比
-            double top10Hotness = top10Ranking.values().stream()
-                    .mapToDouble(Double::doubleValue)
-                    .sum();
-
-            return RankingStatistics.builder()
-                    .totalRankedSoups(top100Ranking.size())
-                    .top10TotalHotness(top10Hotness)
-                    .totalHotness(totalHotness)
-                    .top10Percentage(totalHotness > 0 ? (top10Hotness / totalHotness * 100) : 0.0)
-                    .build();
-
-        } catch (Exception e) {
-            log.error("获取榜单统计信息失败", e);
-            return RankingStatistics.builder().build();
         }
     }
 }

@@ -16,9 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * 海龟汤榜单控制器
@@ -37,7 +35,7 @@ public class HaiGuiRankingController {
      * 获取海龟汤分页列表
      * @param page 页码（从1开始）
      * @param pageSize 每页大小，默认10
-     * @param tags 标签筛选：惊悚、欢乐、情感、脑洞、奇幻、日常、其他
+     * @param tag 标签筛选：惊悚、欢乐、情感、脑洞、奇幻、日常、其他
      * @param difficultyLevel 难度筛选：入门、中等、困难
      * @param playerCount 人数筛选：指定游玩人数，0表示不限制
      * @param duration 时长筛选：1(1小时以下)、2(1-2小时)、3(2-3小时)、4(3-5小时)、5(5小时以上)
@@ -48,7 +46,7 @@ public class HaiGuiRankingController {
     public Result<SoupListPageResponse> getSoupListWithPagination(
             @Parameter(description = "页码，从1开始，默认1") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "每页大小，默认10，最大100") @RequestParam(defaultValue = "10") int pageSize,
-            @Parameter(description = "标签筛选：惊悚、欢乐、情感、脑洞、奇幻、日常、其他") @RequestParam(required = false) List<String> tags,
+            @Parameter(description = "标签筛选：惊悚、欢乐、情感、脑洞、奇幻、日常、其他") @RequestParam(required = false) String tag,
             @Parameter(description = "难度筛选：入门、中等、困难") @RequestParam(required = false) String difficultyLevel,
             @Parameter(description = "人数筛选：指定游玩人数，0表示不限制") @RequestParam(required = false) Integer playerCount,
             @Parameter(description = "时长筛选：1(1小时以下)、2(1-2小时)、3(2-3小时)、4(3-5小时)、5(5小时以上)") @RequestParam(required = false) Integer duration) {
@@ -65,35 +63,13 @@ public class HaiGuiRankingController {
         Map<String, Object> filterParams = new HashMap<>();
 
         // 处理标签筛选
-        if (tags != null && !tags.isEmpty()) {
-            // 过滤出匹配的标签
-            List<String> filteredTags = tags.stream()
-                    .filter(tag -> {
-                        try {
-                            // 使用新的fromString方法，支持枚举名称和描述两种格式
-                            SoupTag soupTag = SoupTag.fromString(tag);
-                            return soupTag != null && soupTag != SoupTag.OTHER;
-                        } catch (Exception e) {
-                            log.warn("无效的标签: {}", tag);
-                            return false;
-                        }
-                    })
-                    .map(tag -> {
-                        // 将前端传入的枚举名称转换为描述，用于数据库查询
-                        SoupTag soupTag = SoupTag.fromString(tag);
-                        return soupTag != null ? soupTag.getDescription() : null;
-                    })
-                    .filter(Objects::nonNull)
-                    .distinct()
-                    .toList();
-
-            // 使用匹配的标签
-            if (!filteredTags.isEmpty()) {
+        if (tag != null && !tag.isEmpty()) {
+            SoupTag filteredTags = SoupTag.fromString(tag);
+            if (filteredTags!= null) {
                 log.info("用户选择了标签: {}", filteredTags);
                 filterParams.put("tags", filteredTags);
             } else {
-                log.info("用户没有选择标签或标签为空");
-                filterParams.put("tags", null);
+                log.info("用户没有选择有效标签");
             }
         }
 
@@ -117,13 +93,13 @@ public class HaiGuiRankingController {
                 filterParams.put("playerCount", 10);
             } else {
                 log.warn("人数限制必须为正整数");
-                filterParams.put("playerCount", null);
+                filterParams.put("playerCount", 0);
             }
         } else {
             filterParams.put("playerCount", 0);
         }
 
-        // 处理时长筛选 - 将duration范围转换为具体的分钟数
+        // 处理时长筛选
         if (duration != null) {
             switch (duration) {
                 case 1: // 1小时以下
@@ -153,7 +129,6 @@ public class HaiGuiRankingController {
                     break;
             }
         } else {
-            // 没有时长筛选
             filterParams.put("minDuration", null);
             filterParams.put("maxDuration", null);
         }
@@ -161,12 +136,9 @@ public class HaiGuiRankingController {
         try {
             log.info("开始获取海龟汤分页列表: page={}, pageSize={}", page, pageSize);
             log.info("筛选条件: tags={}, difficulty={}, playerCount={}, duration={}",
-                tags, difficultyLevel, playerCount, duration);
+                    tag, difficultyLevel, playerCount, duration);
 
-            // 调用服务获取分页数据
-            SoupListPageResponse response = haiGuiRankingService.getSoupListWithPagination(
-                    page, pageSize, filterParams);
-
+            SoupListPageResponse response = haiGuiRankingService.getSoupListWithPagination(page, pageSize, filterParams);
             return Result.success("获取海龟汤列表成功", response);
         } catch (Exception e) {
             log.error("获取海龟汤列表失败", e);
