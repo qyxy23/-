@@ -1,11 +1,8 @@
 package com.guanyu.haigui.controller;
 
-import com.guanyu.haigui.context.BaseContext;
-import com.guanyu.haigui.pojo.model.MultipleRankingsResponse;
-import com.guanyu.haigui.pojo.model.RankingStatistics;
+import com.guanyu.haigui.Enum.DifficultyLevel;
+import com.guanyu.haigui.Enum.SoupTag;
 import com.guanyu.haigui.pojo.model.SoupListPageResponse;
-import com.guanyu.haigui.pojo.vo.HotSoupItem;
-import com.guanyu.haigui.pojo.vo.SoupRankInfo;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.service.ServicesImpl.HaiGuiRankingService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,9 +10,15 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * 海龟汤榜单控制器
@@ -31,219 +34,143 @@ public class HaiGuiRankingController {
     private final HaiGuiRankingService haiGuiRankingService;
 
     /**
-     * 获取海龟汤列表（分页查询）
+     * 获取海龟汤分页列表
+     * @param page 页码（从1开始）
+     * @param pageSize 每页大小，默认10
+     * @param tags 标签筛选：惊悚、欢乐、情感、脑洞、奇幻、日常、其他
+     * @param difficultyLevel 难度筛选：入门、中等、困难
+     * @param playerCount 人数筛选：指定游玩人数，0表示不限制
+     * @param duration 时长筛选：1(1小时以下)、2(1-2小时)、3(2-3小时)、4(3-5小时)、5(5小时以上)
+     * @return 分页后的海龟汤列表
      */
     @GetMapping("/soup-list")
-    @Operation(summary = "获取海龟汤列表", description = "分页查询海龟汤列表，返回ID、标题、汤面、汤底、游玩次数、上传者信息等")
+    @Operation(summary = "获取海龟汤列表", description = "分页查询海龟汤列表，支持按标签、难度、人数、时长筛选")
     public Result<SoupListPageResponse> getSoupListWithPagination(
             @Parameter(description = "页码，从1开始，默认1") @RequestParam(defaultValue = "1") int page,
-            @Parameter(description = "每页大小，默认10，最大100") @RequestParam(defaultValue = "10") int pageSize) {
+            @Parameter(description = "每页大小，默认10，最大100") @RequestParam(defaultValue = "10") int pageSize,
+            @Parameter(description = "标签筛选：惊悚、欢乐、情感、脑洞、奇幻、日常、其他") @RequestParam(required = false) List<String> tags,
+            @Parameter(description = "难度筛选：入门、中等、困难") @RequestParam(required = false) String difficultyLevel,
+            @Parameter(description = "人数筛选：指定游玩人数，0表示不限制") @RequestParam(required = false) Integer playerCount,
+            @Parameter(description = "时长筛选：1(1小时以下)、2(1-2小时)、3(2-3小时)、4(3-5小时)、5(5小时以上)") @RequestParam(required = false) Integer duration) {
+
+        // 参数校验
+        if (page < 1) {
+            return Result.error("页码必须大于0");
+        }
+        if (pageSize < 1 || pageSize > 100) {
+            return Result.error("每页大小必须在1-100之间");
+        }
+
+        // 构建筛选条件
+        Map<String, Object> filterParams = new HashMap<>();
+
+        // 处理标签筛选
+        if (tags != null && !tags.isEmpty()) {
+            // 过滤出匹配的标签
+            List<String> filteredTags = tags.stream()
+                    .filter(tag -> {
+                        try {
+                            // 使用新的fromString方法，支持枚举名称和描述两种格式
+                            SoupTag soupTag = SoupTag.fromString(tag);
+                            return soupTag != null && soupTag != SoupTag.OTHER;
+                        } catch (Exception e) {
+                            log.warn("无效的标签: {}", tag);
+                            return false;
+                        }
+                    })
+                    .map(tag -> {
+                        // 将前端传入的枚举名称转换为描述，用于数据库查询
+                        SoupTag soupTag = SoupTag.fromString(tag);
+                        return soupTag != null ? soupTag.getDescription() : null;
+                    })
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .toList();
+
+            // 使用匹配的标签
+            if (!filteredTags.isEmpty()) {
+                log.info("用户选择了标签: {}", filteredTags);
+                filterParams.put("tags", filteredTags);
+            } else {
+                log.info("用户没有选择标签或标签为空");
+                filterParams.put("tags", null);
+            }
+        }
+
+        // 处理难度筛选
+        if (difficultyLevel != null) {
+            try {
+                DifficultyLevel filterLevel = DifficultyLevel.valueOf(difficultyLevel.toUpperCase());
+                filterParams.put("difficultyLevel", filterLevel);
+            } catch (IllegalArgumentException e) {
+                log.warn("无效的难度等级: {}", difficultyLevel);
+                filterParams.put("difficultyLevel", null);
+            }
+        }
+
+        // 处理人数筛选
+        if (playerCount != null && playerCount != 0) {
+            if (playerCount > 0 && playerCount <= 10) {
+                filterParams.put("playerCount", playerCount);
+            } else if (playerCount > 10) {
+                log.warn("人数限制超过最大值，设置为10");
+                filterParams.put("playerCount", 10);
+            } else {
+                log.warn("人数限制必须为正整数");
+                filterParams.put("playerCount", null);
+            }
+        } else {
+            filterParams.put("playerCount", 0);
+        }
+
+        // 处理时长筛选 - 将duration范围转换为具体的分钟数
+        if (duration != null) {
+            switch (duration) {
+                case 1: // 1小时以下
+                    filterParams.put("minDuration", null);
+                    filterParams.put("maxDuration", 60);
+                    break;
+                case 2: // 1-2小时
+                    filterParams.put("minDuration", 60);
+                    filterParams.put("maxDuration", 120);
+                    break;
+                case 3: // 2-3小时
+                    filterParams.put("minDuration", 120);
+                    filterParams.put("maxDuration", 180);
+                    break;
+                case 4: // 3-5小时
+                    filterParams.put("minDuration", 180);
+                    filterParams.put("maxDuration", 300);
+                    break;
+                case 5: // 5小时以上
+                    filterParams.put("minDuration", 300);
+                    filterParams.put("maxDuration", null);
+                    break;
+                default:
+                    log.warn("无效的时长范围: {}", duration);
+                    filterParams.put("minDuration", null);
+                    filterParams.put("maxDuration", null);
+                    break;
+            }
+        } else {
+            // 没有时长筛选
+            filterParams.put("minDuration", null);
+            filterParams.put("maxDuration", null);
+        }
+
         try {
-            if (page < 1) {
-                return Result.error("页码必须大于0");
-            }
-            if (pageSize < 1 || pageSize > 100) {
-                return Result.error("每页大小必须在1-100之间");
-            }
+            log.info("开始获取海龟汤分页列表: page={}, pageSize={}", page, pageSize);
+            log.info("筛选条件: tags={}, difficulty={}, playerCount={}, duration={}",
+                tags, difficultyLevel, playerCount, duration);
 
-            SoupListPageResponse response = haiGuiRankingService.getSoupListWithPagination(page, pageSize);
+            // 调用服务获取分页数据
+            SoupListPageResponse response = haiGuiRankingService.getSoupListWithPagination(
+                    page, pageSize, filterParams);
+
             return Result.success("获取海龟汤列表成功", response);
-
         } catch (Exception e) {
             log.error("获取海龟汤列表失败", e);
             return Result.error("获取失败: " + e.getMessage());
         }
     }
-
-    /**
-     * 获取最火爆的前十个海龟汤
-     */
-    @GetMapping("/top10")
-    @Operation(summary = "获取热门TOP10", description = "获取当前最火爆的前十个海龟汤排行榜")
-    public Result<List<HotSoupItem>> getTop10HotSoups() {
-        try {
-            List<HotSoupItem> top10Soups = haiGuiRankingService.getTop10HotSoups();
-            return Result.success("获取热门TOP10成功", top10Soups);
-
-        } catch (Exception e) {
-            log.error("获取热门TOP10失败", e);
-            return Result.error("获取失败: " + e.getMessage());
-        }
-    }
-
-    /**
-     * 获取近期热门榜单
-     */
-    @GetMapping("/recent-hot")
-    @Operation(summary = "获取近期热门榜单", description = "基于最近N天数据获取热门海龟汤排行榜")
-    public Result<List<HotSoupItem>> getRecentHotSoups(
-            @Parameter(description = "最近天数，默认7天") @RequestParam(defaultValue = "7") int days,
-            @Parameter(description = "返回前N名，默认10名") @RequestParam(defaultValue = "10") int topN) {
-        try {
-            if (days <= 0 || days > 30) {
-                return Result.error("天数范围应在1-30之间");
-            }
-            if (topN <= 0 || topN > 50) {
-                return Result.error("返回数量范围应在1-50之间");
-            }
-
-            List<HotSoupItem> recentHotSoups =
-                    haiGuiRankingService.getRecentHotSoups(days, topN);
-
-            return Result.success(String.format("获取最近%d天热门榜单成功", days), recentHotSoups);
-
-        } catch (Exception e) {
-            log.error("获取近期热门榜单失败", e);
-            return Result.error("获取失败: " + e.getMessage());
-        }
-    }
-
-    /**
-     * 记录用户行为
-     */
-    @PostMapping("/record-action")
-    @Operation(summary = "记录用户行为", description = "记录用户玩海龟汤的行为，用于热度计算")
-    public Result<String> recordUserAction(
-            @Parameter(description = "海龟汤ID") @RequestParam String soupId,
-            @Parameter(description = "行为类型：play(玩)、like(点赞)、share(分享)、comment(评论)") @RequestParam String action) {
-        try {
-            if (soupId == null || soupId.trim().isEmpty()) {
-                return Result.error("海龟汤ID不能为空");
-            }
-
-            if (!isValidAction(action)) {
-                return Result.error("无效的行为类型，支持：play、like、share、comment");
-            }
-
-            Long userId = BaseContext.getCurrentId();
-            haiGuiRankingService.recordUserAction(soupId, userId, action);
-
-            return Result.success("用户行为记录成功");
-
-        } catch (Exception e) {
-            log.error("记录用户行为失败", e);
-            return Result.error("记录失败: " + e.getMessage());
-        }
-    }
-
-    /**
-     * 获取海龟汤排名信息
-     */
-    @GetMapping("/soup-rank/{soupId}")
-    @Operation(summary = "获取海龟汤排名", description = "获取指定海龟汤的当前热度排名信息")
-    public Result<SoupRankInfo> getSoupRankInfo(@PathVariable String soupId) {
-        try {
-            if (soupId == null || soupId.trim().isEmpty()) {
-                return Result.error("海龟汤ID不能为空");
-            }
-
-            SoupRankInfo rankInfo = haiGuiRankingService.getSoupRankInfo(soupId);
-            return Result.success("获取排名信息成功", rankInfo);
-
-        } catch (Exception e) {
-            log.error("获取海龟汤排名信息失败", e);
-            return Result.error("获取失败: " + e.getMessage());
-        }
-    }
-
-    /**
-     * 更新海龟汤热度
-     */
-    @PostMapping("/update-hotness")
-    @Operation(summary = "更新海龟汤热度", description = "基于统计数据更新海龟汤的热度分数")
-    public Result<String> updateSoupHotness(
-            @Parameter(description = "海龟汤ID") @RequestParam String soupId,
-            @Parameter(description = "播放次数") @RequestParam(defaultValue = "0") int playCount,
-            @Parameter(description = "点赞数") @RequestParam(defaultValue = "0") int likeCount,
-            @Parameter(description = "分享数") @RequestParam(defaultValue = "0") int shareCount,
-            @Parameter(description = "评论数") @RequestParam(defaultValue = "0") int commentCount) {
-        try {
-            if (soupId == null || soupId.trim().isEmpty()) {
-                return Result.error("海龟汤ID不能为空");
-            }
-
-            haiGuiRankingService.updateSoupHotness(soupId, playCount, likeCount, shareCount, commentCount);
-            return Result.success("热度更新成功");
-
-        } catch (Exception e) {
-            log.error("更新海龟汤热度失败", e);
-            return Result.error("更新失败: " + e.getMessage());
-        }
-    }
-
-    /**
-     * 获取榜单统计信息
-     */
-    @GetMapping("/statistics")
-    @Operation(summary = "获取榜单统计", description = "获取排行榜的统计信息")
-    public Result<RankingStatistics> getRankingStatistics() {
-        try {
-            RankingStatistics statistics = haiGuiRankingService.getRankingStatistics();
-            return Result.success("获取统计信息成功", statistics);
-
-        } catch (Exception e) {
-            log.error("获取榜单统计信息失败", e);
-            return Result.error("获取失败: " + e.getMessage());
-        }
-    }
-
-    /**
-     * 清理过期数据
-     */
-    @PostMapping("/cleanup")
-    @Operation(summary = "清理过期数据", description = "清理过期的热度统计数据（定时任务使用）")
-    public Result<String> cleanupExpiredData() {
-        try {
-            haiGuiRankingService.cleanupExpiredData();
-            return Result.success("过期数据清理完成");
-
-        } catch (Exception e) {
-            log.error("清理过期数据失败", e);
-            return Result.error("清理失败: " + e.getMessage());
-        }
-    }
-
-    /**
-     * 获取多种榜单数据
-     */
-    @GetMapping("/all-rankings")
-    @Operation(summary = "获取多种榜单", description = "一次性获取多种类型的榜单数据")
-    public Result<MultipleRankingsResponse> getAllRankings(
-            @Parameter(description = "近期天数，默认7天") @RequestParam(defaultValue = "7") int days,
-            @Parameter(description = "返回前N名，默认10名") @RequestParam(defaultValue = "10") int topN) {
-        try {
-            // 获取热门TOP10
-            List<HotSoupItem> top10 = haiGuiRankingService.getTop10HotSoups();
-
-            // 获取近期热门
-            List<HotSoupItem> recentHot = haiGuiRankingService.getRecentHotSoups(days, topN);
-
-            // 获取统计信息
-            RankingStatistics statistics = haiGuiRankingService.getRankingStatistics();
-
-            MultipleRankingsResponse response = MultipleRankingsResponse.builder()
-                    .top10(top10)
-                    .recentHot(recentHot)
-                    .statistics(statistics)
-                    .build();
-
-            return Result.success("获取榜单数据成功", response);
-
-        } catch (Exception e) {
-            log.error("获取多种榜单数据失败", e);
-            return Result.error("获取失败: " + e.getMessage());
-        }
-    }
-
-    /**
-     * 验证行为类型是否有效
-     */
-    private boolean isValidAction(String action) {
-        return "play".equalsIgnoreCase(action) ||
-               "like".equalsIgnoreCase(action) ||
-               "share".equalsIgnoreCase(action) ||
-               "comment".equalsIgnoreCase(action);
-    }
-
-
 }

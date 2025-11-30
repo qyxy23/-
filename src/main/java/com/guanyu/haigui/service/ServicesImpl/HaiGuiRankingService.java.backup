@@ -182,7 +182,7 @@ public class HaiGuiRankingService {
             // 处理标签筛选参数 - 支持多个标签筛选
             String tagParam = null;
             if (tags != null && !tags.isEmpty()) {
-                // 对于单个标签筛选，使用第一个标签
+                // 对于单个标签筛选，使用第一个标签（暂时保持兼容性）
                 tagParam = tags.get(0);
                 log.info("标签筛选参数: 原始标签列表={}, 查询标签={}", tags, tagParam);
             }
@@ -200,12 +200,14 @@ public class HaiGuiRankingService {
             }
 
             // 处理时长筛选参数
+            Integer minDurationParam = minDuration;
+            Integer maxDurationParam = maxDuration;
 
             // 查询分页数据
             log.info("执行数据库查询 - tagParam={}, difficultyParam={}, playerCountParam={}, minDuration={}, maxDuration={}",
-                     tagParam, difficultyParam, playerCountParam, minDuration, maxDuration);
+                     tagParam, difficultyParam, playerCountParam, minDurationParam, maxDurationParam);
             Page<SoupProjectionDTO> soupPage =
-                    haiGuiSoupRepository.findSoupsWithPagination(pageable, tagParam, difficultyParam, playerCountParam, minDuration, maxDuration);
+                    haiGuiSoupRepository.findSoupsWithPagination(pageable, tagParam, difficultyParam, playerCountParam, minDurationParam, maxDurationParam);
 
             // 转换为VO列表
             String tagForConvert = (tags != null && !tags.isEmpty()) ? tags.get(0) : null;
@@ -263,43 +265,44 @@ public class HaiGuiRankingService {
                     .uploaderAvatar(projection.getUploaderAvatar())
                     .uploadTime(projection.getUploadTime())
                     .difficultyLevel(projection.getDifficultyLevel())
+                    .estimatedDuration(projection.getEstimatedDuration())
                     .playerCount(projection.getPlayerCount());
 
-            // 处理标签
+            // 处理标签筛选
             if (tag != null && !tag.isEmpty()) {
                 builder.tag(tag);
             }
 
-            // 处理时长筛选 - 使用数据库中的值或默认值30分钟
-            Integer estimatedDuration = projection.getEstimatedDuration();
-            if (estimatedDuration != null) {
-                // 根据筛选条件调整时长
-                if (minDuration != null && maxDuration != null) {
-                    if (estimatedDuration < minDuration) {
-                        builder.estimatedDuration(minDuration);
-                    } else if (estimatedDuration > maxDuration) {
-                        builder.estimatedDuration(maxDuration);
-                    } else {
-                        // 在范围内，使用原值
-                        builder.estimatedDuration(estimatedDuration);
-                    }
-                } else if (minDuration != null) {
-                    if (estimatedDuration < minDuration) {
-                        builder.estimatedDuration(minDuration);
-                    }
-                    // 不小于最小值，使用原值
-                    builder.estimatedDuration(estimatedDuration);
-                } else if (maxDuration != null) {
-                    if (estimatedDuration > maxDuration) {
-                        builder.estimatedDuration(maxDuration);
-                    }
-                    // 不大于最大值，使用原值
-                    builder.estimatedDuration(estimatedDuration);
+            // 处理难度筛选
+            if (difficultyLevel != null) {
+                try {
+                    DifficultyLevel filterLevel = DifficultyLevel.valueOf(difficultyLevel.toUpperCase());
+                    builder.difficultyLevel(filterLevel);
+                } catch (IllegalArgumentException e) {
+                    log.warn("无效的难度等级: {}, 使用默认值", difficultyLevel);
+                    builder.difficultyLevel(DifficultyLevel.BEGINNER);
                 }
-                // 无筛选条件，使用数据库中的值
-                builder.estimatedDuration(estimatedDuration);
+            }
+
+            // 处理人数筛选
+            if (playerCount != null) {
+                if (playerCount > 0 && playerCount <= 10) {
+                    builder.playerCount(playerCount);
+                } else if (playerCount > 0) {
+                    log.warn("人数限制超过最大值，设置为10");
+                    builder.playerCount(10);
+                } else {
+                    // playerCount <= 0，表示不限制
+                    builder.playerCount(0);
+                }
+            }
+
+            // 处理时长筛选 - 确保estimatedDuration不为null
+            Integer dbEstimatedDuration = projection.getEstimatedDuration();
+            if (dbEstimatedDuration != null) {
+                handleDurationFilter(builder, dbEstimatedDuration, minDuration, maxDuration);
             } else {
-                // 数据库中没有时长，使用默认值30分钟
+                // 如果数据库中没有时长，使用默认值30分钟
                 builder.estimatedDuration(30);
             }
 
@@ -316,7 +319,7 @@ public class HaiGuiRankingService {
                     .uploaderAvatar(projection.getUploaderAvatar())
                     .uploadTime(projection.getUploadTime())
                     .difficultyLevel(projection.getDifficultyLevel())
-                    .estimatedDuration(estimatedDuration != null ? estimatedDuration : 30)
+                    .estimatedDuration(estimatedDuration != null ? estimatedDuration : 30) // 使用数据库值或默认30分钟
                     .playerCount(projection.getPlayerCount())
                     .tag(projection.getTag()) // 使用从数据库获取的标签
                     .build();
@@ -352,6 +355,110 @@ public class HaiGuiRankingService {
     }
 
     /**
+     * 处理时长筛选的辅助方法
+     */
+    private void handleDurationFilter(SoupListItem.SoupListItemBuilder builder,
+                                      Integer estimatedDuration,
+                                      Integer minDuration,
+                                      Integer maxDuration) {
+        if (minDuration != null || maxDuration != null) {
+            if (minDuration != null && maxDuration != null) {
+                // 两个都有值
+                if (estimatedDuration != null) {
+                    if (estimatedDuration >= minDuration && estimatedDuration <= maxDuration) {
+                        // 在范围内，使用原值
+                        builder.estimatedDuration(estimatedDuration);
+                    } else if (estimatedDuration < minDuration) {
+                        // 低于最小值，使用最小值
+                        builder.estimatedDuration(minDuration);
+                    } else {
+                        // 高于最大值，使用最大值
+                        builder.estimatedDuration(maxDuration);
+                    }
+                } else {
+                    // 数据库中没有时长，使用最小值
+                    builder.estimatedDuration(minDuration);
+                }
+            } else if (minDuration != null) {
+                // 只有最小值限制
+                if (estimatedDuration != null) {
+                    if (estimatedDuration >= minDuration) {
+                        // 在限制内，使用原值
+                        builder.estimatedDuration(estimatedDuration);
+                    } else {
+                        // 低于最小值，使用最小值
+                        builder.estimatedDuration(minDuration);
+                    }
+                } else {
+                    // 数据库中没有时长，使用默认值
+                    builder.estimatedDuration(30);
+                }
+            } else if (maxDuration != null) {
+                // 只有最大值限制
+                if (estimatedDuration != null) {
+                    if (estimatedDuration <= maxDuration) {
+                        // 在限制内，使用原值
+                        builder.estimatedDuration(estimatedDuration);
+                    } else {
+                        // 高于最大值，使用最大值
+                        builder.estimatedDuration(maxDuration);
+                    }
+                } else {
+                    // 数据库中没有时长，使用默认值
+                    builder.estimatedDuration(30);
+                }
+            }
+        }
+        // 如果没有筛选条件，不修改estimatedDuration（使用数据库中的值）
+    }
+                // 既有最小又有最大限制
+                if (estimatedDuration != null) {
+                    if (estimatedDuration >= minDuration && estimatedDuration <= maxDuration) {
+                        // 在范围内，使用原值
+                        builder.estimatedDuration(estimatedDuration);
+                    } else if (estimatedDuration < minDuration) {
+                        // 低于最小值，使用最小值
+                        log.info("时长低于最小值{}，使用最小值", minDuration);
+                        builder.estimatedDuration(minDuration);
+                    } else {
+                        // 高于最大值，使用最大值
+                        log.info("时长高于最大值{}，使用最大值", maxDuration);
+                        builder.estimatedDuration(maxDuration);
+                    }
+                } else {
+                    // 只有最大值限制
+                    if (estimatedDuration != null && estimatedDuration <= maxDuration) {
+                        // 在限制内，使用原值
+                        builder.estimatedDuration(estimatedDuration);
+                    } else if (estimatedDuration < maxDuration) {
+                        // 高于最大值，使用最大值
+                        log.info("时长高于最大值{}，使用最大值", maxDuration);
+                        builder.estimatedDuration(maxDuration);
+                    } else {
+                        // 没有时长信息，使用数据库中的值
+                        log.info("没有时长筛选，使用数据库中的值");
+                        // 不设置estimatedDuration，让前端使用默认值
+                    }
+                }
+            } else {
+                // 只有最小值限制
+                if (estimatedDuration != null && estimatedDuration >= minDuration) {
+                    // 在限制内，使用原值
+                    builder.estimatedDuration(estimatedDuration);
+                } else if (estimatedDuration < minDuration) {
+                    // 低于最小值，使用最小值
+                    log.info("时长低于最小值{}，使用最小值", minDuration);
+                    builder.estimatedDuration(minDuration);
+                } else {
+                    // 没有时长信息，使用数据库中的值
+                    log.info("没有时长筛选，使用数据库中的值");
+                    // 不设置estimatedDuration，让前端使用默认值
+                }
+            }
+        }
+    }
+
+    /**
      * 根据soupId获取海龟汤详细信息
      * 使用RedisStackClient提供的安全方法，避免类型转换问题
      */
@@ -376,10 +483,6 @@ public class HaiGuiRankingService {
             soup.setSoupTitle(soupData.get("soupTitle"));
             soup.setSoupSurface(soupData.get("soupSurface"));
             soup.setSoupBottom(soupData.get("soupBottom"));
-            soup.setHostManual(soupData.get("hostManual"));
-            soup.setCreatorId(Long.parseLong(soupData.get("creatorId")));
-            soup.setUploaderId(Long.parseLong(soupData.get("uploaderId")));
-            soup.setUploadTime(LocalDateTime.parse(soupData.get("uploadTime")));
 
             // 解析播放次数
             String playCountStr = soupData.get("playCount");

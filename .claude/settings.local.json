@@ -13,7 +13,8 @@
       "Bash(src/main/java/com/guanyu/haigui/service/ServicesImpl/DynamicTaskService.java)",
       "Bash(java:*)",
       "Bash(mvn exec:java:*)",
-      "Bash(mvn clean package:*)"
+      "Bash(mvn clean package:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

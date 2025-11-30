@@ -2,6 +2,8 @@ package com.guanyu.haigui.Enum;
 
 import lombok.Getter;
 
+import java.util.Objects;
+
 /**
  * 海龟汤标签枚举
  */
@@ -55,10 +57,47 @@ public enum SoupTag {
      */
     public static SoupTag fromDescription(String description) {
         for (SoupTag tag : values()) {
-            if (tag.description.equals(description)) {
+            if (Objects.equals(tag.description, description)) {
                 return tag;
             }
         }
+        return OTHER;
+    }
+
+    /**
+     * 根据枚举名称获取枚举（支持前端传入枚举名称如CREATIVE）
+     */
+    public static SoupTag fromName(String name) {
+        for (SoupTag tag : values()) {
+            if (tag.name().equalsIgnoreCase(name)) {
+                return tag;
+            }
+        }
+        return OTHER;
+    }
+
+    /**
+     * 从描述或名称获取枚举（优先匹配名称，再匹配描述）
+     */
+    public static SoupTag fromString(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return OTHER;
+        }
+
+        // 优先按枚举名称匹配（前端传入格式）
+        for (SoupTag tag : values()) {
+            if (tag.name().equalsIgnoreCase(value.trim())) {
+                return tag;
+            }
+        }
+
+        // 再按描述匹配（中文描述）
+        for (SoupTag tag : values()) {
+            if (tag.description.equalsIgnoreCase(value.trim())) {
+                return tag;
+            }
+        }
+
         return OTHER;
     }
 }

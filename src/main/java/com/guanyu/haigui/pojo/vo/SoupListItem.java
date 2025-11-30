@@ -72,4 +72,5 @@ public class SoupListItem {
      * 海龟汤标签（只能选择一个）
      */
     private String tag;
+
 }
