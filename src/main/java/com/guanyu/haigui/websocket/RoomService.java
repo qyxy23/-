@@ -560,10 +560,12 @@ public class RoomService {
         return vo;
     }
 
-    public InvitationVO invite(InvitationDto request) {
+    public List<InvitationVO> invite(InvitationDto request) {
         Long currentUserId = BaseContext.getCurrentId();
         String roomId = request.getRoomId();
-        List<Long> inviteeId = request.getInviteeId();
+        List<Long> inviteeIds = request.getInviteeId();
+
+        // 验证当前用户是否在房间中
         ChatGameMemberId memberId = new ChatGameMemberId(currentUserId, roomId);
         ChatGameMember member = chatGameMemberRepository.findById(memberId)
                 .orElseThrow(() -> new UserNotInRoomException("用户未在房间中：ID=" + currentUserId));
@@ -571,9 +573,10 @@ public class RoomService {
         // 验证房间存在性
         ChatGame chatGame = chatGameRepository.findById(roomId)
                 .orElseThrow(() -> new BusinessException(404,"房间不存在"));
-        // 验证被邀请者存在性
-        UserInfo invitee = userInfoRepository.findById(inviteeId)
-                .orElseThrow(() -> new BusinessException(404,"被邀请者不存在"));
+
+        // 验证当前用户存在性（作为邀请者）
+        UserInfo inviter = userInfoRepository.findById(currentUserId)
+                .orElseThrow(() -> new BusinessException(404,"邀请者不存在"));
 
         // -------------------------- 3. 权限与状态校验 --------------------------
         // 校验1：只有房主可以邀请成员（creator_id == 当前用户ID）
@@ -584,36 +587,65 @@ public class RoomService {
         if (chatGame.getStatus() == RoomStatus.FINISHED || chatGame.getStatus() == RoomStatus.CANCELLED) {
             throw new RoomException("房间已结束或取消，无法发起邀请");
         }
-        // 校验3：被邀请者是否已在房间中（避免重复邀请）
-        boolean isAlreadyMember = chatGameMemberRepository.existsByChatGameAndMember(chatGame, invitee);
-        if (isAlreadyMember) {
-            throw new RoomException("该用户已在房间中，无需重复邀请");
-        }
-        // 校验4：是否存在未处理的邀请（避免重复发送）
-        boolean hasPendingInvitation = chatGameInvitationRepository.existsByChatGameRoomIdAndInviteeUserIdAndStatus(
-                roomId, inviteeId, InvitationStatus.PENDING);
-        if (hasPendingInvitation) {
-            throw new RoomException("该用户已有未处理的邀请，请等待回复");
+
+        List<InvitationVO> invitationVOs = new ArrayList<>();
+
+        // -------------------------- 4. 为每个被邀请者创建邀请记录 --------------------------
+        for (Long inviteeId : inviteeIds) {
+            try {
+                // 验证被邀请者存在性
+                UserInfo invitee = userInfoRepository.findById(inviteeId)
+                        .orElseThrow(() -> new BusinessException(404,"被邀请者不存在，用户ID：" + inviteeId));
+
+                // 校验3：被邀请者是否已在房间中（避免重复邀请）
+                boolean isAlreadyMember = chatGameMemberRepository.existsByChatGameAndMember(chatGame, invitee);
+                if (isAlreadyMember) {
+                    log.warn("用户[{}]已在房间[{}]中，跳过邀请", inviteeId, roomId);
+                    continue;
+                }
+
+                // 校验4：是否存在未处理的邀请（避免重复发送）
+                boolean hasPendingInvitation = chatGameInvitationRepository.existsByChatGameRoomIdAndInviteeUserIdAndStatus(
+                        roomId, inviteeId, InvitationStatus.PENDING);
+                if (hasPendingInvitation) {
+                    log.warn("用户[{}]已有房间[{}]的未处理邀请，跳过邀请", inviteeId, roomId);
+                    continue;
+                }
+
+                // 创建邀请记录
+                ChatGameInvitation invitation = new ChatGameInvitation();
+                // 关联房间、邀请者、被邀请者
+                invitation.setChatGame(chatGame);
+                invitation.setInviter(inviter);  // 修复：使用当前用户作为邀请者
+                invitation.setInvitee(invitee);  // 被邀请者
+                // 状态初始化为PENDING（待接受）
+                invitation.setStatus(InvitationStatus.PENDING);
+                // 保存到数据库
+                chatGameInvitationRepository.save(invitation);
+
+                // 创建并添加到返回列表
+                InvitationVO vo = InvitationVO.fromEntity(invitation);
+                invitationVOs.add(vo);
+
+                // -------------------------- 5. 向被邀请者发送私聊邀请消息 --------------------------
+                simpMessagingTemplate.convertAndSendToUser(
+                        String.valueOf(inviteeId), // 目标用户ID（Stomp会自动拼接成/user/{inviteeId}/private-messages）
+                        "/private-messages", // 订阅路径（客户端需要订阅此路径才能收到消息）
+                        vo // 要发送的消息内容
+                );
+
+                log.info("用户[{}]成功邀请好友[{}]加入房间[{}]", currentUserId, inviteeId, roomId);
+
+            } catch (Exception e) {
+                log.error("邀请用户[{}]加入房间[{}]时发生错误: {}", inviteeId, roomId, e.getMessage());
+                // 继续处理其他被邀请者，不中断整个邀请流程
+            }
         }
 
-        // -------------------------- 4. 创建邀请记录 --------------------------
-        ChatGameInvitation invitation = new ChatGameInvitation();
-        // 关联房间、邀请者、被邀请者
-        invitation.setChatGame(chatGame);
-        invitation.setInviter(invitee);
-        invitation.setInvitee(invitee);
-        // 状态初始化为PENDING（待接受）
-        invitation.setStatus(InvitationStatus.PENDING);
-        // 保存到数据库
-        chatGameInvitationRepository.save(invitation);
+        if (invitationVOs.isEmpty()) {
+            throw new RoomException("没有成功发送任何邀请，请检查被邀请者状态");
+        }
 
-        // -------------------------- 5. 触发通知（可选但推荐） --------------------------
-        InvitationVO vo = InvitationVO.fromEntity(invitation);
-        simpMessagingTemplate.convertAndSendToUser(
-                String.valueOf(inviteeId), // 目标用户ID（Stomp会自动拼接成/user/{memberId}/private-messages）
-                "/private-messages", // 订阅路径（客户端需要订阅此路径才能收到消息）
-                vo // 要发送的消息内容
-        );
-        return vo;
+        return invitationVOs;
     }
 }

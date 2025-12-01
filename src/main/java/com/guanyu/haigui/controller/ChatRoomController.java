@@ -76,7 +76,7 @@ public class ChatRoomController {
     @Operation(summary = "邀请某人加入房间")
     @PostMapping("/invite")
     @ResponseBody
-    public Result<InvitationVO> invite(@RequestBody InvitationDto request) {
+    public Result<List<InvitationVO>> invite(@RequestBody InvitationDto request) {
         return Result.success(roomService.invite(request));
     }
 
