@@ -62,10 +62,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none # 临时禁用自动DDL，避免外键约束问题
-#    show-sql: true
-#    properties:
-#      hibernate:
-#              format_sql: true # 格式化 SQL，便于阅读
+    show-sql: true
+    properties:
+      hibernate:
+              format_sql: true # 格式化 SQL，便于阅读
 
 # PageHelper 分页插件配置
 pagehelper:
@@ -129,4 +129,4 @@ knife4j:
 haiqutang:
   ai:
     # 调试模式：true=使用模拟AI响应数据，false=调用真实AI服务
-    debug-mode: true
+    debug-mode: false

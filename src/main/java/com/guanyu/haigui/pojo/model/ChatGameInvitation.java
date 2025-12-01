@@ -1,6 +1,7 @@
 package com.guanyu.haigui.pojo.model;
 
 import com.guanyu.haigui.Enum.InvitationStatus;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -32,16 +33,16 @@ public class ChatGameInvitation implements Serializable {
      * 邀请唯一ID（UUID）
      */
     @Id
-    @GeneratedValue(generator = "uuid2") // 使用 Hibernate UUID 生成器
     @Column(name = "invitation_id", columnDefinition = "VARCHAR(36)", nullable = false)
     private String invitationId;
 
     /**
      * 目标房间（关联 chat_games 表）
      */
-    @ManyToOne(fetch = FetchType.LAZY) // 懒加载，避免不必要的关联查询
-    @JoinColumn(name = "room_id", nullable = false) // 外键：room_id
-    private ChatGame chatGame; // 关联 ChatGame 实体（需提前定义）
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "room_id", nullable = false)
+    @Schema(description = "所属游戏房间")
+    private ChatGame chatGame;
 
     /**
      * 邀请者（关联 sys_user 表）
