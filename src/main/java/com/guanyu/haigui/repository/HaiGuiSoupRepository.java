@@ -11,11 +11,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface HaiGuiSoupRepository extends JpaRepository<HaiGuiSoup, String> {
-
-
-
-
-
     /**
      * 查询 Soup 列表
      *

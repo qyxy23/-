@@ -1,5 +1,6 @@
 package com.guanyu.haigui.pojo.vo;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.guanyu.haigui.Enum.MessageChatType;
 import com.guanyu.haigui.Enum.MessageStatus;
 import com.guanyu.haigui.Enum.MessageType;
@@ -8,12 +9,15 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.extern.jackson.Jacksonized;
 
 import java.time.LocalDateTime;
 
 // 历史消息DTO（转换实体类）
 @Data
 @Builder
+@Jacksonized
+@JsonInclude(JsonInclude.Include.NON_NULL)
 @AllArgsConstructor
 @NoArgsConstructor
 public class PrivateMessageVO {
@@ -28,9 +32,10 @@ public class PrivateMessageVO {
     private MessageChatType chatType;
 
 
+
     // 从实体类转换
     public static PrivateMessageVO fromEntity(PrivateMessage message) {
-        return PrivateMessageVO.builder()
+        PrivateMessageVOBuilder builder = PrivateMessageVO.builder()
                 .messageId(message.getMessageId())
                 .senderId(message.getSender().getUserId())
                 .receiverId(message.getReceiver().getUserId())
@@ -38,7 +43,7 @@ public class PrivateMessageVO {
                 .messageType(message.getMessageType())
                 .status(message.getStatus())
                 .isRead(message.getIsRead())
-                .createTime(message.getCreateTime())
-                .build();
+                .createTime(message.getCreateTime());
+        return builder.build();
     }
 }

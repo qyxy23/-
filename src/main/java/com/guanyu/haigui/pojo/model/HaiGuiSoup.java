@@ -102,4 +102,7 @@ public class HaiGuiSoup {
     @Column(name = "updated_at", columnDefinition = "DATETIME(6)", nullable = false)
     @UpdateTimestamp
     private LocalDateTime updatedAt;
+
+    @Column(name = "soup_avatar")
+    private String soupAvatar;
 }

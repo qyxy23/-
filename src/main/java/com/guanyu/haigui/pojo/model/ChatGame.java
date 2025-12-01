@@ -72,6 +72,8 @@ public class ChatGame {
     @Column(name = "need_invite", nullable = false)
     private Boolean needInvite;
 
+
+
     /** 房间成员列表（关联chat_game_members表，可选） */
     @OneToMany(mappedBy = "chatGame", cascade = CascadeType.ALL, orphanRemoval = true)
     @Schema(hidden = true) // OpenAPI文档中隐藏

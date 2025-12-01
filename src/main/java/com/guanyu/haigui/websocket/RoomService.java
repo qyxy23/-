@@ -1,6 +1,7 @@
 package com.guanyu.haigui.websocket;
 
 import cn.hutool.core.lang.UUID;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.guanyu.haigui.Enum.*;
@@ -50,6 +51,7 @@ public class RoomService {
     private final AiChatSessionRepository aiChatSessionRepository;
     private final chatGameInvitationRepository chatGameInvitationRepository;
     private final PrivateMessageRepository privateMessageRepository;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * 创建聊天室
@@ -101,6 +103,7 @@ public class RoomService {
                 .member(creator) // 关联创建者实体
                 .chatGame(game) // 关联房间实体（可选，但增强关联性）
                 .joinTime(LocalDateTime.now())
+                .status(MemberStatus.ONLINE)
                 .build();
         chatGameMemberRepository.save(member); // JPA自动保存到数据库
 
@@ -561,10 +564,13 @@ public class RoomService {
         return vo;
     }
 
+    /**
+     * 邀请用户加入房间
+     */
     public List<InvitationVO> invite(InvitationDto request) {
         Long currentUserId = BaseContext.getCurrentId();
         String roomId = request.getRoomId();
-        List<Long> inviteeIds = request.getInviteeId();
+        List<Long> inviteeIds = request.getInviteeIds();
 
         // 验证当前用户是否在房间中
         ChatGameMemberId memberId = new ChatGameMemberId(currentUserId, roomId);
@@ -578,6 +584,9 @@ public class RoomService {
         // 验证当前用户存在性（作为邀请者）
         UserInfo inviter = userInfoRepository.findById(currentUserId)
                 .orElseThrow(() -> new BusinessException(404,"邀请者不存在"));
+
+        HaiGuiSoup soup = haiGuiSoupRepository.findById(chatGame.getHaiGuiSoup().getSoupId())
+                .orElseThrow(() -> new BusinessException(404,"汤不存在"));
 
         // -------------------------- 3. 权限与状态校验 --------------------------
         // 校验1：只有房主可以邀请成员（creator_id == 当前用户ID）
@@ -616,29 +625,38 @@ public class RoomService {
                 // 创建邀请记录
                 ChatGameInvitation invitation = new ChatGameInvitation();
                 // 关联房间、邀请者、被邀请者
+                invitation.setInvitationId(UUID.randomUUID().toString());
                 invitation.setChatGame(chatGame);
-                invitation.setInviter(inviter);  // 修复：使用当前用户作为邀请者
+                invitation.setInviter(inviter);
                 invitation.setInvitee(invitee);  // 被邀请者
                 // 状态初始化为PENDING（待接受）
                 invitation.setStatus(InvitationStatus.PENDING);
                 // 保存到数据库
                 chatGameInvitationRepository.save(invitation);
 
-                // -------------------------- 5. 创建私聊消息记录并保存到私人对话中 --------------------------
-                String inviteMessageContent = String.format("🎮 邀请你加入游戏房间「%s」\n🏠 房间ID：%s\n👥 需要人数：%d人\n🎯 海龟汤：%s",
-                        chatGame.getRoomName(),
-                        roomId,
-                        chatGame.getRequiredMembers(),
-                        chatGame.getHaiGuiSoup().getSoupTitle());
+                // -------------------------- 5. 创建邀请卡片消息记录并保存到私人对话中 --------------------------
+
+                // 使用 HashMap 替代 JSONObject
+                Map<String, Object> content = new HashMap<>();
+                content.put("id", roomId);
+                content.put("name", chatGame.getRoomName());
+                content.put("coverUrl", soup.getSoupAvatar());
+
+                // 如果你需要将这个 Map 转换成 JSON 字符串保存到 content 字段：
+                String contentJson = objectMapper.writeValueAsString(content);
+
 
                 PrivateMessage privateMessage = PrivateMessage.builder()
+                        .messageId(UUID.randomUUID().toString())
                         .sender(inviter)  // 邀请者作为发送者
                         .receiver(invitee)  // 被邀请者作为接收者
-                        .content(inviteMessageContent)  // 邀请消息内容
-                        .messageType(MessageType.TEXT)  // 消息类型为文本
+                        .content(contentJson)  // 邀请消息内容（简化版）
+                        .messageType(MessageType.INVITATION)  // 消息类型
                         .status(MessageStatus.SENT)  // 状态为已发送
                         .isRead(false)  // 初始为未读
                         .build();
+                System.out.println("privateMessage = " + privateMessage);
+
 
                 privateMessageRepository.save(privateMessage);
 
@@ -653,7 +671,7 @@ public class RoomService {
                         vo // 要发送的消息内容（邀请记录）
                 );
 
-                log.info("用户[{}]成功邀请好友[{}]加入房间[{}]，已保存私聊消息记录", currentUserId, inviteeId, roomId);
+                log.info("用户[{}]成功邀请好友[{}]加入房间[{}]，已保存海龟汤邀请消息记录", currentUserId, inviteeId, roomId);
 
             } catch (Exception e) {
                 log.error("邀请用户[{}]加入房间[{}]时发生错误: {}", inviteeId, roomId, e.getMessage());

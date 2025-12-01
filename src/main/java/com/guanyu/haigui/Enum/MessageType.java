@@ -11,7 +11,8 @@ public enum MessageType {
     IMAGE("图片"),
     FILE("文件"),
     VOICE("语音"),
-    VIDEO("视频");
+    VIDEO("视频"),
+    INVITATION ("海龟汤邀请");
 
     private final String description;
 

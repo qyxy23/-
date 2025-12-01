@@ -49,6 +49,7 @@ public class PrivateMessage {
     @Schema(description = "消息内容（文本/图片URL/文件路径等）")
     private String content;
 
+
     @Enumerated(EnumType.STRING)
     @Column(name = "message_type", nullable = false)
     @Schema(description = "消息类型：TEXT/IMAGE/FILE/VOICE/VIDEO")

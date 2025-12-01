@@ -1,0 +1,61 @@
+CREATE TABLE `chat_private_messages` (
+  `message_id` VARCHAR(36) NOT NULL COMMENT '消息唯一ID（UUID）',
+  `sender_id` BIGINT UNSIGNED NOT NULL COMMENT '发送者ID（关联sys_user.user_id）',
+  `receiver_id` BIGINT UNSIGNED NOT NULL COMMENT '接收者ID（关联sys_user.user_id）',
+  `content` LONGTEXT NOT NULL COMMENT '消息内容（文本/图片URL/文件路径等）',
+  `card_data` JSON COMMENT '卡片数据（JSON格式，用于邀请卡片）',
+  `message_type` ENUM('TEXT', 'IMAGE', 'FILE', 'VOICE', 'VIDEO', 'INVITATION_CARD') NOT NULL DEFAULT 'TEXT' COMMENT '消息类型',
+  `status` ENUM('SENT', 'FAILED', 'RETRACTED') NOT NULL DEFAULT 'SENT' COMMENT '消息状态：已发送/发送失败/已撤回',
+  `is_read` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已读（0-未读，1-已读）',
+  `create_time` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) COMMENT '消息发送时间',
+  PRIMARY KEY (`message_id`),
+  -- 索引：优化私聊查询（按发送者、接收者、双向组合、时间排序）
+  INDEX `idx_sender_receiver` (`sender_id`, `receiver_id`),
+  INDEX `idx_receiver_sender` (`receiver_id`, `sender_id`),
+  INDEX `idx_sender` (`sender_id`),
+  INDEX `idx_receiver` (`receiver_id`),
+  INDEX `idx_create_time` (`create_time`),
+  -- 外键约束：关联发送者与接收者
+  CONSTRAINT `fk_chat_private_messages_sender`
+    FOREIGN KEY (`sender_id`) REFERENCES `sys_user` (`user_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_chat_private_messages_receiver`
+    FOREIGN KEY (`receiver_id`) REFERENCES `sys_user` (`user_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='私聊消息表';
+
+
+
+CREATE TABLE `friend_relations` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `user_id` BIGINT UNSIGNED NOT NULL COMMENT '主动方用户ID（关联sys_user.user_id）',
+  `friend_id` BIGINT UNSIGNED NOT NULL COMMENT '被动方用户ID（关联sys_user.user_id）',
+  `status` ENUM('PENDING', 'ACCEPTED', 'REJECTED', 'BLOCKED','RETRACTED') NOT NULL DEFAULT 'PENDING' COMMENT '关系状态：
+    PENDING-申请中（等待对方确认）
+    ACCEPTED-已同意（成为好友）
+    REJECTED-已拒绝（申请被驳回）
+    BLOCKED-已拉黑（禁止再次申请）',
+  `remark` VARCHAR(255) DEFAULT '' COMMENT '申请备注（主动方填写的验证信息）',
+  `apply_time` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) COMMENT '申请发起时间',
+  `update_time` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6) COMMENT '最后状态更新时间',
+  PRIMARY KEY (`id`),
+  -- 唯一约束：防止同一用户对同一人重复发起申请（仅允许一条PENDING状态记录）
+  UNIQUE INDEX `uk_user_friend_pending` (`user_id`, `friend_id`, `status`),
+  -- 外键约束：关联双方用户，用户删除时级联清理关系
+  CONSTRAINT `fk_friend_relations_user`
+    FOREIGN KEY (`user_id`) REFERENCES `sys_user` (`user_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_friend_relations_friend`
+    FOREIGN KEY (`friend_id`) REFERENCES `sys_user` (`user_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='好友关系表（含申请流程与最终好友列表）';
+
+
+CREATE TABLE `user_private_chat_sticky` (
+  `user_id` BIGINT UNSIGNED NOT NULL COMMENT '当前用户ID',
+  `other_user_id` BIGINT UNSIGNED NOT NULL COMMENT '对方用户ID',
+  `is_sticky` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否置顶（0-否，1-是）',
+  `sticky_time` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) COMMENT '置顶时间',
+  PRIMARY KEY (`user_id`, `other_user_id`), -- 用户+对方用户唯一
+  INDEX `idx_sticky_time` (`sticky_time`),
+  CONSTRAINT `fk_user_private_chat_sticky_user`
+    FOREIGN KEY (`user_id`) REFERENCES `sys_user` (`user_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_user_private_chat_sticky_other`
+    FOREIGN KEY (`other_user_id`) REFERENCES `sys_user` (`user_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户私聊置顶表';
