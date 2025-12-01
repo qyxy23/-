@@ -49,6 +49,7 @@ public class RoomService {
     private final HaiGuiSoupRepository haiGuiSoupRepository;
     private final AiChatSessionRepository aiChatSessionRepository;
     private final chatGameInvitationRepository chatGameInvitationRepository;
+    private final PrivateMessageRepository privateMessageRepository;
 
     /**
      * 创建聊天室
@@ -623,18 +624,36 @@ public class RoomService {
                 // 保存到数据库
                 chatGameInvitationRepository.save(invitation);
 
+                // -------------------------- 5. 创建私聊消息记录并保存到私人对话中 --------------------------
+                String inviteMessageContent = String.format("🎮 邀请你加入游戏房间「%s」\n🏠 房间ID：%s\n👥 需要人数：%d人\n🎯 海龟汤：%s",
+                        chatGame.getRoomName(),
+                        roomId,
+                        chatGame.getRequiredMembers(),
+                        chatGame.getHaiGuiSoup().getSoupTitle());
+
+                PrivateMessage privateMessage = PrivateMessage.builder()
+                        .sender(inviter)  // 邀请者作为发送者
+                        .receiver(invitee)  // 被邀请者作为接收者
+                        .content(inviteMessageContent)  // 邀请消息内容
+                        .messageType(MessageType.TEXT)  // 消息类型为文本
+                        .status(MessageStatus.SENT)  // 状态为已发送
+                        .isRead(false)  // 初始为未读
+                        .build();
+
+                privateMessageRepository.save(privateMessage);
+
                 // 创建并添加到返回列表
                 InvitationVO vo = InvitationVO.fromEntity(invitation);
                 invitationVOs.add(vo);
 
-                // -------------------------- 5. 向被邀请者发送私聊邀请消息 --------------------------
+                // -------------------------- 6. 向被邀请者发送实时邀请通知 --------------------------
                 simpMessagingTemplate.convertAndSendToUser(
                         String.valueOf(inviteeId), // 目标用户ID（Stomp会自动拼接成/user/{inviteeId}/private-messages）
                         "/private-messages", // 订阅路径（客户端需要订阅此路径才能收到消息）
-                        vo // 要发送的消息内容
+                        vo // 要发送的消息内容（邀请记录）
                 );
 
-                log.info("用户[{}]成功邀请好友[{}]加入房间[{}]", currentUserId, inviteeId, roomId);
+                log.info("用户[{}]成功邀请好友[{}]加入房间[{}]，已保存私聊消息记录", currentUserId, inviteeId, roomId);
 
             } catch (Exception e) {
                 log.error("邀请用户[{}]加入房间[{}]时发生错误: {}", inviteeId, roomId, e.getMessage());
