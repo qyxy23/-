@@ -40,6 +40,12 @@ public class ChatGame {
     @Schema(description = "游戏房间创建者")
     private UserInfo creator;
 
+    /** 海龟汤（关联hai_gui_soup表，对应soup_id） */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "soup_id", nullable = false)
+    @Schema(description = "游戏房间创建者")
+    private HaiGuiSoup haiGuiSoup;
+
     /** 所需人数（对应required_members） */
     @Column(name = "required_members", nullable = false)
     private Integer requiredMembers;
@@ -62,6 +68,9 @@ public class ChatGame {
     @UpdateTimestamp
     @Column(name = "update_time", nullable = false)
     private LocalDateTime updateTime;
+
+    @Column(name = "need_invite", nullable = false)
+    private Boolean needInvite;
 
     /** 房间成员列表（关联chat_game_members表，可选） */
     @OneToMany(mappedBy = "chatGame", cascade = CascadeType.ALL, orphanRemoval = true)

@@ -7,4 +7,5 @@ import lombok.Data;
 public class checkRoomStatusVO {
     private String roomId;
     private RoomStatus status;
+    private String soupSurface;
 }

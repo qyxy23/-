@@ -26,4 +26,5 @@ public interface ChatGameMemberRepository extends JpaRepository<ChatGameMember, 
     Optional<ChatGameMember> findByRoomIdAndUserId(@Param("roomId") String roomId, @Param("userId") Long userId);
 
 
+
 }

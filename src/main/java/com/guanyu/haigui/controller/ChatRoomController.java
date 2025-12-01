@@ -73,14 +73,20 @@ public class ChatRoomController {
         return roomService.getGameMessages(roomChatHistoryDTO);
     }
 
+    @Operation(summary = "邀请某人加入房间")
+    @PostMapping("/invite")
+    @ResponseBody
+    public Result<InvitationVO> invite(@RequestBody InvitationDto request) {
+        return Result.success(roomService.invite(request));
+    }
+
     // 处理用户加入大厅的请求（前端发送到/app/chat.joinLobby）
     @Operation(summary = "加入大厅")
     @PostMapping("/joinRoom")
     @ResponseBody
     public Result<joinChatRoomVO> joinRoom(@RequestBody JoinChatRoomRequest request) {
-        String lobbyId = request.getChatRoomId();
         // 加入大厅
-        return Result.success(roomService.joinChatRoom(lobbyId));
+        return Result.success(roomService.joinChatRoom(request.getChatRoomId()));
     }
 
     @Operation(summary = "离开大厅")
@@ -100,13 +106,13 @@ public class ChatRoomController {
         return roomService.getRecentMessages(roomId, limit);
     }
 
+
     // 处理发送聊天消息的请求（前端发送到/app/chat.sendMessage）
     @Operation(summary = "处理发送聊天消息的请求")
     @MessageMapping("/ws/sendLobbyMessage")
     public void sendLobbyMessage(@Payload SendGameRoomMsgRequest message, @Header("simpSessionId") String sessionId) {
         roomService.sendLobbyMessage(message, sessionId);
     }
-
 
 
     /**
@@ -148,6 +154,7 @@ public class ChatRoomController {
         return Result.success(roomService.returnRoom(roomId));
     }
 
+
     @Operation(summary = "游戏准备")
     @PostMapping("/ready/{roomId}")
     @ResponseBody
@@ -156,7 +163,7 @@ public class ChatRoomController {
     }
 
     // 处理大厅人数是否达标，若达到要求可开始游戏
-    @Operation(summary = "处理大厅人数是否达标，若达到要求可开始游戏")
+    @Operation(summary = "处理大厅人数是否达标且都准备完毕，若达到要求可开始游戏")
     @PostMapping("/checkRoomStatus")
     public Result<checkRoomStatusVO> checkRoomStatus(@Payload String roomId) {
         log.info("检查房间{}的状态", roomId);

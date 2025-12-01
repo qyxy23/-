@@ -7,4 +7,5 @@ public class CreateRoomRequest {
     private String roomName;
     private String soupId;
     private Integer requiredMembers;
+    private Boolean isPrivate;
 }

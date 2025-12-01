@@ -6,16 +6,12 @@ import com.github.pagehelper.PageInfo;
 import com.guanyu.haigui.Enum.*;
 import com.guanyu.haigui.Exception.*;
 import com.guanyu.haigui.context.BaseContext;
-import com.guanyu.haigui.mapper.AiChatSessionMapper;
 import com.guanyu.haigui.mapper.ChatGameMapper;
 import com.guanyu.haigui.mapper.ChatGameMemberMapper;
 import com.guanyu.haigui.pojo.dto.*;
 import com.guanyu.haigui.pojo.model.*;
 import com.guanyu.haigui.pojo.vo.*;
-import com.guanyu.haigui.repository.ChatGameMemberRepository;
-import com.guanyu.haigui.repository.ChatGameMsgRepository;
-import com.guanyu.haigui.repository.ChatGameRepository;
-import com.guanyu.haigui.repository.UserInfoRepository;
+import com.guanyu.haigui.repository.*;
 import com.guanyu.haigui.utils.LobbyRoomUtils;
 import com.guanyu.haigui.utils.RedisServiceUtil;
 import com.guanyu.haigui.utils.SessionMapUtil;
@@ -43,14 +39,16 @@ public class RoomService {
     private final RedisServiceUtil redisService;
     private final ChatGameMapper chatGameMapper;
     private final ChatGameMemberMapper chatGameMemberMapper;
-    private final AiChatSessionMapper aiChatSessionMapper;
-    private final SimpMessagingTemplate messagingTemplate;
+    private final SimpMessagingTemplate simpMessagingTemplate;
     private final UserInfoRepository userInfoRepository;
     private final ChatGameRepository chatGameRepository;
     private final ChatGameMemberRepository chatGameMemberRepository;
     private final ChatGameMsgRepository chatGameMsgRepository;
     private final SessionMapUtil sessionMapUtil;
     private final LobbyRoomUtils lobbyRoomUtils;
+    private final HaiGuiSoupRepository haiGuiSoupRepository;
+    private final AiChatSessionRepository aiChatSessionRepository;
+    private final chatGameInvitationRepository chatGameInvitationRepository;
 
     /**
      * 创建聊天室
@@ -73,6 +71,12 @@ public class RoomService {
                     return new RuntimeException("创建者不存在");
                 });
 
+        HaiGuiSoup soup = haiGuiSoupRepository.findById(request.getSoupId())
+                .orElseThrow(() -> {
+                    log.error("汤ID[{}]未找到对应汤", request.getSoupId());
+                    return new RuntimeException("汤不存在");
+                });
+
         // 4. 生成唯一房间ID
         String roomId = UUID.randomUUID().toString();
 
@@ -85,6 +89,8 @@ public class RoomService {
                 .currentMembers(1) // 初始成员数=创建者自己
                 .status(RoomStatus.WAITING)
                 .createTime(LocalDateTime.now())
+                .needInvite(request.getIsPrivate())
+                .haiGuiSoup(soup)
                 .build();
         chatGameRepository.save(game); // JPA自动保存到数据库
 
@@ -102,7 +108,7 @@ public class RoomService {
         // 将房间ID发送到用户的个人主题，以便前端接收
         // 使用simpSessionId确保消息发送到正确的用户会话
         // 注意：convertAndSendToUser方法会自动添加/user/前缀，所以路径只需要/queue/lobbyCreated
-        log.info("用户创建{}人大厅[{}]成功，房间ID：{}", requiredMembers, roomName, roomId);
+        log.info("用户创建{}人大厅[{}]成功，房间ID：{},对应的海龟汤{}", requiredMembers, roomName, roomId,soup.getSoupTitle());
         return roomId;
     }
 
@@ -204,12 +210,18 @@ public class RoomService {
 
     @Transactional // 事务保证原子性：成员添加+房间人数更新
     public joinChatRoomVO joinChatRoom(String roomId) {
-        // 1. 获取当前用户信息（从会话映射）
+        // 1. 获取当前用户信息
         UserInfo user = userInfoRepository.findById(BaseContext.getCurrentId()).orElseThrow(() -> new RuntimeException("用户不存在"));
 
         // 3. 获取目标房间（验证存在性与状态）
         ChatGame room = chatGameRepository.findById(roomId)
                 .orElseThrow(() -> new RoomNotFoundException("房间不存在：ID=" + roomId));
+        if (room.getNeedInvite()) {
+            if(!chatGameInvitationRepository.existsByChatGameRoomIdAndInviteeUserIdAndStatus(roomId, BaseContext.getCurrentId(), InvitationStatus.PENDING)){
+                throw new RuntimeException("当前房间为私人房间,请等待邀请");
+            }
+
+        }
         if (room.getStatus() != RoomStatus.WAITING) {
             throw new RuntimeException("房间已开始或已结束：ID=" + roomId);
         }
@@ -244,7 +256,7 @@ public class RoomService {
         vo.setStatus(LobbyMemberStatus.JOIN);
         // 7. 更新Redis在线房间缓存（可选）
         redisService.updateOnlineRoomsAndNumbers(roomId, num);
-        messagingTemplate.convertAndSend("/topic/memberChange"+roomId, vo);
+        simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId, vo);
         log.info("用户[{}]加入房间[{}]成功", user.getUserId(), roomId);
         return vo;
     }
@@ -392,7 +404,7 @@ public class RoomService {
         lobbyVO.setUserAvatar(user.getAvatar());
         lobbyVO.setStatus(LobbyMemberStatus.QUIT);
         // 8. 更新Redis在线房间缓存（可选）
-        messagingTemplate.convertAndSend("/topic/memberChange"+roomId,lobbyVO);
+        simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId,lobbyVO);
         lobbyRoomUtils.leaveLobbyRoom(roomId, user.getUserId());
         log.info("用户[{}]离开房间[{}]成功", user.getName(), roomId);
         return lobbyVO;
@@ -471,7 +483,7 @@ public class RoomService {
         suspendRoomVO.setUserId(userId);
         suspendRoomVO.setRoomId(roomId);
         suspendRoomVO.setStatus(LobbyMemberStatus.SUSPEND);
-        messagingTemplate.convertAndSend("/topic/memberChange"+roomId,suspendRoomVO);
+        simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId,suspendRoomVO);
         return suspendRoomVO;
     }
 
@@ -491,7 +503,7 @@ public class RoomService {
         resumeRoomVO.setUserId(userId);
         resumeRoomVO.setRoomId(roomId);
         resumeRoomVO.setStatus(LobbyMemberStatus.ONLINE);
-        messagingTemplate.convertAndSend("/topic/memberChange"+roomId,resumeRoomVO);
+        simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId,resumeRoomVO);
         return resumeRoomVO;
     }
 
@@ -511,17 +523,15 @@ public class RoomService {
         readyVO.setMemberId(userId);
         readyVO.setRoomId(roomId);
         readyVO.setStatus(LobbyMemberStatus.ONLINE);
-        messagingTemplate.convertAndSend("/topic/memberChange"+roomId,readyVO);
+        simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId,readyVO);
         return readyVO;
     }
 
 
     // 检查房间状态,如果达标可开启游戏
     public checkRoomStatusVO checkRoomStatus(String roomId) {
-        ChatGame room = chatGameMapper.checkByRoomId(roomId);
-        if (room == null) {
-            throw new RoomException("房间不存在");
-        }
+        ChatGame room = chatGameRepository.findById(roomId).orElseThrow(() -> new RoomException("房间不存在"));
+
         if(!Objects.equals(room.getCreator().getUserId(), BaseContext.getCurrentId())){
             throw new RoomException("您没有权限操作此房间");
         }
@@ -535,15 +545,75 @@ public class RoomService {
             throw new RoomException("房间人数超出");
         }
         room.setStatus(RoomStatus.ACTIVE);
-        chatGameMapper.updateRoomStatus(room);
+        chatGameRepository.save(room);
         AiChatSession session = AiChatSession.builder().sessionId(UUID.randomUUID().toString())
                 .contextId(roomId).build();
-        aiChatSessionMapper.insertAISession(session);
+        aiChatSessionRepository.save(session);
         log.info("房间{}已激活", roomId);
+        HaiGuiSoup soup = haiGuiSoupRepository.findById(room.getHaiGuiSoup().getSoupId())
+                .orElseThrow(() -> new RoomException("汤不存在"));
         checkRoomStatusVO vo = new checkRoomStatusVO();
         vo.setStatus(RoomStatus.ACTIVE);
         vo.setRoomId(roomId);
-        messagingTemplate.convertAndSend("/topic/memberChange"+roomId, vo);
+        vo.setSoupSurface(soup.getSoupSurface());
+        simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId, vo);
+        return vo;
+    }
+
+    public InvitationVO invite(InvitationDto request) {
+        Long currentUserId = BaseContext.getCurrentId();
+        String roomId = request.getRoomId();
+        List<Long> inviteeId = request.getInviteeId();
+        ChatGameMemberId memberId = new ChatGameMemberId(currentUserId, roomId);
+        ChatGameMember member = chatGameMemberRepository.findById(memberId)
+                .orElseThrow(() -> new UserNotInRoomException("用户未在房间中：ID=" + currentUserId));
+
+        // 验证房间存在性
+        ChatGame chatGame = chatGameRepository.findById(roomId)
+                .orElseThrow(() -> new BusinessException(404,"房间不存在"));
+        // 验证被邀请者存在性
+        UserInfo invitee = userInfoRepository.findById(inviteeId)
+                .orElseThrow(() -> new BusinessException(404,"被邀请者不存在"));
+
+        // -------------------------- 3. 权限与状态校验 --------------------------
+        // 校验1：只有房主可以邀请成员（creator_id == 当前用户ID）
+        if (!chatGame.getCreator().getUserId().equals(currentUserId)) {
+            throw new RoomException("只有房主有权邀请成员加入房间");
+        }
+        // 校验2：房间状态是否允许邀请（已结束/已取消的房间无法邀请）
+        if (chatGame.getStatus() == RoomStatus.FINISHED || chatGame.getStatus() == RoomStatus.CANCELLED) {
+            throw new RoomException("房间已结束或取消，无法发起邀请");
+        }
+        // 校验3：被邀请者是否已在房间中（避免重复邀请）
+        boolean isAlreadyMember = chatGameMemberRepository.existsByChatGameAndMember(chatGame, invitee);
+        if (isAlreadyMember) {
+            throw new RoomException("该用户已在房间中，无需重复邀请");
+        }
+        // 校验4：是否存在未处理的邀请（避免重复发送）
+        boolean hasPendingInvitation = chatGameInvitationRepository.existsByChatGameRoomIdAndInviteeUserIdAndStatus(
+                roomId, inviteeId, InvitationStatus.PENDING);
+        if (hasPendingInvitation) {
+            throw new RoomException("该用户已有未处理的邀请，请等待回复");
+        }
+
+        // -------------------------- 4. 创建邀请记录 --------------------------
+        ChatGameInvitation invitation = new ChatGameInvitation();
+        // 关联房间、邀请者、被邀请者
+        invitation.setChatGame(chatGame);
+        invitation.setInviter(invitee);
+        invitation.setInvitee(invitee);
+        // 状态初始化为PENDING（待接受）
+        invitation.setStatus(InvitationStatus.PENDING);
+        // 保存到数据库
+        chatGameInvitationRepository.save(invitation);
+
+        // -------------------------- 5. 触发通知（可选但推荐） --------------------------
+        InvitationVO vo = InvitationVO.fromEntity(invitation);
+        simpMessagingTemplate.convertAndSendToUser(
+                String.valueOf(inviteeId), // 目标用户ID（Stomp会自动拼接成/user/{memberId}/private-messages）
+                "/private-messages", // 订阅路径（客户端需要订阅此路径才能收到消息）
+                vo // 要发送的消息内容
+        );
         return vo;
     }
 }
