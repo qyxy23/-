@@ -30,8 +30,14 @@ public class ChatGame {
     @Column(name = "room_id", length = 36, nullable = false)
     private String roomId;
 
+    /** 海龟汤（关联hai_gui_soup表，对应soup_id） */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "soup_id", nullable = false)
+    @Schema(description = "关联的海龟汤")
+    private HaiGuiSoup haiGuiSoup;
+
     /** 游戏房间名称（对应room_name） */
-    @Column(name = "room_name", nullable = false)
+    @Column(name = "room_name", nullable = false, length = 255)
     private String roomName;
 
     /** 创建者（关联sys_user表，对应creator_id） */
@@ -39,12 +45,6 @@ public class ChatGame {
     @JoinColumn(name = "creator_id", nullable = false)
     @Schema(description = "游戏房间创建者")
     private UserInfo creator;
-
-    /** 海龟汤（关联hai_gui_soup表，对应soup_id） */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "soup_id", nullable = false)
-    @Schema(description = "游戏房间创建者")
-    private HaiGuiSoup haiGuiSoup;
 
     /** 所需人数（对应required_members） */
     @Column(name = "required_members", nullable = false)
@@ -56,7 +56,7 @@ public class ChatGame {
 
     /** 房间状态（对应status，枚举存储字符串） */
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", nullable = false, columnDefinition = "ENUM('WAITING', 'ACTIVE', 'FINISHED','CANCELLED')")
     private RoomStatus status;
 
     /** 创建时间（数据库自动生成，对应create_time） */
@@ -69,14 +69,34 @@ public class ChatGame {
     @Column(name = "update_time", nullable = false)
     private LocalDateTime updateTime;
 
+    /** 游戏开始时间（对应start_time） */
+    @Column(name = "start_time")
+    private LocalDateTime startTime;
+
+    /** 游戏结束时间（对应end_time） */
+    @Column(name = "end_time")
+    private LocalDateTime endTime;
+
+    /** 房间隐私类型（对应privacy_type） */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "privacy_type", nullable = false, columnDefinition = "ENUM('PUBLIC', 'PRIVATE')")
+    private PrivacyType privacyType = PrivacyType.PUBLIC;
+
+    /** 是否需要邀请加入（对应need_invite） */
     @Column(name = "need_invite", nullable = false)
-    private Boolean needInvite;
+    private Boolean needInvite = false;
 
+    /** 关联的游戏会话ID（对应session_id） */
+    @Column(name = "session_id", length = 36)
+    private String sessionId;
 
-
-    /** 房间成员列表（关联chat_game_members表，可选） */
+    /** 房间成员列表（关联chat_game_members表） */
     @OneToMany(mappedBy = "chatGame", cascade = CascadeType.ALL, orphanRemoval = true)
-    @Schema(hidden = true) // OpenAPI文档中隐藏
     @Builder.Default
     private Set<ChatGameMember> members = new HashSet<>();
+
+    // 枚举定义
+    public enum PrivacyType {
+        PUBLIC, PRIVATE
+    }
 }

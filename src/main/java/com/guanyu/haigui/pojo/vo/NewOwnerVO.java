@@ -1,13 +1,10 @@
 package com.guanyu.haigui.pojo.vo;
 
 import com.guanyu.haigui.Enum.LobbyMemberStatus;
-import com.guanyu.haigui.Enum.MessageChatType;
 import lombok.Data;
 
 @Data
-public class resumeRoomVO {
-    private String roomId;
+public class NewOwnerVO {
     private Long userId;
     private LobbyMemberStatus status;
-    private MessageChatType type;
 }

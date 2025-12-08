@@ -17,12 +17,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+
 @Slf4j
 @AllArgsConstructor
 @RestController
 @Tag(name = "海龟汤接口", description = "海龟汤接口")
 public class HaiGuiTangController {
     private final HaiGuiTangServiceImpl haiGuiTangService;
+
 
     @Operation(summary = "调用ai生成相对应的主持人手册模块")
     @PostMapping("/generateHostManual")

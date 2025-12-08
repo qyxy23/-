@@ -1,27 +1,24 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.guanyu.haigui.Exception.AiResponseException;
 import com.guanyu.haigui.manager.AIManager;
 import com.guanyu.haigui.pojo.model.ClueFragment;
 import com.guanyu.haigui.pojo.model.GameClue;
+import com.guanyu.haigui.pojo.model.HaiGuiSoup;
 import com.guanyu.haigui.pojo.model.InferenceTask;
 import com.guanyu.haigui.pojo.result.DecompositionResult;
 import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
+import com.guanyu.haigui.repository.HaiGuiSoupRepository;
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
-import org.springframework.util.FileCopyUtils;
 
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -30,160 +27,194 @@ import java.util.stream.Collectors;
  */
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class ClueDecompositionService {
 
     private final AIManager aiManager;
     private final ObjectMapper objectMapper;
     private final BgeVectorClientUtil vectorClient;
+    private final HaiGuiSoupRepository haiGuiSoupRepository;
 
     @Value("${haiqutang.ai.debug-mode:false}")
     private boolean debugMode;
 
-    public ClueDecompositionService(AIManager aiManager, ObjectMapper objectMapper, BgeVectorClientUtil vectorClient) {
-        this.aiManager = aiManager;
-        this.objectMapper = objectMapper;
-        this.vectorClient = vectorClient;
-    }
 
-    /**
-     * 拆解汤底为线索片段并生成推理任务
-     */
-    public DecompositionResult decomposeSoupBottom(String soupTitle, String soupSurface, String soupBottom) {
+    public DecompositionResult decomposeWithAIAndUserCluesAndTasks(
+            HaiGuiSoup soup, List<GameClue> userClues, List<InferenceTask> userProvidedTasks
+    ) {
+        String soupTitle = soup.getSoupTitle();
+        int soupLength = soup.getSoupBottom().length();
+        String soupSurface = soup.getSoupSurface();
+        String soupBottom = soup.getSoupBottom();
+        int difficultyLevel = soup.getDifficultyLevel().ordinal();
+        double baseFragmentCount = 8.0; // 基础线索数量
+        double lengthFactor = 0.05; // 每100字符增加的线索系数（0.05=每20字符加1条）
+        double difficultyFactor = 0.5; // 每难度级别增加的线索系数（0.5=每星加2条）
+        int targetFragmentCount = (int) (baseFragmentCount +
+                (soupLength / 100.0) * lengthFactor +
+                difficultyLevel * difficultyFactor);
+        targetFragmentCount = Math.max(8, Math.min(targetFragmentCount, 30)); // 限制8-30条
         try {
-            log.info("开始拆解汤底线索并生成推理任务，标题: {}，调试模式: {}", soupTitle, debugMode);
+            // 生成提示词
+            String prompt = generateDecompositionPromptWithUserCluesAndTasks(
+                    soupTitle, soupSurface, soupBottom, userClues, userProvidedTasks,
+                    targetFragmentCount, difficultyLevel, soupLength
+            );
 
-            if (debugMode) {
-                // 调试模式：从aiClue.txt读取模拟数据
-                return loadDebugFragments();
+            String systemPrompt = "你是专业的海龟汤分析师，请严格按照JSON格式返回拆解结果，不要包含任何额外文字。";
+            String aiResponse = aiManager.doChat(systemPrompt, prompt);
+
+            log.info("AI返回响应长度: {}", aiResponse.length());
+
+            // 清理AI响应（移除可能的markdown格式）
+            String cleanedResponse = aiResponse.trim();
+            if (cleanedResponse.startsWith("```json")) {
+                cleanedResponse = cleanedResponse.substring(7);
             }
-
-            // 正常模式：调用真实AI服务
-            return decomposeWithAI(soupTitle, soupSurface, soupBottom);
-
-        } catch (Exception e) {
-            log.error("拆解汤底线索失败", e);
-            List<ClueFragment> fragments = generateFallbackFragments();
-            return new DecompositionResult(fragments, new ArrayList<>());
-        }
-    }
-
-
-
-    /**
-     * 拆解汤底并分析用户线索，同时使用用户提供的任务列表
-     */
-    public DecompositionResult decomposeSoupBottomWithUserCluesAndTasks(String soupTitle, String soupSurface, String soupBottom, List<GameClue> userClues, List<InferenceTask> userProvidedTasks) {
-        try {
-            log.info("开始拆解汤底并分析用户线索，标题: {}，用户线索数量: {}，用户任务数量: {}，调试模式: {}",
-                soupTitle, userClues.size(), userProvidedTasks != null ? userProvidedTasks.size() : 0, debugMode);
-
-            if (debugMode) {
-                // 调试模式：从aiClue.txt读取模拟数据
-                DecompositionResult debugResult = loadDebugFragments();
-                List<ClueFragment> debugFragments = debugResult.getFragments();
-                // 在调试模式下，仍然使用AI生成的任务
-                return new DecompositionResult(debugFragments, debugResult.getInferenceTasks());
+            if (cleanedResponse.endsWith("```")) {
+                cleanedResponse = cleanedResponse.substring(0, cleanedResponse.length() - 3);
             }
+            cleanedResponse = cleanedResponse.trim();
 
-            // 正常模式：调用真实AI服务，但传递用户任务列表
-            return decomposeWithAIAndUserCluesAndTasks(soupTitle, soupSurface, soupBottom, userClues, userProvidedTasks);
-
-        } catch (Exception e) {
-            log.error("拆解汤底并分析用户线索失败", e);
-            // 失败时使用备用方案，但仍然包含用户线索的基本分析
-            List<ClueFragment> fragments = generateFallbackFragments();
-            fragments.addAll(analyzeUserCluesBasic(userClues));
-            List<Map<String, Object>> userTasksAsMap = convertUserTasksToMap(userProvidedTasks);
-            return new DecompositionResult(fragments, userTasksAsMap);
-        }
-    }
-
-    /**
-     * 从aiClue.txt加载调试数据
-     */
-    @SuppressWarnings("unchecked")
-    private DecompositionResult loadDebugFragments() {
-        try {
-            log.info("调试模式：从aiClue.txt加载模拟数据");
-
-            ClassPathResource resource = new ClassPathResource("temp/aiResponse.txt");
-            if (!resource.exists()) {
-                log.warn("aiClue.txt文件不存在，使用备用方案");
-                List<ClueFragment> fragments = generateFallbackFragments();
-                return new DecompositionResult(fragments, new ArrayList<>());
-            }
-
-            String jsonContent = FileCopyUtils.copyToString(new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8));
-            log.info("读取到aiResponse.txt内容，长度: {}", jsonContent.length());
-
-            Map<String, Object> response = objectMapper.readValue(jsonContent, Map.class);
-            List<Map<String, Object>> fragmentsData = (List<Map<String, Object>>) response.get("fragments");
-            List<Map<String, Object>> inferenceTasksData = (List<Map<String, Object>>) response.get("inferenceTasks");
-
-            if (fragmentsData == null || fragmentsData.isEmpty()) {
-                log.warn("aiClue.txt中未找到fragments数据，使用备用方案");
-                List<ClueFragment> fragments = generateFallbackFragments();
-                return new DecompositionResult(fragments, new ArrayList<>());
-            }
+            // 解析JSON
+            JsonNode rootNode = objectMapper.readTree(cleanedResponse);
+            JsonNode fragmentsNode = rootNode.get("fragments");
+            JsonNode tasksNode = rootNode.get("tasks");
 
             // 转换为ClueFragment对象
-            List<ClueFragment> fragments = fragmentsData.stream()
-                    .map(this::mapToClueFragmentWithEnhancedData)
-                    .collect(Collectors.toList());
+            List<ClueFragment> fragments = new ArrayList<>();
+            for (JsonNode fragmentNode : fragmentsNode) {
+                ClueFragment fragment = new ClueFragment();
+                fragment.setSoupId(null); // 稍后设置
+                fragment.setFragmentContent(fragmentNode.get("content").asText());
+                fragment.setFragmentType(fragmentNode.get("fragmentType").asText());
+                fragment.setInferenceLevel(fragmentNode.get("inferenceLevel").asInt());
+                fragment.setDifficulty(fragmentNode.get("difficulty").asInt());
+                fragment.setImportance(fragmentNode.get("importance").asInt());
+                fragment.setSimilarityThreshold(fragmentNode.get("similarityThreshold").asDouble());
+                fragment.setIsCoreClue(fragmentNode.get("isCoreClue").asBoolean());
+                fragment.setFragmentOrder(fragmentNode.get("fragmentOrder").asInt());
+                fragment.setGenerationSource(fragmentNode.get("generationSource").asText());
+                fragment.setVectorData(new ArrayList<>()); // 空数组
 
-            // 为每个片段生成向量（调试模式也需要向量化以支持语义匹配）
-            generateVectorsForFragments(fragments);
+                // 解析JSON数组字段
+                fragment.setTriggerKeywords(parseJsonStringArray(fragmentNode.get("triggerKeywords")));
+                fragment.setAssociatedTaskIds(parseJsonIntArray(fragmentNode.get("associatedTaskIds")));
 
-            log.info("调试模式：成功加载{}个模拟线索片段和{}个推理任务", fragments.size(),
-                inferenceTasksData != null ? inferenceTasksData.size() : 0);
-            return new DecompositionResult(fragments,
-                inferenceTasksData != null ? inferenceTasksData : new ArrayList<>());
+                fragments.add(fragment);
+            }
+
+            // 转换为InferenceTask对象
+            List<Map<String, Object>> tasks = new ArrayList<>();
+            for (JsonNode taskNode : tasksNode) {
+                Map<String, Object> task = new HashMap<>();
+                task.put("taskName", taskNode.get("taskName").asText());
+                task.put("taskDescription", taskNode.get("taskDescription").asText());
+                task.put("understandingLevel", taskNode.get("understandingLevel").asInt());
+                task.put("targetKeywords", parseJsonStringArray(taskNode.get("targetKeywords")));
+                task.put("reasoningGoal", taskNode.get("reasoningGoal").asText());
+                task.put("progressWeight", taskNode.get("progressWeight").asDouble());
+                task.put("isMandatory", taskNode.get("isMandatory").asBoolean());
+                task.put("taskOrder", taskNode.get("taskOrder").asInt());
+                task.put("prerequisiteFragmentIds", parseJsonIntArray(taskNode.get("prerequisiteFragmentIds")));
+
+                tasks.add(task);
+            }
+
+            log.info("成功解析AI响应：{}个线索片段，{}个任务", fragments.size(), tasks.size());
+            return new DecompositionResult(fragments, tasks);
+
         } catch (Exception e) {
-            log.error("加载调试数据失败，使用备用方案", e);
-            List<ClueFragment> fragments = generateFallbackFragments();
-            return new DecompositionResult(fragments, new ArrayList<>());
+            log.error("AI拆解失败", e);
+            throw new AiResponseException("AI拆解失败");
         }
     }
+
+    // 辅助方法：解析JSON字符串数组
+    private List<String> parseJsonStringArray(JsonNode node) {
+        List<String> list = new ArrayList<>();
+        if (node != null && node.isArray()) {
+            for (JsonNode item : node) {
+                list.add(item.asText());
+            }
+        }
+        return list;
+    }
+
+    // 辅助方法：解析JSON整数数组
+    private List<Integer> parseJsonIntArray(JsonNode node) {
+        List<Integer> list = new ArrayList<>();
+        if (node != null && node.isArray()) {
+            for (JsonNode item : node) {
+                list.add(item.asInt());
+            }
+        }
+        return list;
+    }
+
+    private List<Long> parseJsonArray(String json) {
+        try {
+            String clean = json.replace("[", "").replace("]", "").replace(" ", "");
+            if (clean.isEmpty()) return Collections.emptyList();
+
+            return Arrays.stream(clean.split(","))
+                    .map(Long::parseLong)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("解析数组失败: {}", json, e);
+            return Collections.emptyList();
+        }
+    }
+
+    // private void saveAIAnalysisResults(String soupId, double estimatedDifficulty, int recommendedFragmentCount) {
+    //     // 根据标题找到海龟汤实体并更新
+    //     HaiGuiSoup soup = haiGuiSoupRepository.findById(soupId).orElse(null);
+    //     if (soup!=null) {
+    //         soup.setAiEstimatedDifficulty(estimatedDifficulty);
+    //         haiGuiSoupRepository.save(soup);
+    //     }
+    // }
+
 
     /**
      * 使用AI进行拆解（正常模式）
      */
-    @SuppressWarnings("unchecked")
-    private DecompositionResult decomposeWithAI(String soupTitle, String soupSurface, String soupBottom) {
-        try {
-            log.info("正常模式：调用AI服务进行线索拆解和任务生成");
-
-            // 生成拆解提示词
-            String prompt = generateDecompositionPrompt(soupTitle, soupSurface, soupBottom);
-
-            // 调用AI进行拆解
-            String systemPrompt = "你是专业的海龟汤分析师，擅长将复杂的故事真相拆解为层次分明的线索片段并设计相应的推理任务。请严格按照JSON格式返回结果。";
-            String aiResponse = aiManager.doChat(systemPrompt, prompt);
-
-            log.info("AI返回线索拆解响应，长度: {}", aiResponse.length());
-
-            // 解析AI响应
-            Map<String, Object> response = objectMapper.readValue(aiResponse, Map.class);
-            List<Map<String, Object>> fragmentsData = (List<Map<String, Object>>) response.get("fragments");
-            List<Map<String, Object>> inferenceTasksData = parseInferenceTasks(response);
-
-            // 转换为ClueFragment对象
-            List<ClueFragment> fragments = fragmentsData.stream()
-                    .map(this::mapToClueFragment)
-                    .collect(Collectors.toList());
-
-            // 为每个片段生成向量
-            generateVectorsForFragments(fragments);
-
-            log.info("AI模式：成功拆解出{}个线索片段和{}个推理任务", fragments.size(), inferenceTasksData.size());
-            return new DecompositionResult(fragments, inferenceTasksData);
-
-        } catch (Exception e) {
-            log.error("AI拆解失败，使用备用方案", e);
-            List<ClueFragment> fragments = generateFallbackFragments();
-            return new DecompositionResult(fragments, new ArrayList<>());
-        }
-    }
+    // @SuppressWarnings("unchecked")
+    // private DecompositionResult decomposeWithAI(String soupTitle, String soupSurface, String soupBottom) {
+    //     try {
+    //         log.info("正常模式：调用AI服务进行线索拆解和任务生成");
+    //
+    //         // 生成拆解提示词
+    //         String prompt = generateDecompositionPrompt(soupTitle, soupSurface, soupBottom);
+    //
+    //         // 调用AI进行拆解
+    //         String systemPrompt = "你是专业的海龟汤分析师，擅长将复杂的故事真相拆解为层次分明的线索片段并设计相应的推理任务。请严格按照JSON格式返回结果。";
+    //         String aiResponse = aiManager.doChat(systemPrompt, prompt);
+    //
+    //         log.info("AI返回线索拆解响应，长度: {}", aiResponse.length());
+    //
+    //         // 解析AI响应
+    //         Map<String, Object> response = objectMapper.readValue(aiResponse, Map.class);
+    //         List<Map<String, Object>> fragmentsData = (List<Map<String, Object>>) response.get("fragments");
+    //         List<Map<String, Object>> inferenceTasksData = parseInferenceTasks(response);
+    //
+    //         // 转换为ClueFragment对象
+    //         List<ClueFragment> fragments = fragmentsData.stream()
+    //                 .map(this::mapToClueFragment)
+    //                 .collect(Collectors.toList());
+    //
+    //         // 为每个片段生成向量
+    //         generateVectorsForFragments(fragments);
+    //
+    //         log.info("AI模式：成功拆解出{}个线索片段和{}个推理任务", fragments.size(), inferenceTasksData.size());
+    //         return new DecompositionResult(fragments, inferenceTasksData);
+    //
+    //     } catch (Exception e) {
+    //         log.error("AI拆解失败，使用备用方案", e);
+    //         List<ClueFragment> fragments = generateFallbackFragments();
+    //         return new DecompositionResult(fragments, new ArrayList<>());
+    //     }
+    // }
 
 
     /**
@@ -191,77 +222,77 @@ public class ClueDecompositionService {
      */
     private String generateDecompositionPrompt(String soupTitle, String soupSurface, String soupBottom) {
         return String.format("""
-            请将这个海龟汤的汤底（真相）拆解为多个线索片段，每个片段代表一个推理层次的信息。
-
-            === 基本信息 ===
-            标题：%s
-            汤面（玩家看到的悬念）：%s
-            汤底（完整真相）：%s
-
-            === 拆解要求 ===
-            1. 按推理深度分层：从表层信息到深层真相
-            2. 每个片段独立完整，便于向量化匹配
-            3. 标注片段类型和关键信息
-            4. 设计合理的匹配阈值
-            5. 关联相应的推理任务
-
-            === 推理层次说明 ===
-            **层次1-表层信息**：直接观察到的事实
-            **层次2-中层推理**：需要简单推理才能发现的信息
-            **层次3-深层真相**：隐藏的关键真相
-            **层次4-核心逻辑**：整个故事的底层逻辑
-
-            === 片段类型说明 ===
-            **TIME**：时间相关（年代、时期、时间跨度）
-            **PLACE**：地点相关（具体位置、环境特征）
-            **CHARACTER**：人物相关（身份、关系、数量）
-            **PLOT**：情节相关（事件、过程、结果）
-            **OBJECT**：物品相关（关键物品、道具）
-            **TRUTH**：真相相关（核心秘密、深层逻辑）
-
-            === 输出要求 ===
-            请严格按照以下JSON格式返回，同时包含线索片段和推理任务：
-
-            {
-              "fragments": [
+                请将这个海龟汤的汤底（真相）拆解为多个线索片段，每个片段代表一个推理层次的信息。
+                
+                === 基本信息 ===
+                标题：%s
+                汤面（玩家看到的悬念）：%s
+                汤底（完整真相）：%s
+                
+                === 拆解要求 ===
+                1. 按推理深度分层：从表层信息到深层真相
+                2. 每个片段独立完整，便于向量化匹配
+                3. 标注片段类型和关键信息
+                4. 设计合理的匹配阈值
+                5. 关联相应的推理任务
+                
+                === 推理层次说明 ===
+                **层次1-表层信息**：直接观察到的事实
+                **层次2-中层推理**：需要简单推理才能发现的信息
+                **层次3-深层真相**：隐藏的关键真相
+                **层次4-核心逻辑**：整个故事的底层逻辑
+                
+                === 片段类型说明 ===
+                **TIME**：时间相关（年代、时期、时间跨度）
+                **PLACE**：地点相关（具体位置、环境特征）
+                **CHARACTER**：人物相关（身份、关系、数量）
+                **PLOT**：情节相关（事件、过程、结果）
+                **OBJECT**：物品相关（关键物品、道具）
+                **TRUTH**：真相相关（核心秘密、深层逻辑）
+                
+                === 输出要求 ===
+                请严格按照以下JSON格式返回，同时包含线索片段和推理任务：
+                
                 {
-                  "content": "线索片段的具体内容",
-                  "fragmentType": "片段类型（TIME/PLACE/CHARACTER/PLOT/OBJECT/TRUTH）",
-                  "inferenceLevel": 1,
-                  "keywords": ["关键词1", "关键词2"],
-                  "isCoreClue": false,
-                  "similarityThreshold": 0.7,
-                  "associatedTaskIds": [1, 2],
-                  "order": 1
+                  "fragments": [
+                    {
+                      "content": "线索片段的具体内容",
+                      "fragmentType": "片段类型（TIME/PLACE/CHARACTER/PLOT/OBJECT/TRUTH）",
+                      "inferenceLevel": 1,
+                      "keywords": ["关键词1", "关键词2"],
+                      "isCoreClue": false,
+                      "similarityThreshold": 0.7,
+                      "associatedTaskIds": [1, 2],
+                      "order": 1
+                    }
+                  ],
+                  "inferenceTasks": [
+                    {
+                      "taskName": "推理任务名称",
+                      "description": "任务描述（要达到的理解层次）",
+                      "understandingLevel": 1,
+                      "targetKeywords": ["关键词1", "关键词2"],
+                      "reasoningGoal": "AI判断任务完成的标准",
+                      "progressWeight": 20.0,
+                      "isMandatory": true,
+                      "taskOrder": 1
+                    }
+                  ]
                 }
-              ],
-              "inferenceTasks": [
-                {
-                  "taskName": "推理任务名称",
-                  "description": "任务描述（要达到的理解层次）",
-                  "understandingLevel": 1,
-                  "targetKeywords": ["关键词1", "关键词2"],
-                  "reasoningGoal": "AI判断任务完成的标准",
-                  "progressWeight": 20.0,
-                  "isMandatory": true,
-                  "taskOrder": 1
-                }
-              ]
-            }
-
-            重要要求：
-            - 生成8-15个线索片段
-            - 生成4-7个推理任务
-            - 为每个线索片段关联合适的推理任务（使用taskOrder，如1,2,3）
-            - 确保推理层次分布合理
-            - 内容要简洁明确，便于向量匹配
-            - 关键词要符合玩家提问习惯
-            - 为每个片段设置合适的相似度阈值
-            - 推理任务要层次递进，总权重100-150分
-            """, soupTitle, soupSurface, soupBottom);
+                
+                重要要求：
+                - 生成8-15个线索片段
+                - 生成4-7个推理任务
+                - 为每个线索片段关联合适的推理任务（使用taskOrder，如1,2,3）
+                - 确保推理层次分布合理
+                - 内容要简洁明确，便于向量匹配
+                - 关键词要符合玩家提问习惯
+                - 为每个片段设置合适的相似度阈值
+                - 推理任务要层次递进，总权重100-150分
+                """, soupTitle, soupSurface, soupBottom);
     }
 
-    
+
     /**
      * 转换AI响应为ClueFragment对象
      */
@@ -426,7 +457,6 @@ public class ClueDecompositionService {
     }
 
 
-
     /**
      * 基本分析用户线索（当AI失败时）
      */
@@ -466,170 +496,220 @@ public class ClueDecompositionService {
         return fragments;
     }
 
-    /**
-     * 使用AI同时拆解汤底和分析用户线索，并使用用户提供的任务列表（正常模式）
-     */
-    @SuppressWarnings("unchecked")
-    private DecompositionResult decomposeWithAIAndUserCluesAndTasks(String soupTitle, String soupSurface, String soupBottom, List<GameClue> userClues, List<InferenceTask> userProvidedTasks) {
-        try {
-            log.info("正常模式：调用AI服务同时拆解汤底和分析用户线索，使用用户任务列表，用户线索数量: {}, 用户任务数量: {}",
-                userClues.size(), userProvidedTasks != null ? userProvidedTasks.size() : 0);
+    // /**
+    //  * 使用AI同时拆解汤底和分析用户线索，并使用用户提供的任务列表（正常模式）
+    //  */
+    // @SuppressWarnings("unchecked")
+    // private DecompositionResult decomposeWithAIAndUserCluesAndTasks(String soupTitle, String soupSurface, String soupBottom, List<GameClue> userClues, List<InferenceTask> userProvidedTasks) {
+    //     try {
+    //         log.info("正常模式：调用AI服务同时拆解汤底和分析用户线索，使用用户任务列表，用户线索数量: {}, 用户任务数量: {}",
+    //             userClues.size(), userProvidedTasks != null ? userProvidedTasks.size() : 0);
+    //
+    //         // 生成包含用户线索和用户任务的拆解提示词
+    //         String prompt = generateDecompositionPromptWithUserCluesAndTasks(soupTitle, soupSurface, soupBottom, userClues, userProvidedTasks);
+    //
+    //         // 调用AI进行拆解
+    //         String systemPrompt = "你是专业的海龟汤分析师，擅长将复杂的故事真相拆解为层次分明的线索片段，并能智能分析和补充用户提供的线索信息。请严格按照JSON格式返回结果。";
+    //         String aiResponse = aiManager.doChat(systemPrompt, prompt);
+    //
+    //         log.info("AI返回线索拆解响应，长度: {}", aiResponse.length());
+    //
+    //         // 解析AI响应
+    //         Map<String, Object> response = objectMapper.readValue(aiResponse, Map.class);
+    //         List<Map<String, Object>> fragmentsData = (List<Map<String, Object>>) response.get("fragments");
+    //
+    //         // 转换为ClueFragment对象
+    //         List<ClueFragment> fragments = fragmentsData.stream()
+    //                 .map(this::mapToClueFragmentWithEnhancedData)
+    //                 .collect(Collectors.toList());
+    //
+    //         // 为每个片段生成向量
+    //         generateVectorsForFragments(fragments);
+    //
+    //         // 返回AI生成的片段和用户提供的任务
+    //         List<Map<String, Object>> userTasksAsMap = convertUserTasksToMap(userProvidedTasks);
+    //
+    //         log.info("AI模式：成功拆解出{}个线索片段（包含{}个用户线索分析），使用{}个用户任务",
+    //             fragments.size(), userClues.size(), userProvidedTasks != null ? userProvidedTasks.size() : 0);
+    //         return new DecompositionResult(fragments, userTasksAsMap);
+    //
+    //     } catch (Exception e) {
+    //         log.error("AI拆解失败，使用备用方案", e);
+    //         List<ClueFragment> fragments = generateFallbackFragments();
+    //         fragments.addAll(analyzeUserCluesBasic(userClues));
+    //         List<Map<String, Object>> userTasksAsMap = convertUserTasksToMap(userProvidedTasks);
+    //         return new DecompositionResult(fragments, userTasksAsMap);
+    //     }
+    // }
 
-            // 生成包含用户线索和用户任务的拆解提示词
-            String prompt = generateDecompositionPromptWithUserCluesAndTasks(soupTitle, soupSurface, soupBottom, userClues, userProvidedTasks);
-
-            // 调用AI进行拆解
-            String systemPrompt = "你是专业的海龟汤分析师，擅长将复杂的故事真相拆解为层次分明的线索片段，并能智能分析和补充用户提供的线索信息。请严格按照JSON格式返回结果。";
-            String aiResponse = aiManager.doChat(systemPrompt, prompt);
-
-            log.info("AI返回线索拆解响应，长度: {}", aiResponse.length());
-
-            // 解析AI响应
-            Map<String, Object> response = objectMapper.readValue(aiResponse, Map.class);
-            List<Map<String, Object>> fragmentsData = (List<Map<String, Object>>) response.get("fragments");
-
-            // 转换为ClueFragment对象
-            List<ClueFragment> fragments = fragmentsData.stream()
-                    .map(this::mapToClueFragmentWithEnhancedData)
-                    .collect(Collectors.toList());
-
-            // 为每个片段生成向量
-            generateVectorsForFragments(fragments);
-
-            // 返回AI生成的片段和用户提供的任务
-            List<Map<String, Object>> userTasksAsMap = convertUserTasksToMap(userProvidedTasks);
-
-            log.info("AI模式：成功拆解出{}个线索片段（包含{}个用户线索分析），使用{}个用户任务",
-                fragments.size(), userClues.size(), userProvidedTasks != null ? userProvidedTasks.size() : 0);
-            return new DecompositionResult(fragments, userTasksAsMap);
-
-        } catch (Exception e) {
-            log.error("AI拆解失败，使用备用方案", e);
-            List<ClueFragment> fragments = generateFallbackFragments();
-            fragments.addAll(analyzeUserCluesBasic(userClues));
-            List<Map<String, Object>> userTasksAsMap = convertUserTasksToMap(userProvidedTasks);
-            return new DecompositionResult(fragments, userTasksAsMap);
-        }
-    }
-
-    /**
-     * 生成包含用户线索和用户任务的拆解提示词
-     */
-    private String generateDecompositionPromptWithUserCluesAndTasks(String soupTitle, String soupSurface, String soupBottom, List<GameClue> userClues, List<InferenceTask> userProvidedTasks) {
-        // 构建用户线索字符串
+    public String generateDecompositionPromptWithUserCluesAndTasks(
+            String soupTitle, String soupSurface, String soupBottom,
+            List<GameClue> userClues, List<InferenceTask> userProvidedTasks,
+            int targetFragmentCount, int difficultyLevel, int soupLength
+    ) {
+        // 1. 构建用户线索字符串
         StringBuilder userCluesText = new StringBuilder();
         for (int i = 0; i < userClues.size(); i++) {
             GameClue clue = userClues.get(i);
             userCluesText.append(String.format("%d. %s (类型: %s, 关键线索: %s)\n",
-                i + 1,
-                clue.getContent(),
-                clue.getClueType().toString(),
-                clue.getIsKey() ? "是" : "否"));
+                    i + 1, clue.getContent(), clue.getClueType(), clue.getIsKey() ? "是" : "否"));
         }
 
-        // 构建用户任务字符串
+        // 2. 构建用户任务字符串
         StringBuilder userTasksText = new StringBuilder();
         if (userProvidedTasks != null && !userProvidedTasks.isEmpty()) {
             for (int i = 0; i < userProvidedTasks.size(); i++) {
                 InferenceTask task = userProvidedTasks.get(i);
-                userTasksText.append(String.format("任务%d: %s (taskOrder: %d, description: %s)\n",
-                    i + 1,
-                    task.getTaskName(),
-                    task.getTaskOrder(),
-                    task.getTaskDescription()));
+                userTasksText.append(String.format("任务%d: %s (taskOrder: %d, description: %s, understandingLevel: %d)\n",
+                        i + 1, task.getTaskName(), task.getTaskOrder(), task.getTaskDescription(), task.getUnderstandingLevel()));
             }
         } else {
             userTasksText.append("无用户提供的任务");
         }
 
+        // 3. 难度描述和系数计算
+        String difficultyDesc = switch (difficultyLevel) {
+            case 1 -> "入门（1星）";
+            case 2 -> "中等（2星）";
+            case 3 -> "困难（3星）";
+            default -> "未知";
+        };
+        double difficultyCoefficient = difficultyLevel == 1 ? 1.0 : difficultyLevel == 2 ? 1.2 : 1.4;
+
+        // 4. 生成详细的提示词
         return String.format("""
-            请将这个海龟汤的汤底（真相）拆解为多个线索片段，同时智能分析和补充用户提供的线索。
+你是专业的海龟汤分析师，请按以下要求拆解汤底并分析用户线索。**请严格按照指定的JSON格式返回结果**。
 
-            === 基本信息 ===
-            标题：%s
-            汤面（玩家看到的悬念）：%s
-            汤底（完整真相）：%s
+=== 基本信息 ===
+标题：%s
+汤面：%s
+汤底：%s
+汤底长度：%d字符
+难度级别：%s（用户创建时选择）
+目标线索数量：%d条（计算：(%d÷100)×%.1f=%.1f→%d条）
 
-            === 用户提供的线索 ===
-            %s
+=== 用户提供的线索 ===
+%s
 
-            === 用户提供的任务 ===
-            %s
+=== 用户提供的任务 ===
+%s
 
-            === 拆解要求 ===
-            1. 按推理深度分层：从表层信息到深层真相
-            2. 每个片段独立完整，便于向量化匹配
-            3. 智能分析用户线索，为其补充以下信息：
-               - 确定合适的推理层级
-               - 分析线索的重要性和难度
-               - 丰富线索的关键词
-               - 关联到用户提供的推理任务
-               - 设计合理的相似度阈值
-            4. 将用户线索与汤底拆解的其他线索整合
-            5. 标注片段类型和关键信息
-            6. 将所有线索（包括AI生成的和用户提供的）关联到用户提供的任务列表
+=== 拆解要求 ===
+1. 线索数量：严格控制在%d±2条范围内
+2. 每个线索片段必须包含以下字段（与数据库表hai_gui_soup_clue_fragment对应）：
+   - content: 线索内容（字符串，最多500字符）
+   - fragmentType: 片段类型（TIME/PLACE/CHARACTER/PLOT/OBJECT/TRUTH）
+   - inferenceLevel: 推理深度（1-4）
+   - difficulty: 线索难度（1-5，默认2）
+   - importance: 线索重要性（1-10，默认5）
+   - similarityThreshold: 相似度阈值（0.1-1.0，默认0.7）
+   - isCoreClue: 是否核心线索（true/false，默认false）
+   - fragmentOrder: 片段顺序（唯一整数ID，从1开始）
+   - generationSource: 生成来源（"AI"）
+   - triggerKeywords: 触发关键词数组（如["时间","夜晚"]）
+   - associatedTaskIds: 关联任务ID数组（如[1,2]）
+   - vectorData: 向量数据（暂时为空数组[]）
 
-            === 用户线索分析要求 ===
-            对每个用户线索，你需要：
-            - 分析其在故事中的作用和地位
-            - 确定其推理层级（1-4级）
-            - 评估其重要性和难度（1-10分）
-            - 补充相关的关键词，便于向量匹配
-            - 判断是否为关键线索
-            - 关联到用户提供的推理任务（使用taskOrder: 1, 2, 3...）
+3. 每个推理任务必须包含以下字段（与数据库表hai_gui_soup_inference_task对应）：
+   - taskName: 任务名称（字符串）
+   - taskDescription: 任务描述（字符串）
+   - understandingLevel: 理解层次（1-4）
+   - targetKeywords: 目标关键词数组（如["时间异常","身份替换"]）
+   - reasoningGoal: 推理目标（字符串）
+   - progressWeight: 进度权重（数字，如30.0）
+   - isMandatory: 是否必做（true/false，默认true）
+   - taskOrder: 任务顺序（唯一整数ID）
+   - prerequisiteFragmentIds: 前置线索ID数组（用fragmentOrder作为ID，如[1,3]）
 
-            === 推理层次说明 ===
-            **层次1-表层信息**：直接观察到的事实
-            **层次2-中层推理**：需要简单推理才能发现的信息
-            **层次3-深层真相**：隐藏的关键真相
-            **层次4-核心逻辑**：整个故事的底层逻辑
+=== 输出格式要求 ===
+请返回严格的JSON格式，**不要包含任何其他文字**：
 
-            === 片段类型说明 ===
-            **TIME**：时间相关（年代、时期、时间跨度）
-            **PLACE**：地点相关（具体位置、环境特征）
-            **CHARACTER**：人物相关（身份、关系、数量）
-            **PLOT**：情节相关（事件、过程、结果）
-            **OBJECT**：物品相关（关键物品、道具）
-            **TRUTH**：真相相关（核心秘密、深层逻辑）
-
-            === 输出要求 ===
-            请严格按照以下JSON格式返回：
-
-            {
-              "fragments": [
-                {
-                  "content": "线索片段的具体内容",
-                  "fragmentType": "片段类型（TIME/PLACE/CHARACTER/PLOT/OBJECT/TRUTH）",
-                  "inferenceLevel": 1,
-                  "difficulty": 5,
-                  "importance": 7,
-                  "keywords": ["关键词1", "关键词2"],
-                  "isCoreClue": false,
-                  "similarityThreshold": 0.7,
-                  "associatedTaskIds": [1, 2, 3],
-                  "order": 1,
-                  "source": "AI"
-                }
-              ]
-            }
-
-            === 重要要求 ===
-            - 生成8-20个线索片段（包含用户线索分析）
-            - 为每个线索片段关联到用户提供的推理任务（使用taskOrder: 1, 2, 3...）
-            - 一个线索片段可以关联多个推理任务（如[1,2], [2,3], [1,2,3]等）
-            - 根据线索的推理层次智能关联到合适的任务：
-              * 层次1的线索主要关联任务1
-              * 层次2的线索主要关联任务1,2
-              * 层次3的线索主要关联任务2,3
-              * 层次4的线索主要关联任务3
-            - 确保推理层次分布合理
-            - 对用户线索进行智能分析和补充
-            - 内容要简洁明确，便于向量匹配
-            - 关键词要符合玩家提问习惯
-            - 为每个片段设置合适的难度、重要性和相似度阈值
-            - 明确标记来源：用户分析结果标记为"AUGMENTED_USER"，AI生成的标记为"AI"
-            """, soupTitle, soupSurface, soupBottom, userCluesText, userTasksText);
+{
+  "fragments": [
+    {
+      "content": "线索片段内容",
+      "fragmentType": "TIME",
+      "inferenceLevel": 1,
+      "difficulty": 2,
+      "importance": 5,
+      "similarityThreshold": 0.7,
+      "isCoreClue": false,
+      "fragmentOrder": 1,
+      "generationSource": "AI",
+      "triggerKeywords": ["关键词1", "关键词2"],
+      "associatedTaskIds": [1, 2],
+      "vectorData": []
     }
+  ],
+  "tasks": [
+    {
+      "taskName": "任务名称",
+      "taskDescription": "任务描述",
+      "understandingLevel": 2,
+      "targetKeywords": ["关键词1", "关键词2"],
+      "reasoningGoal": "推理目标描述",
+      "progressWeight": 30.0,
+      "isMandatory": true,
+      "taskOrder": 1,
+      "prerequisiteFragmentIds": [1, 3]
+    }
+  ]
+}
+
+=== 重要提醒 ===
+- fragmentOrder在fragments中必须唯一（1,2,3...）
+- taskOrder在tasks中必须唯一（1,2,3...）
+- prerequisiteFragmentIds使用fragmentOrder的值作为ID
+- 所有字段名必须与上述格式完全一致
+- 返回纯JSON，不要加任何说明文字
+""",
+                soupTitle, soupSurface, soupBottom, soupLength, difficultyDesc,
+                targetFragmentCount, soupLength, difficultyCoefficient,
+                (soupLength/100.0) * difficultyCoefficient, targetFragmentCount,
+                userCluesText.toString(), userTasksText.toString(),
+                targetFragmentCount);
+    }
+
+
+    /**
+     * 将用户提供的线索列表格式化为文本
+     */
+    private String buildUserCluesText(List<GameClue> userClues) {
+        if (userClues == null || userClues.isEmpty()) {
+            return "用户没有提供线索。";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < userClues.size(); i++) {
+            GameClue clue = userClues.get(i);
+            sb.append(String.format("%d. [%s] %s (关键：%s)\n",
+                    i + 1,
+                    clue.getClueType(),
+                    clue.getContent(),
+                    clue.getIsKey() ? "是" : "否"));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 将用户提供的任务列表格式化为文本
+     */
+    private String buildUserTasksText(List<InferenceTask> userTasks) {
+        if (userTasks == null || userTasks.isEmpty()) {
+            return "用户没有提供任务。";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (InferenceTask task : userTasks) {
+            sb.append(String.format("%d. %s\n   描述：%s\n   权重：%.1f\n\n",
+                    task.getTaskOrder(),
+                    task.getTaskName(),
+                    task.getTaskDescription(),
+                    task.getProgressWeight()));
+        }
+        return sb.toString();
+    }
+
 
     /**
      * 将用户提供的任务列表转换为Map格式

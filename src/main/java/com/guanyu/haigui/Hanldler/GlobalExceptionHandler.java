@@ -136,5 +136,15 @@ public class GlobalExceptionHandler {
         return Result.error(e.getMessage());
     }
 
+    @ExceptionHandler(NoAllPreparationRoomException.class)
+    public Result<String> handleBgeVectorException(NoAllPreparationRoomException e) {
+        return Result.error(e.getMessage());
+    }
+
+    @ExceptionHandler(AiResponseException.class)
+    public Result<String> handleAiResponseException(AiResponseException e) {
+        return Result.error(e.getMessage());
+    }
+
 
 }

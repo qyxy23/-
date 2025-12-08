@@ -1,8 +1,8 @@
 package com.guanyu.haigui.service;
 
-import com.guanyu.haigui.service.VectorService.ContextMatchResult;
 import com.guanyu.haigui.pojo.dto.QuestionRequest;
 import com.guanyu.haigui.pojo.dto.QuestionResponse;
+import com.guanyu.haigui.pojo.result.ContextMatchResult;
 
 import java.util.Map;
 

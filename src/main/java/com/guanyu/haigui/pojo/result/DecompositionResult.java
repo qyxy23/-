@@ -15,5 +15,4 @@ import java.util.Map;
 public class DecompositionResult {
     private List<ClueFragment> fragments;
     private List<Map<String, Object>> inferenceTasks;
-
 }

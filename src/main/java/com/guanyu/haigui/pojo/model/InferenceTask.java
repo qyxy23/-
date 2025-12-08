@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -14,13 +15,13 @@ import java.util.List;
  */
 @Entity
 @Table(name = "hai_gui_soup_inference_task",
-       indexes = {
-           @Index(name = "idx_soup_id", columnList = "soup_id"),
-           @Index(name = "idx_understanding_level", columnList = "understanding_level"),
-           @Index(name = "idx_task_order", columnList = "task_order"),
-           @Index(name = "idx_mandatory", columnList = "is_mandatory"),
-           @Index(name = "idx_is_deleted", columnList = "is_deleted")
-       })
+        indexes = {
+                @Index(name = "idx_soup_id", columnList = "soup_id"),
+                @Index(name = "idx_understanding_level", columnList = "understanding_level"),
+                @Index(name = "idx_task_order", columnList = "task_order"),
+                @Index(name = "idx_mandatory", columnList = "is_mandatory"),
+                @Index(name = "idx_is_deleted", columnList = "is_deleted")
+        })
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -30,35 +31,41 @@ public class InferenceTask {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long taskId;
 
-    @Column(name = "soup_id", nullable = false, columnDefinition = "VARCHAR(36)")
+    @Column(name = "soup_id", nullable = false, length = 36)
     private String soupId;
 
-    @Column(name = "task_name", nullable = false, columnDefinition = "VARCHAR(100)")
+    @Column(name = "task_name", nullable = false, length = 100)
     private String taskName;
 
     @Column(name = "task_description", nullable = false, columnDefinition = "TEXT")
     private String taskDescription;
 
-    @Column(name = "understanding_level", nullable = false, columnDefinition = "INT")
+    @Column(name = "understanding_level", nullable = false)
     private Integer understandingLevel;
 
     @Column(name = "target_keywords", columnDefinition = "JSON")
     @Convert(converter = ListStringConverter.class)
-    private List<String> targetKeywords;
+    private List<String> targetKeywords = new ArrayList<>(); // 初始化空列表
 
-    @Column(name = "reasoning_goal", nullable = false, columnDefinition = "VARCHAR(255)")
+    // 修正：使用TEXT类型替代VARCHAR(255)
+    @Column(name = "reasoning_goal", nullable = false, columnDefinition = "TEXT")
     private String reasoningGoal;
 
-    @Column(name = "progress_weight", columnDefinition = "DECIMAL(5,2)", nullable = false)
+    @Column(name = "progress_weight", precision = 5, nullable = false)
     private Double progressWeight;
 
-    @Column(name = "is_mandatory", nullable = false, columnDefinition = "TINYINT(1)")
+    @Column(name = "is_mandatory", columnDefinition = "TINYINT(1) DEFAULT 1")
     private Boolean isMandatory = true;
 
-    @Column(name = "task_order", columnDefinition = "INT")
+    @Column(name = "task_order", columnDefinition = "INT DEFAULT 0")
     private Integer taskOrder = 0;
 
-    @Column(name = "is_deleted", nullable = false, columnDefinition = "TINYINT(1)")
+    // 新增：前置线索ID列表（关键修复）
+    @Column(name = "prerequisite_fragment_ids", nullable = false, columnDefinition = "JSON")
+    @Convert(converter = ListStringConverter.class)
+    private List<String> prerequisiteFragmentIds = new ArrayList<>(); // 初始化空列表
+
+    @Column(name = "is_deleted", columnDefinition = "TINYINT(1) DEFAULT 0")
     private Boolean isDeleted = false;
 
     @Column(name = "created_at", nullable = false, columnDefinition = "DATETIME(6)")
@@ -70,47 +77,16 @@ public class InferenceTask {
     @PrePersist
     protected void onCreate() {
         LocalDateTime now = LocalDateTime.now();
-        createdAt = now;
-        updatedAt = now;
+        if (createdAt == null) createdAt = now;
+        if (updatedAt == null) updatedAt = now;
+
+        // 确保JSON字段不为null
+        if (targetKeywords == null) targetKeywords = new ArrayList<>();
+        if (prerequisiteFragmentIds == null) prerequisiteFragmentIds = new ArrayList<>();
     }
 
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
-    }
-
-    // 便利构造函数
-    public InferenceTask(String soupId, String taskName, String taskDescription, Integer understandingLevel) {
-        this.soupId = soupId;
-        this.taskName = taskName;
-        this.taskDescription = taskDescription;
-        this.understandingLevel = understandingLevel;
-        this.isDeleted = false;
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    // 理解层次枚举
-    public enum UnderstandingLevel {
-        LEVEL_1(1, "发现表层事实"),
-        LEVEL_2(2, "理解内在联系"),
-        LEVEL_3(3, "推理部分真相"),
-        LEVEL_4(4, "掌握核心逻辑");
-
-        private final int level;
-        private final String description;
-
-        UnderstandingLevel(int level, String description) {
-            this.level = level;
-            this.description = description;
-        }
-
-        public int getLevel() {
-            return level;
-        }
-
-        public String getDescription() {
-            return description;
-        }
     }
 }

@@ -2,6 +2,7 @@ package com.guanyu.haigui.service.ServicesImpl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.guanyu.haigui.Exception.AiResponseException;
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.dto.CreateHaiGuiSoupDTO;
@@ -15,14 +16,18 @@ import com.guanyu.haigui.repository.InferenceTaskRepository;
 import com.guanyu.haigui.repository.UserInfoRepository;
 import com.guanyu.haigui.service.VectorService;
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
+import com.guanyu.haigui.utils.MinioUtil;
 import com.guanyu.haigui.utils.RedisStackClient;
 import com.guanyu.haigui.utils.SoupJsonParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.security.MessageDigest;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -47,6 +52,8 @@ public class TurtleSoupService {
     private final ClueFragmentRepository clueFragmentRepository;
     private final InferenceTaskRepository inferenceTaskRepository;
     private final ClueDecompositionService clueDecompositionService;
+    private final MinioUtil minioUtil;
+
 
     private final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule());
@@ -70,8 +77,8 @@ public class TurtleSoupService {
             haiGuiSoup.setUploadTime(java.time.LocalDateTime.now());
 
             // 显式设置创建时间（确保@CreationTimestamp正常工作）
-            haiGuiSoup.setCreatedAt(java.time.LocalDateTime.now());
-            haiGuiSoup.setUpdatedAt(java.time.LocalDateTime.now());
+            haiGuiSoup.setCreatedAt(LocalDateTime.now());
+            haiGuiSoup.setUpdatedAt(LocalDateTime.now());
 
             // 复制基本属性
             haiGuiSoup.setSoupTitle(soup.getSoupTitle());
@@ -132,10 +139,8 @@ public class TurtleSoupService {
                 log.info("开始为海龟汤生成AI拆解的线索片段和推理任务，同时分析用户线索，用户线索数量: {}", clues.size());
 
                 // 使用ClueDecompositionService拆解汤底并分析用户线索，同时传递用户提供的任务
-                DecompositionResult decompositionResult = clueDecompositionService.decomposeSoupBottomWithUserCluesAndTasks(
-                        savedSoup.getSoupTitle(),
-                        savedSoup.getSoupSurface(),
-                        savedSoup.getSoupBottom(),
+                DecompositionResult decompositionResult = clueDecompositionService.decomposeWithAIAndUserCluesAndTasks(
+                        savedSoup,
                         clues,
                         userProvidedTasks
                     );
@@ -147,7 +152,7 @@ public class TurtleSoupService {
 
                 // 3. 优先生成推理任务（关键修复：先生成任务）
                 Map<Integer, Long> taskOrderToIdMap = new HashMap<>();
-                if (aiInferenceTasks != null && !aiInferenceTasks.isEmpty()) {
+                if (!aiInferenceTasks.isEmpty()) {
                     log.info("开始保存AI生成的推理任务，任务数量: {}", aiInferenceTasks.size());
 
                     for (Map<String, Object> taskData : aiInferenceTasks) {
@@ -162,7 +167,11 @@ public class TurtleSoupService {
                             Integer taskOrder = (Integer) taskData.getOrDefault("taskOrder", 1);
 
                             // 创建推理任务对象
-                            InferenceTask task = new InferenceTask(savedSoup.getSoupId(), taskName, description, understandingLevel);
+                            InferenceTask task = new InferenceTask();
+                            task.setSoupId(savedSoup.getSoupId());
+                            task.setTaskName(taskName);
+                            task.setTaskDescription(description);
+                            task.setUnderstandingLevel(understandingLevel);
                             task.setReasoningGoal(reasoningGoal);
                             task.setProgressWeight(progressWeight);
                             task.setIsMandatory(isMandatory);
@@ -184,7 +193,7 @@ public class TurtleSoupService {
                 // 如果AI任务保存失败，生成默认任务
                 if (taskOrderToIdMap.isEmpty()) {
                     log.warn("AI推理任务全部保存失败，生成默认推理任务");
-                    taskOrderToIdMap = generateDefaultInferenceTasks(savedSoup.getSoupId());
+                    throw new AiResponseException("AI推理任务全部保存失败");
                 }
 
                 // 4. 保存AI生成的线索片段到数据库（现在有了任务ID）
@@ -257,7 +266,7 @@ public class TurtleSoupService {
                 log.warn("AI拆解线索片段失败: {}", e.getMessage());
                 // AI拆解失败时，仍然生成推理任务并关联线索
                 // 即使没有AI生成的任务，也要确保线索片段有关联的任务ID
-                generateInferenceTasksWithClueAssociation(savedSoup.getSoupId(), aiFragments);
+                throw new AiResponseException("AI拆解失败");
             }
 
 
@@ -563,199 +572,201 @@ public class TurtleSoupService {
             return "";
         }
     }
+    //
+    // /**
+    //  * 生成推理任务并关联线索（混合方案）
+    //  * @param soupId 海龟汤ID
+    //  * @param aiFragments AI拆解的线索片段
+    //  */
+    // @Transactional
+    // public void generateInferenceTasksWithClueAssociation(String soupId, List<ClueFragment> aiFragments) {
+    //     try {
+    //         // 生成基础推理任务
+    //         InferenceTask task1 = new InferenceTask(soupId, "发现基本信息", "询问故事的基本背景和设定", 1);
+    //         task1.setReasoningGoal("掌握故事的基本时间、地点、人物等背景信息");
+    //         task1.setProgressWeight(20.0);
+    //         task1.setTaskOrder(1);
+    //
+    //         InferenceTask task2 = new InferenceTask(soupId, "理解内在联系", "理解各要素之间的关系", 2);
+    //         task2.setReasoningGoal("理解事件之间的因果关系和人物动机");
+    //         task2.setProgressWeight(30.0);
+    //         task2.setTaskOrder(2);
+    //
+    //         InferenceTask task3 = new InferenceTask(soupId, "推理深层真相", "发现隐藏的关键信息", 3);
+    //         task3.setReasoningGoal("揭示故事的完整真相和核心秘密");
+    //         task3.setProgressWeight(50.0);
+    //         task3.setTaskOrder(3);
+    //
+    //         // 保存推理任务并获取真实ID
+    //         InferenceTask savedTask1 = inferenceTaskRepository.save(task1);
+    //         InferenceTask savedTask2 = inferenceTaskRepository.save(task2);
+    //         InferenceTask savedTask3 = inferenceTaskRepository.save(task3);
+    //
+    //         // 创建任务序号到真实ID的映射
+    //         Map<Integer, Long> taskOrderToIdMap = Map.of(
+    //             1, savedTask1.getTaskId(),
+    //             2, savedTask2.getTaskId(),
+    //             3, savedTask3.getTaskId()
+    //         );
+    //
+    //         // 更新线索片段的任务关联（使用真实任务ID）
+    //         for (ClueFragment fragment : aiFragments) {
+    //             if (fragment.getAssociatedTaskIds() != null && !fragment.getAssociatedTaskIds().isEmpty()) {
+    //                 List<Integer> taskOrders = fragment.getAssociatedTaskIds();
+    //                 List<Integer> realTaskIds = taskOrders.stream()
+    //                         .filter(taskOrderToIdMap::containsKey)
+    //                         .map(taskOrderToIdMap::get)
+    //                         .map(Long::intValue)  // 转换Long到Integer
+    //                         .collect(java.util.stream.Collectors.toList());
+    //
+    //                 fragment.setAssociatedTaskIds(realTaskIds);
+    //                 clueFragmentRepository.save(fragment);
+    //             }
+    //         }
+    //
+    //         log.info("生成推理任务成功: soupId={}, 任务数量=3", soupId);
+    //
+    //     } catch (Exception e) {
+    //         log.error("生成推理任务失败: soupId={}", soupId, e);
+    //     }
+    // }
 
-    /**
-     * 生成推理任务并关联线索（混合方案）
-     * @param soupId 海龟汤ID
-     * @param aiFragments AI拆解的线索片段
-     */
-    @Transactional
-    public void generateInferenceTasksWithClueAssociation(String soupId, List<ClueFragment> aiFragments) {
-        try {
-            // 生成基础推理任务
-            InferenceTask task1 = new InferenceTask(soupId, "发现基本信息", "询问故事的基本背景和设定", 1);
-            task1.setReasoningGoal("掌握故事的基本时间、地点、人物等背景信息");
-            task1.setProgressWeight(20.0);
-            task1.setTaskOrder(1);
 
-            InferenceTask task2 = new InferenceTask(soupId, "理解内在联系", "理解各要素之间的关系", 2);
-            task2.setReasoningGoal("理解事件之间的因果关系和人物动机");
-            task2.setProgressWeight(30.0);
-            task2.setTaskOrder(2);
 
-            InferenceTask task3 = new InferenceTask(soupId, "推理深层真相", "发现隐藏的关键信息", 3);
-            task3.setReasoningGoal("揭示故事的完整真相和核心秘密");
-            task3.setProgressWeight(50.0);
-            task3.setTaskOrder(3);
+    // /**
+    //  * 使用AI生成的推理任务并关联线索（新方案）
+    //  * @param soupId 海龟汤ID
+    //  * @param aiInferenceTasks AI生成的推理任务（taskOrder为1,2,3等）
+    //  * @param aiFragments AI拆解的线索片段
+    //  */
+    // @Transactional
+    // public void generateInferenceTasksWithAITasks(String soupId, List<Map<String, Object>> aiInferenceTasks, List<ClueFragment> aiFragments) {
+    //     try {
+    //         if (aiInferenceTasks == null || aiInferenceTasks.isEmpty()) {
+    //             log.warn("AI未生成推理任务，使用默认方案");
+    //             generateInferenceTasksWithClueAssociation(soupId, aiFragments);
+    //             return;
+    //         }
+    //
+    //         log.info("开始使用AI生成的推理任务，任务数量: {}", aiInferenceTasks.size());
+    //
+    //         // 保存AI生成的推理任务并获取真实ID
+    //         Map<Integer, Long> taskOrderToIdMap = new HashMap<>();
+    //
+    //         for (Map<String, Object> taskData : aiInferenceTasks) {
+    //             try {
+    //                 // 解析AI任务数据
+    //                 String taskName = (String) taskData.get("taskName");
+    //                 String description = (String) taskData.get("description");
+    //                 Integer understandingLevel = (Integer) taskData.getOrDefault("understandingLevel", 1);
+    //                 String reasoningGoal = (String) taskData.get("reasoningGoal");
+    //                 Double progressWeight = ((Number) taskData.getOrDefault("progressWeight", 30.0)).doubleValue();
+    //                 Boolean isMandatory = (Boolean) taskData.getOrDefault("isMandatory", false);
+    //                 Integer taskOrder = (Integer) taskData.getOrDefault("taskOrder", 1);
+    //
+    //                 // 创建推理任务对象
+    //                 InferenceTask task = new InferenceTask(soupId, taskName, description, understandingLevel);
+    //                 task.setReasoningGoal(reasoningGoal);
+    //                 task.setProgressWeight(progressWeight);
+    //                 task.setIsMandatory(isMandatory);
+    //                 task.setTaskOrder(taskOrder);
+    //
+    //                 // 保存任务并获取真实ID
+    //                 InferenceTask savedTask = inferenceTaskRepository.save(task);
+    //                 taskOrderToIdMap.put(taskOrder, savedTask.getTaskId());
+    //
+    //                 log.info("保存AI推理任务成功: taskOrder={}, taskName={}, taskId={}",
+    //                     taskOrder, taskName, savedTask.getTaskId());
+    //
+    //             } catch (Exception e) {
+    //                 log.error("保存AI推理任务失败", e);
+    //             }
+    //         }
+    //
+    //         // 如果AI任务保存失败，回退到默认方案
+    //         if (taskOrderToIdMap.isEmpty()) {
+    //             log.warn("AI推理任务全部保存失败，使用默认方案");
+    //             generateInferenceTasksWithClueAssociation(soupId, aiFragments);
+    //             return;
+    //         }
+    //
+    //         // 更新线索片段的任务关联（将AI返回的taskOrder 1,2,3替换为真实ID）
+    //         int updatedFragments = 0;
+    //         for (ClueFragment fragment : aiFragments) {
+    //             try {
+    //                 if (fragment.getAssociatedTaskIds() != null && !fragment.getAssociatedTaskIds().isEmpty()) {
+    //                     List<Integer> taskOrders = fragment.getAssociatedTaskIds();
+    //                     List<Integer> realTaskIds = taskOrders.stream()
+    //                             .filter(taskOrderToIdMap::containsKey)
+    //                             .map(taskOrderToIdMap::get)
+    //                             .map(Long::intValue)  // 转换Long到Integer
+    //                             .collect(java.util.stream.Collectors.toList());
+    //
+    //                     // 只有成功关联到真实任务的线索才更新
+    //                     if (!realTaskIds.isEmpty()) {
+    //                         fragment.setAssociatedTaskIds(realTaskIds);
+    //                         clueFragmentRepository.save(fragment);
+    //                         updatedFragments++;
+    //
+    //                         log.debug("更新线索片段任务关联: fragmentId={}, taskOrders={}, realTaskIds={}",
+    //                             fragment.getFragmentId(), taskOrders, realTaskIds);
+    //                     }
+    //                 }
+    //             } catch (Exception e) {
+    //                 log.error("更新线索片段任务关联失败: fragmentId={}", fragment.getFragmentId(), e);
+    //             }
+    //         }
+    //
+    //         log.info("AI推理任务生成完成: soupId={}, 任务数量={}, 关联线索数量={}",
+    //             soupId, taskOrderToIdMap.size(), updatedFragments);
+    //
+    //     } catch (Exception e) {
+    //         log.error("使用AI推理任务失败，回退到默认方案: soupId={}", soupId, e);
+    //         throw new AiResponseException("使用AI推理任务失败");
+    //     }
+    // }
 
-            // 保存推理任务并获取真实ID
-            InferenceTask savedTask1 = inferenceTaskRepository.save(task1);
-            InferenceTask savedTask2 = inferenceTaskRepository.save(task2);
-            InferenceTask savedTask3 = inferenceTaskRepository.save(task3);
-
-            // 创建任务序号到真实ID的映射
-            Map<Integer, Long> taskOrderToIdMap = Map.of(
-                1, savedTask1.getTaskId(),
-                2, savedTask2.getTaskId(),
-                3, savedTask3.getTaskId()
-            );
-
-            // 更新线索片段的任务关联（使用真实任务ID）
-            for (ClueFragment fragment : aiFragments) {
-                if (fragment.getAssociatedTaskIds() != null && !fragment.getAssociatedTaskIds().isEmpty()) {
-                    List<Integer> taskOrders = fragment.getAssociatedTaskIds();
-                    List<Integer> realTaskIds = taskOrders.stream()
-                            .filter(taskOrderToIdMap::containsKey)
-                            .map(taskOrderToIdMap::get)
-                            .map(Long::intValue)  // 转换Long到Integer
-                            .collect(java.util.stream.Collectors.toList());
-
-                    fragment.setAssociatedTaskIds(realTaskIds);
-                    clueFragmentRepository.save(fragment);
-                }
-            }
-
-            log.info("生成推理任务成功: soupId={}, 任务数量=3", soupId);
-
-        } catch (Exception e) {
-            log.error("生成推理任务失败: soupId={}", soupId, e);
-        }
-    }
-
-    /**
-     * 使用AI生成的推理任务并关联线索（新方案）
-     * @param soupId 海龟汤ID
-     * @param aiInferenceTasks AI生成的推理任务（taskOrder为1,2,3等）
-     * @param aiFragments AI拆解的线索片段
-     */
-    @Transactional
-    public void generateInferenceTasksWithAITasks(String soupId, List<Map<String, Object>> aiInferenceTasks, List<ClueFragment> aiFragments) {
-        try {
-            if (aiInferenceTasks == null || aiInferenceTasks.isEmpty()) {
-                log.warn("AI未生成推理任务，使用默认方案");
-                generateInferenceTasksWithClueAssociation(soupId, aiFragments);
-                return;
-            }
-
-            log.info("开始使用AI生成的推理任务，任务数量: {}", aiInferenceTasks.size());
-
-            // 保存AI生成的推理任务并获取真实ID
-            Map<Integer, Long> taskOrderToIdMap = new HashMap<>();
-
-            for (Map<String, Object> taskData : aiInferenceTasks) {
-                try {
-                    // 解析AI任务数据
-                    String taskName = (String) taskData.get("taskName");
-                    String description = (String) taskData.get("description");
-                    Integer understandingLevel = (Integer) taskData.getOrDefault("understandingLevel", 1);
-                    String reasoningGoal = (String) taskData.get("reasoningGoal");
-                    Double progressWeight = ((Number) taskData.getOrDefault("progressWeight", 30.0)).doubleValue();
-                    Boolean isMandatory = (Boolean) taskData.getOrDefault("isMandatory", false);
-                    Integer taskOrder = (Integer) taskData.getOrDefault("taskOrder", 1);
-
-                    // 创建推理任务对象
-                    InferenceTask task = new InferenceTask(soupId, taskName, description, understandingLevel);
-                    task.setReasoningGoal(reasoningGoal);
-                    task.setProgressWeight(progressWeight);
-                    task.setIsMandatory(isMandatory);
-                    task.setTaskOrder(taskOrder);
-
-                    // 保存任务并获取真实ID
-                    InferenceTask savedTask = inferenceTaskRepository.save(task);
-                    taskOrderToIdMap.put(taskOrder, savedTask.getTaskId());
-
-                    log.info("保存AI推理任务成功: taskOrder={}, taskName={}, taskId={}",
-                        taskOrder, taskName, savedTask.getTaskId());
-
-                } catch (Exception e) {
-                    log.error("保存AI推理任务失败", e);
-                }
-            }
-
-            // 如果AI任务保存失败，回退到默认方案
-            if (taskOrderToIdMap.isEmpty()) {
-                log.warn("AI推理任务全部保存失败，使用默认方案");
-                generateInferenceTasksWithClueAssociation(soupId, aiFragments);
-                return;
-            }
-
-            // 更新线索片段的任务关联（将AI返回的taskOrder 1,2,3替换为真实ID）
-            int updatedFragments = 0;
-            for (ClueFragment fragment : aiFragments) {
-                try {
-                    if (fragment.getAssociatedTaskIds() != null && !fragment.getAssociatedTaskIds().isEmpty()) {
-                        List<Integer> taskOrders = fragment.getAssociatedTaskIds();
-                        List<Integer> realTaskIds = taskOrders.stream()
-                                .filter(taskOrderToIdMap::containsKey)
-                                .map(taskOrderToIdMap::get)
-                                .map(Long::intValue)  // 转换Long到Integer
-                                .collect(java.util.stream.Collectors.toList());
-
-                        // 只有成功关联到真实任务的线索才更新
-                        if (!realTaskIds.isEmpty()) {
-                            fragment.setAssociatedTaskIds(realTaskIds);
-                            clueFragmentRepository.save(fragment);
-                            updatedFragments++;
-
-                            log.debug("更新线索片段任务关联: fragmentId={}, taskOrders={}, realTaskIds={}",
-                                fragment.getFragmentId(), taskOrders, realTaskIds);
-                        }
-                    }
-                } catch (Exception e) {
-                    log.error("更新线索片段任务关联失败: fragmentId={}", fragment.getFragmentId(), e);
-                }
-            }
-
-            log.info("AI推理任务生成完成: soupId={}, 任务数量={}, 关联线索数量={}",
-                soupId, taskOrderToIdMap.size(), updatedFragments);
-
-        } catch (Exception e) {
-            log.error("使用AI推理任务失败，回退到默认方案: soupId={}", soupId, e);
-            generateInferenceTasksWithClueAssociation(soupId, aiFragments);
-        }
-    }
-
-    /**
-     * 生成默认推理任务（当AI失败时）
-     * @param soupId 海龟汤ID
-     * @return 任务序号到真实ID的映射
-     */
-    private Map<Integer, Long> generateDefaultInferenceTasks(String soupId) {
-        Map<Integer, Long> taskOrderToIdMap = new HashMap<>();
-        try {
-            // 生成基础推理任务
-            InferenceTask task1 = new InferenceTask(soupId, "发现基本信息", "询问故事的基本背景和设定", 1);
-            task1.setReasoningGoal("掌握故事的基本时间、地点、人物等背景信息");
-            task1.setProgressWeight(20.0);
-            task1.setTaskOrder(1);
-
-            InferenceTask task2 = new InferenceTask(soupId, "理解内在联系", "理解各要素之间的关系", 2);
-            task2.setReasoningGoal("理解事件之间的因果关系和人物动机");
-            task2.setProgressWeight(30.0);
-            task2.setTaskOrder(2);
-
-            InferenceTask task3 = new InferenceTask(soupId, "推理深层真相", "发现隐藏的关键信息", 3);
-            task3.setReasoningGoal("揭示故事的完整真相和核心秘密");
-            task3.setProgressWeight(50.0);
-            task3.setTaskOrder(3);
-
-            // 保存推理任务并获取真实ID
-            InferenceTask savedTask1 = inferenceTaskRepository.save(task1);
-            InferenceTask savedTask2 = inferenceTaskRepository.save(task2);
-            InferenceTask savedTask3 = inferenceTaskRepository.save(task3);
-
-            // 创建任务序号到真实ID的映射
-            taskOrderToIdMap.put(1, savedTask1.getTaskId());
-            taskOrderToIdMap.put(2, savedTask2.getTaskId());
-            taskOrderToIdMap.put(3, savedTask3.getTaskId());
-
-            log.info("生成默认推理任务成功: soupId={}, 任务数量=3", soupId);
-
-        } catch (Exception e) {
-            log.error("生成默认推理任务失败: soupId={}", soupId, e);
-        }
-        return taskOrderToIdMap;
-    }
+    // /**
+    //  * 生成默认推理任务（当AI失败时）
+    //  * @param soupId 海龟汤ID
+    //  * @return 任务序号到真实ID的映射
+    //  */
+    // private Map<Integer, Long> generateDefaultInferenceTasks(String soupId) {
+    //     Map<Integer, Long> taskOrderToIdMap = new HashMap<>();
+    //     try {
+    //         // 生成基础推理任务
+    //         InferenceTask task1 = new InferenceTask(soupId, "发现基本信息", "询问故事的基本背景和设定", 1);
+    //         task1.setReasoningGoal("掌握故事的基本时间、地点、人物等背景信息");
+    //         task1.setProgressWeight(20.0);
+    //         task1.setTaskOrder(1);
+    //
+    //         InferenceTask task2 = new InferenceTask(soupId, "理解内在联系", "理解各要素之间的关系", 2);
+    //         task2.setReasoningGoal("理解事件之间的因果关系和人物动机");
+    //         task2.setProgressWeight(30.0);
+    //         task2.setTaskOrder(2);
+    //
+    //         InferenceTask task3 = new InferenceTask(soupId, "推理深层真相", "发现隐藏的关键信息", 3);
+    //         task3.setReasoningGoal("揭示故事的完整真相和核心秘密");
+    //         task3.setProgressWeight(50.0);
+    //         task3.setTaskOrder(3);
+    //
+    //         // 保存推理任务并获取真实ID
+    //         InferenceTask savedTask1 = inferenceTaskRepository.save(task1);
+    //         InferenceTask savedTask2 = inferenceTaskRepository.save(task2);
+    //         InferenceTask savedTask3 = inferenceTaskRepository.save(task3);
+    //
+    //         // 创建任务序号到真实ID的映射
+    //         taskOrderToIdMap.put(1, savedTask1.getTaskId());
+    //         taskOrderToIdMap.put(2, savedTask2.getTaskId());
+    //         taskOrderToIdMap.put(3, savedTask3.getTaskId());
+    //
+    //         log.info("生成默认推理任务成功: soupId={}, 任务数量=3", soupId);
+    //
+    //     } catch (Exception e) {
+    //         log.error("生成默认推理任务失败: soupId={}", soupId, e);
+    //     }
+    //     return taskOrderToIdMap;
+    // }
 
     /**
      * 解析用户提供的推理任务列表
@@ -824,4 +835,20 @@ public class TurtleSoupService {
         }
     }
 
+    public String uploadHaiGuiSoupAvatar(MultipartFile avatarFile, String soupId) {
+        String avatarUrl = minioUtil.generateAvatarUrl(avatarFile);
+        HaiGuiSoup soup = haiGuiSoupRepository.findById(soupId).orElseThrow
+                (() -> new BusinessException(404, "故事不存在"));
+        // -------------------------- 5. 更新图像到数据库 --------------------------
+
+        // 若用户已有头像，先删除旧文件（避免占用空间）
+        if (StringUtils.hasText(soup.getSoupAvatar())) {
+            minioUtil.deleteAvatar(soup.getSoupAvatar());
+            log.info("海龟汤图像删除成功 → 汤ID: {}, 旧URL: {}", soupId, soup.getSoupAvatar());
+        }
+        soup.setSoupAvatar(avatarUrl); // 存储访问URL（而非MinIO内部路径）
+        haiGuiSoupRepository.save(soup);
+        log.info("海龟汤头像更新成功 → 汤ID: {}, URL: {}", soup, avatarUrl);
+        return avatarUrl;
+    }
 }

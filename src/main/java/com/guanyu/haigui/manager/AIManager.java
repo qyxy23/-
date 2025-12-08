@@ -26,7 +26,7 @@ public class AIManager {
         if (arkService == null) {
             return "AI服务未配置或不可用";
         }
-        System.out.println("开始调用AI" + systemPrompt+ "用户输入：" + userPrompt);
+        System.out.println("开始调用AI" + systemPrompt+ "\n" + userPrompt);
 
         final List<ChatMessage> messages = new ArrayList<>();
         final ChatMessage systemMessage = ChatMessage.builder().role(ChatMessageRole.SYSTEM).content(systemPrompt)

@@ -6,7 +6,7 @@ import java.util.List;
 @Data
 public class searchAllLobbyMemberVO {
     private String memberId;
-    private String memberName;
     private Integer memberNum;
+    private Integer maxMembers;
     private List<LobbyMemberVO> memberList;
 }

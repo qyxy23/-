@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.guanyu.haigui.manager.AIManager;
 import com.guanyu.haigui.pojo.Content.TurtleSoupEnhancedContent;
 import com.guanyu.haigui.pojo.model.ClueFragment;
-import com.guanyu.haigui.pojo.result.DecompositionResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -30,50 +29,8 @@ public class DynamicTaskService {
         this.clueDecompositionService = clueDecompositionService;
     }
 
-    /**
-     * 为海龟汤生成完整的内容（任务+线索拆解）
-     */
-    public TurtleSoupEnhancedContent generateEnhancedContent(String soupTitle, String soupSurface, String soupBottom) {
-        try {
-            log.info("开始为海龟汤生成增强内容: {}", soupTitle);
 
-            // 1. 拆解线索片段并生成推理任务
-            DecompositionResult decompositionResult =
-                clueDecompositionService.decomposeSoupBottom(soupTitle, soupSurface, soupBottom);
 
-            List<Map<String, Object>> tasks = decompositionResult.getInferenceTasks();
-
-            // 2. 如果AI未生成任务，则基于线索片段生成推理任务
-            if (tasks == null || tasks.isEmpty()) {
-                tasks = generateInferenceTasks(soupTitle, soupSurface, soupBottom, decompositionResult.getFragments());
-            }
-
-            // 3. 构建增强内容
-            TurtleSoupEnhancedContent content = new TurtleSoupEnhancedContent();
-            content.setSoupTitle(soupTitle);
-            content.setSoupSurface(soupSurface);
-            content.setSoupBottom(soupBottom);
-            content.setClueFragments(decompositionResult.getFragments());
-            content.setInferenceTasks(tasks);
-            content.setGenerationStrategy("HYBRID");
-            content.setGeneratedAt(System.currentTimeMillis());
-
-            log.info("成功生成增强内容，包含{}个线索片段和{}个推理任务", decompositionResult.getFragments().size(), tasks.size());
-            return content;
-
-        } catch (Exception e) {
-            log.error("生成增强内容失败", e);
-            return generateFallbackContent(soupTitle, soupSurface, soupBottom);
-        }
-    }
-
-    /**
-     * 基于线索片段生成推理任务（保持向后兼容）
-     */
-    public List<Map<String, Object>> generateBasicTasks(String soupTitle, String soupSurface, String soupBottom) {
-        TurtleSoupEnhancedContent content = generateEnhancedContent(soupTitle, soupSurface, soupBottom);
-        return content.getInferenceTasks();
-    }
 
     /**
      * 生成推理任务（基于线索片段的新方法）

@@ -62,10 +62,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none # 临时禁用自动DDL，避免外键约束问题
-    show-sql: true
-    properties:
-      hibernate:
-              format_sql: true # 格式化 SQL，便于阅读
+#    show-sql: true
+#    properties:
+#      hibernate:
+#              format_sql: true # 格式化 SQL，便于阅读
 
 # PageHelper 分页插件配置
 pagehelper:

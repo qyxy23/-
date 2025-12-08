@@ -2,8 +2,10 @@ package com.guanyu.haigui.controller;
 
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.pojo.dto.*;
+import com.guanyu.haigui.pojo.result.ChatWithAIRoomRequest;
 import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.result.Result;
+import com.guanyu.haigui.service.SoupQuestionService;
 import com.guanyu.haigui.websocket.RoomService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -23,6 +25,8 @@ import java.util.List;
 @Controller
 public class ChatRoomController {
     private final RoomService roomService;
+    private final SoupQuestionService soupQuestionService;
+
 
     /**
      * 创建游戏房间
@@ -162,12 +166,40 @@ public class ChatRoomController {
         return Result.success(roomService.ready(roomId));
     }
 
+    @Operation(summary = "取消准备")
+    @PostMapping("/cancelReady/{roomId}")
+    @ResponseBody
+    public Result<cancelReadyVO> cancelReady(@PathVariable String roomId) {
+        return Result.success(roomService.cancelReady(roomId));
+    }
+
+
+
     // 处理大厅人数是否达标，若达到要求可开始游戏
     @Operation(summary = "处理大厅人数是否达标且都准备完毕，若达到要求可开始游戏")
-    @PostMapping("/checkRoomStatus")
-    public Result<checkRoomStatusVO> checkRoomStatus(@Payload String roomId) {
+    @PostMapping("/checkRoom/{roomId}")
+    @ResponseBody
+    public Result<CheckRoomStatusVO> checkRoomStatus(@PathVariable String roomId) {
         log.info("检查房间{}的状态", roomId);
         return Result.success(roomService.checkRoomStatus(roomId));
     }
+
+    @Operation(summary = "取消准备，测试用")
+    @PostMapping("/CancelRoom/{roomId}")
+    @ResponseBody
+    public Result<String> CancelRoom(@PathVariable String roomId) {
+        return Result.success(roomService.CancelRoom(roomId));
+    }
+
+    @Operation(summary = "与ai对话进行问答")
+    @PostMapping("/chatWithAI")
+    @ResponseBody
+    public Result<RoomSoupQuestionVO> chatWithAI(@RequestBody ChatWithAIRoomRequest request) {
+        // 调用OpenAI API进行问答
+        RoomSoupQuestionVO response = soupQuestionService.RoomProcessSoupQuestion(request);
+        // 返回结果
+        return Result.success(response);
+    }
+
 
 }

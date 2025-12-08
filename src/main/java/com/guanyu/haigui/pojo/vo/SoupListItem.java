@@ -73,4 +73,9 @@ public class SoupListItem {
      */
     private String tag;
 
+    /**
+     * 海龟头像
+     */
+    private String soupAvatar;
+
 }

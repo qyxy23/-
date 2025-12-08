@@ -8,11 +8,11 @@ import com.guanyu.haigui.pojo.vo.BatchEncodeResponse;
 import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
 import com.guanyu.haigui.pojo.vo.TitleGenerateResultVO;
 import com.guanyu.haigui.pojo.vo.TurtleSoupEnhanceResultVO;
-import com.guanyu.haigui.service.ServicesImpl.TurtleSoupService;
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
+import com.guanyu.haigui.utils.MinioUtil;
 import com.guanyu.haigui.utils.TurtleSoupPromptUtil;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
@@ -25,6 +25,7 @@ import java.util.Map;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class HaiGuiTangServiceImpl {
 
     private final AIManager aiManager;
@@ -35,11 +36,7 @@ public class HaiGuiTangServiceImpl {
     @Value("${haiqutang.ai.debug-mode:false}")
     private boolean debugMode;
 
-    public HaiGuiTangServiceImpl(AIManager aiManager, ObjectMapper objectMapper, TurtleSoupPromptUtil promptUtil) {
-        this.aiManager = aiManager;
-        this.objectMapper = objectMapper;
-        this.promptUtil = promptUtil;
-    }
+
 
 
 
@@ -609,5 +606,7 @@ public class HaiGuiTangServiceImpl {
     private String getFallbackMockResponse() {
         return "{\"progressSettings\":[{\"taskName\":\"调查任务\",\"description\":\"这是一个调查任务\",\"difficulty\":\"easy\",\"increment\":100.0}],\"keyClues\":[{\"content\":\"这是一个线索\",\"isKey\":true,\"clueType\":\"PLOT\"}],\"hostManual\":\"这是主持人手册内容\"}";
     }
+
+
 
 }

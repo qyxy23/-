@@ -1,5 +1,6 @@
 package com.guanyu.haigui.repository;
 
+import com.guanyu.haigui.Enum.MemberStatus;
 import com.guanyu.haigui.pojo.model.ChatGame;
 import com.guanyu.haigui.pojo.model.ChatGameMember;
 import com.guanyu.haigui.pojo.model.ChatGameMemberId;
@@ -26,5 +27,5 @@ public interface ChatGameMemberRepository extends JpaRepository<ChatGameMember, 
     Optional<ChatGameMember> findByRoomIdAndUserId(@Param("roomId") String roomId, @Param("userId") Long userId);
 
 
-
+    List<ChatGameMember> findByIdRoomIdAndStatusInOrderByJoinTimeAsc(String roomId, List<MemberStatus> list);
 }

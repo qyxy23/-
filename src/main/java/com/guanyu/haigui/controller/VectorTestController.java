@@ -1,6 +1,7 @@
 package com.guanyu.haigui.controller;
 
 import com.guanyu.haigui.Enum.VectorType;
+import com.guanyu.haigui.pojo.result.ContextMatchResult;
 import com.guanyu.haigui.service.VectorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,7 +55,7 @@ public class VectorTestController {
 
             // 3. 测试向量检索功能
             String testQuestion = "这个海龟汤的故事发生在什么时候？";
-            Map<VectorType, List<VectorService.ContextMatchResult>> contextResults =
+            Map<VectorType, List<ContextMatchResult>> contextResults =
                     vectorService.findRelevantContext(testQuestion, soupId, 3);
 
             result.put("contextRetrieval", Map.of(

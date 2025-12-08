@@ -29,6 +29,7 @@ public class HeartbeatMonitor {
      */
     @Scheduled(fixedRate = CHECK_INTERVAL)
     public void closeInactiveSessions() {
+        log.info("定时任务:检查并关闭不活跃的会话");
         List<String> inactiveSessionIds = sessionActivityTracker.getInactiveSessionIds(SESSION_TIMEOUT);
         inactiveSessionIds.forEach(sessionId -> {
             WebSocketSession session = sessionRegistry.getSession(sessionId);

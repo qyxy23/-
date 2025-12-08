@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.guanyu.haigui.Enum.DifficultyLevel;
+import com.guanyu.haigui.Enum.SoupTag;
 import com.guanyu.haigui.pojo.dto.SoupProjectionDTO;
 import com.guanyu.haigui.pojo.model.HaiGuiSoup;
 import com.guanyu.haigui.pojo.model.SoupListPageResponse;
@@ -51,7 +52,26 @@ public class HaiGuiRankingService {
                                                           Map<String, Object> filterParams) {
         try {
             // 从filterParams中提取筛选条件
-            String tags = (String) filterParams.get("tags");
+            String tags = null;
+            Object tagsObj = filterParams.get("tags");
+            if (tagsObj != null) {
+                if (tagsObj instanceof SoupTag) {
+                    // 如果是SoupTag对象，直接取描述
+                    tags = ((SoupTag) tagsObj).getDescription();
+                } else if (tagsObj instanceof String) {
+                    // 如果是字符串（比如前端传的标签枚举名），尝试转换为SoupTag
+                    try {
+                        SoupTag soupTag = SoupTag.valueOf((String) tagsObj);
+                        tags = soupTag.getDescription();
+                    } catch (IllegalArgumentException e) {
+                        // 处理无效的标签枚举值（比如拼写错误）
+                        log.warn("无效的标签枚举值: {}", tagsObj, e);
+                    }
+                } else {
+                    // 其他未知类型，记录警告并设为null
+                    log.warn("未知的标签参数类型: {}", tagsObj.getClass());
+                }
+            }
             String difficultyLevel = (String) filterParams.get("difficultyLevel");
             Integer playerCount = (Integer) filterParams.get("playerCount");
             Integer minDuration = (Integer) filterParams.get("minDuration");
@@ -159,6 +179,7 @@ public class HaiGuiRankingService {
                     .difficultyLevel(projection.getDifficultyLevel())
                     .playerCount(projection.getPlayerCount())
                     .tag(projection.getTag())
+                    .soupAvatar(projection.getSoupAvatar())
                     .estimatedDuration(projection.getEstimatedDuration());
             return builder.build();
         } catch (Exception e) {

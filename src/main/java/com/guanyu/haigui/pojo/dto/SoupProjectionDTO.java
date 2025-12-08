@@ -75,4 +75,9 @@ public class SoupProjectionDTO {
      * 海龟汤标签（单个标签，JSON字符串）
      */
     private String tag;
+
+    /**
+     * 海龟头像
+     */
+    private String soupAvatar;
 }

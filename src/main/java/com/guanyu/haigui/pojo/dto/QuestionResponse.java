@@ -1,6 +1,6 @@
 package com.guanyu.haigui.pojo.dto;
 
-import com.guanyu.haigui.service.VectorService.ContextMatchResult;
+import com.guanyu.haigui.pojo.result.ContextMatchResult;
 import lombok.Data;
 
 import java.util.List;

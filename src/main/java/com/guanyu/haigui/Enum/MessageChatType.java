@@ -16,7 +16,15 @@ public enum MessageChatType {
     GROUP_UPDATE_NAME("修改群名称"),
     LOBBY_MESSAGE("大厅消息"),
     // VOICE("语音"),
-    VIDEO("视频"), GROUP_UPDATE_AVATAR("修改群头像");
+    VIDEO("视频"),
+    GROUP_UPDATE_AVATAR("修改群头像"),
+    SUSPEND_ROOM("挂起房间"),
+    RETURN_ROOM("返回房间"),
+    READY_ROOM("房间准备"),
+    CANCEL_READY_ROOM("取消房间准备"),
+    START_ROOM("开始游戏"),
+    START_ROOM_ERROR("开始游戏失败"),
+    SOUP_QUESTION("海龟汤问答");
 
     private final String description;
 

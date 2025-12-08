@@ -10,9 +10,6 @@ import lombok.Data;
 @Data
 @Schema(description = "海龟汤问题请求")
 public class SoupQuestionRequest {
-    @Schema(description = "房间ID", example = "uuid-haigui-room-id")
-    private String roomId;
-
     @Schema(description = "海龟汤ID", example = "uuid-haigui-soup-id")
     private String soupId;
 

@@ -4,6 +4,7 @@ import com.guanyu.haigui.Enum.VectorType;
 import com.guanyu.haigui.pojo.model.HaiGuiSoup;
 import com.guanyu.haigui.pojo.model.SoupClue;
 import com.guanyu.haigui.pojo.model.VectorMetadata;
+import com.guanyu.haigui.pojo.result.ContextMatchResult;
 
 import java.util.List;
 import java.util.Map;
@@ -157,27 +158,4 @@ public interface VectorService {
      * @return 匹配的上下文信息
      */
     Map<VectorType, List<ContextMatchResult>> findRelevantContext(String question, String soupId, int topK);
-
-    /**
-     * 上下文匹配结果类
-     */
-    class ContextMatchResult {
-        private String id;          // 可以是soupId、clueId等
-        private String content;     // 原始文本内容
-        private Double similarity;  // 相似度分数
-        private VectorType type;    // 向量类型
-
-        public ContextMatchResult(String id, String content, Double similarity, VectorType type) {
-            this.id = id;
-            this.content = content;
-            this.similarity = similarity;
-            this.type = type;
-        }
-
-        // Getters
-        public String getId() { return id; }
-        public String getContent() { return content; }
-        public Double getSimilarity() { return similarity; }
-        public VectorType getType() { return type; }
-    }
 }

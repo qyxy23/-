@@ -1,9 +1,9 @@
 package com.guanyu.haigui.repository;
 
-import com.guanyu.haigui.pojo.model.GameSession;
+import com.guanyu.haigui.pojo.model.HaiGuiChatMessage;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface HaiGuiGameRepository extends JpaRepository<GameSession, String> {
+public interface HaiGuiChatMessageRepository extends JpaRepository<HaiGuiChatMessage, Long> {
 }

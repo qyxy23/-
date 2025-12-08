@@ -95,4 +95,6 @@ public interface InferenceTaskRepository extends JpaRepository<InferenceTask, Lo
      */
     @Query("SELECT COALESCE(SUM(t.progressWeight), 0.0) FROM InferenceTask t WHERE t.soupId = :soupId AND t.isMandatory = true AND t.isDeleted = false")
     Double sumMandatoryProgressWeightBySoupId(@Param("soupId") String soupId);
+
+    List<InferenceTask> findBySoupId(String soupId);
 }

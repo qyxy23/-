@@ -34,11 +34,9 @@ import java.util.Map;
 @RequestMapping("/user")
 public class UserController {
     @Resource
-    // @Qualifier("strategyMap")
     private final Map<LoginType, LoginStrategy> strategyMap; // 策略映射（Spring自动注入所有实现）
     private final UserService userService;
     @Resource
-    // @Qualifier("registerStrategyMap")
     private final Map<RegisterType, RegisterStrategy> RegisterstrategyMap; // 策略映射（Spring自动注入所有实现）
 
 
