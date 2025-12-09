@@ -96,6 +96,8 @@ public class RedisStackClient {
     }
 
 
+
+
     /**
      * 计算两个向量的余弦相似度
      */
@@ -529,7 +531,7 @@ public class RedisStackClient {
             List<String> fragmentKeys = new ArrayList<>();
 
             // 获取指定海龟汤的所有片段
-            String soupFragmentsKey = String.format("hai_gui:soup:%s:fragments", soupId);
+            String soupFragmentsKey = String.format("hai_gui:soup:%s:fragment", soupId);
             Set<String> fragmentIds = commands.smembers(soupFragmentsKey);
 
             if (fragmentIds.isEmpty()) {
@@ -585,7 +587,7 @@ public class RedisStackClient {
 
             if (soupId != null && !soupId.isEmpty()) {
                 // 搜索特定海龟汤的片段
-                String soupFragmentsKey = String.format("hai_gui:soup:%s:fragments", soupId);
+                String soupFragmentsKey = String.format("hai_gui:soup:%s:fragment", soupId);
                 Set<String> fragmentIds = commands.smembers(soupFragmentsKey);
 
                 for (String fragmentId : fragmentIds) {
@@ -598,7 +600,7 @@ public class RedisStackClient {
                 Set<String> soupIds = commands.smembers("hai_gui:soups:all");
 
                 for (String id : soupIds) {
-                    String soupFragmentsKey = String.format("hai_gui:soup:%s:fragments", id);
+                    String soupFragmentsKey = String.format("hai_gui:soup:%s:fragment", id);
                     Set<String> fragmentIds = commands.smembers(soupFragmentsKey);
 
                     for (String fragmentId : fragmentIds) {
@@ -689,5 +691,9 @@ public class RedisStackClient {
         ByteBuffer buffer = ByteBuffer.allocate(floatArray.length * 4); // Float 占 4 字节
         buffer.asFloatBuffer().put(floatArray);
         return Base64.getEncoder().encodeToString(buffer.array());
+    }
+
+    public void add(String soupFragmentsKey, List<String> fragmentIdList) {
+        commands.sadd(soupFragmentsKey, fragmentIdList.toArray(new String[0]));
     }
 }

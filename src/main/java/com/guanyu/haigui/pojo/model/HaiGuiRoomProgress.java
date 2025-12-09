@@ -1,5 +1,6 @@
 package com.guanyu.haigui.pojo.model;
 
+import com.guanyu.haigui.converter.LongSetConverter;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
@@ -8,6 +9,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.annotations.Where;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 
 @Data
 @Entity
@@ -29,8 +31,6 @@ public class HaiGuiRoomProgress {
     @Column(nullable = false, length = 36)
     private String roomId; // 关联 chat_games.room_id
 
-    @Column(nullable = false, length = 36)
-    private String soupId; // 关联 hai_gui_soup.soup_id
 
     @Column(nullable = false)
     private Long taskId; // 关联 hai_gui_soup_inference_task.task_id
@@ -39,9 +39,10 @@ public class HaiGuiRoomProgress {
     private Boolean completed = false; // 默认未完成
 
     @Column(nullable = false, columnDefinition = "JSON")
-    private String triggeredFragmentIds; // 已触发线索 ID 列表（JSON 格式）
+    @Convert(converter = LongSetConverter.class)
+    private Set<Long> triggeredFragmentIds; // 已触发线索 ID 列表（JSON 格式）
 
-    @Column(nullable = false, columnDefinition = "DATETIME(6)")
+    @Column(columnDefinition = "DATETIME(6)")
     private LocalDateTime completionTime; // 完成时间
 
     @Column(nullable = false, columnDefinition = "TINYINT(1) DEFAULT 0")

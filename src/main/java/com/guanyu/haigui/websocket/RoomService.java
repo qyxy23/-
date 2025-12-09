@@ -45,6 +45,8 @@ public class RoomService {
     private final ChatGameMsgRepository chatGameMsgRepository;
     private final SessionMapUtil sessionMapUtil;
     private final HaiGuiSoupRepository haiGuiSoupRepository;
+    private final HaiGuiRoomProgressRepository haiGuiRoomProgressRepository;
+    private final InferenceTaskRepository inferenceTaskRepository;
     private final AiChatSessionRepository aiChatSessionRepository;
     private final chatGameInvitationRepository chatGameInvitationRepository;
     private final PrivateMessageRepository privateMessageRepository;
@@ -92,6 +94,7 @@ public class RoomService {
                 .createTime(LocalDateTime.now())
                 .needInvite(request.getIsPrivate())
                 .haiGuiSoup(soup)
+                .privacyType(request.getIsPrivate() ? ChatGame.PrivacyType.PRIVATE : ChatGame.PrivacyType.PUBLIC)
                 .build();
         chatGameRepository.save(game); // JPA自动保存到数据库
 
@@ -608,9 +611,8 @@ public class RoomService {
                 return vo;
             }
         }
-        room.setStatus(RoomStatus.ACTIVE);
-        chatGameRepository.save(room);
         AiChatSession session = new AiChatSession();
+        session.setSessionId(UUID.randomUUID().toString());
         session.setTitle(room.getRoomName());
         session.setContextType(ChatContextType.GAME_ROOM);
         session.setContextId(roomId);
@@ -623,7 +625,31 @@ public class RoomService {
         gameSession.setChatSessionId(session.getSessionId());
         gameSession.setCurrentProgress(BigDecimal.ZERO);
         gameSession.setStatus(GameSession.GameSessionStatus.ONGOING);
-        gameSessionRepository.save(gameSession);
+        gameSessionRepository.saveAndFlush(gameSession);
+        room.setStartTime(LocalDateTime.now());
+        room.setStatus(RoomStatus.ACTIVE);
+        room.setSessionId(gameSession.getSessionId());
+        chatGameRepository.save(room);
+        String soupId = room.getHaiGuiSoup().getSoupId();
+        List<InferenceTask> tasks = inferenceTaskRepository.findBySoupId(soupId);
+
+        // 2. 为每个任务创建进度记录
+        List<HaiGuiRoomProgress> progresses = tasks.stream()
+                .map(task -> {
+                    HaiGuiRoomProgress progress = new HaiGuiRoomProgress();
+                    progress.setRoomId(roomId);
+                    progress.setTaskId(task.getTaskId());
+                    progress.setCompleted(false);
+                    progress.setTriggeredFragmentIds(new HashSet<>()); // 初始空数组
+                    progress.setCompletionTime(null);
+                    return progress;
+                })
+                .collect(Collectors.toList());
+
+        // 3. 批量保存
+        haiGuiRoomProgressRepository.saveAll(progresses);
+        log.info("房间任务初始化完成: roomId={}, soupId={}, 任务数={}",
+                roomId, soupId, tasks.size());
         log.info("房间{}已激活", roomId);
         HaiGuiSoup soup = haiGuiSoupRepository.findById(room.getHaiGuiSoup().getSoupId())
                 .orElseThrow(() -> new RoomException("该海龟汤不存在"));

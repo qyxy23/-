@@ -1,6 +1,7 @@
 package com.guanyu.haigui.pojo.model;
 
 import com.guanyu.haigui.converter.ListStringConverter;
+import com.guanyu.haigui.converter.LongSetConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -8,7 +9,9 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 推理任务数据模型（映射hai_gui_soup_inference_task表）
@@ -60,8 +63,8 @@ public class InferenceTask {
 
     // 关键修复：允许为null，在@PrePersist中初始化
     @Column(name = "prerequisite_fragment_ids", columnDefinition = "JSON")
-    @Convert(converter = ListStringConverter.class)
-    private List<String> prerequisiteFragmentIds;
+    @Convert(converter = LongSetConverter.class) // 复用Long集合转换器
+    private Set<Long> prerequisiteFragmentIds = new HashSet<>(); // 初始化空集合
 
     @Column(name = "is_deleted", columnDefinition = "TINYINT(1) DEFAULT 0")
     private Boolean isDeleted = false;
@@ -80,7 +83,7 @@ public class InferenceTask {
 
         // 关键修复：在持久化前初始化集合
         if (targetKeywords == null) targetKeywords = new ArrayList<>();
-        if (prerequisiteFragmentIds == null) prerequisiteFragmentIds = new ArrayList<>();
+        if (prerequisiteFragmentIds == null) prerequisiteFragmentIds = new HashSet<>();
     }
 
     @PreUpdate

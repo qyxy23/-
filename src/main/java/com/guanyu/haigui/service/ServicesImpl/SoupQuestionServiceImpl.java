@@ -3,6 +3,7 @@ package com.guanyu.haigui.service.ServicesImpl;
 import com.guanyu.haigui.Enum.QuestionWithAiAnswer;
 import com.guanyu.haigui.Enum.RoomStatus;
 import com.guanyu.haigui.Enum.VectorType;
+import com.guanyu.haigui.Exception.AiResponseException;
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.manager.AIManager;
 import com.guanyu.haigui.pojo.Info.SoupInfo;
@@ -18,9 +19,15 @@ import com.guanyu.haigui.utils.BgeVectorClientUtil;
 import com.guanyu.haigui.utils.RedisStackClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.FileCopyUtils;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -32,6 +39,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@Transactional
 public class SoupQuestionServiceImpl implements SoupQuestionService {
 
     private final HaiGuiSoupRepository haiGuiSoupRepository;
@@ -48,6 +56,8 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
     private final HaiGuiRoomProgressRepository haiGuiRoomProgressRepository;
 
 
+    @Value("${haiqutang.ai.debug-mode:false}")
+    private boolean debugMode;
 
 
     @Override
@@ -63,7 +73,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         }
         ChatGameMember member = chatGameMemberRepository.findById(new ChatGameMemberId(BaseContext.getCurrentId(), request.getRoomId())).orElse(null);
         if (member == null){
-            return RoomSoupQuestionVO.error("用户未加入游戏：ID=" + BaseContext.getCurrentId());
+            return RoomSoupQuestionVO.error("用户未加入房间：ID=" + BaseContext.getCurrentId());
         }
         String soupId = game.getHaiGuiSoup().getSoupId();
         if(game.getStatus() != RoomStatus.ACTIVE){
@@ -93,23 +103,22 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         SoupInfo soupInfo = getSoupInfo(soupId);
 
         // 4. 获取房间当前状态（新增）
-        List<Long> triggeredFragmentIds = haiGuiRoomProgressRepository.findTriggeredFragmentIds(request.getRoomId());
+        Set<Long> triggeredFragmentIds = getCurrentTriggeredFragments(request.getRoomId());
         List<InferenceTask> allTasks = inferenceTaskRepository.findBySoupId(soupId);
         List<InferenceTask> incompleteTasks = allTasks.stream()
                 .filter(task -> !haiGuiRoomProgressRepository.isTaskCompleted(request.getRoomId(), task.getTaskId()))
                 .collect(Collectors.toList());
 
-        // 5. 构建新的AI提示词（使用新格式）
+        // 5. 构建AI提示词（传递 Set<Long> 而不是 List<Long>）
         String aiPrompt = buildAIPrompt(
-                request.getRoomId(),
                 request.getQuestion(),
                 relevantClues,
                 soupInfo,
-                triggeredFragmentIds,
+                triggeredFragmentIds,       // 直接传递 Set<Long>
                 incompleteTasks
         );
 
-        // 6. 调用AI生成判断（使用新系统提示词）
+        // 6. 调用AI生成判断
         String aiResponse = generateAIResponse(aiPrompt);
         if (aiResponse == null || aiResponse.trim().isEmpty()) {
             return RoomSoupQuestionVO.error("AI判断生成失败");
@@ -122,7 +131,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         }
 
         // 8. 更新房间进度（新增）
-        updateRoomProgress(request.getRoomId(), parsedResponse);
+        updateRoomProgress(request.getRoomId(), parsedResponse,incompleteTasks);
 
         // 9. 保存消息记录（使用枚举值）
         QuestionWithAiAnswer answerEnum;
@@ -150,110 +159,148 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         return roomSoupQuestionVO;
     }
 
-    private void updateRoomProgress(String roomId, AIResponse parsedResponse) {
-        // 获取当前已触发的线索
-        List<Long> currentFragments = haiGuiRoomProgressRepository.findTriggeredFragmentIds(roomId);
-        Set<Long> allFragments = new HashSet<>(currentFragments);
+    protected void updateRoomProgress(String roomId, AIResponse parsedResponse, List<InferenceTask> incompleteTasks) {
+        // 1. 获取当前所有任务的已触发线索（每个任务独立）
+        Map<Long, Set<Long>> taskFragmentsMap = getCurrentTaskFragments(roomId, incompleteTasks);
 
-        // 添加新触发的线索
+        // 2. 创建新触发线索集合
+        Set<Long> newFragments = new HashSet<>();
         if (parsedResponse.getNewTriggeredFragments() != null) {
-            allFragments.addAll(parsedResponse.getNewTriggeredFragments());
+            newFragments.addAll(parsedResponse.getNewTriggeredFragments());
         }
 
-        // 更新每个新完成的任务
-        if (parsedResponse.getCompletedTasks() != null) {
-            for (Long taskId : parsedResponse.getCompletedTasks()) {
+        // 3. 处理每个未完成任务
+        for (InferenceTask task : incompleteTasks) {
+            Long taskId = task.getTaskId();
+            Set<Long> prerequisiteIds = task.getPrerequisiteFragmentIds();
+
+            // 3.1 获取该任务当前的已触发线索
+            Set<Long> currentFragments = taskFragmentsMap.getOrDefault(taskId, new HashSet<>());
+            Set<Long> updatedFragments = new HashSet<>(currentFragments);
+
+            // 3.2 添加新触发的线索（只添加与该任务相关的前置线索）
+            Set<Long> relevantNewFragments = new HashSet<>(newFragments);
+            relevantNewFragments.retainAll(prerequisiteIds); // 只保留该任务需要的前置线索
+            updatedFragments.addAll(relevantNewFragments);
+
+            // 3.3 检查是否所有前置线索都已触发
+            boolean allPrerequisitesMet = updatedFragments.containsAll(prerequisiteIds);
+
+            // 3.4 更新任务状态
+            if (allPrerequisitesMet) {
+                log.info("任务完成：ID={}，前置线索={}，已触发线索={}",
+                        taskId, prerequisiteIds, updatedFragments);
+
                 haiGuiRoomProgressRepository.updateTaskStatus(
                         roomId,
                         taskId,
-                        true,
-                        new ArrayList<>(allFragments),
+                        true,          // 标记为完成
+                        updatedFragments, // 更新为该任务特定的已触发线索
+                        LocalDateTime.now()
+                );
+            } else if (!relevantNewFragments.isEmpty()) {
+                // 有新线索但未完成，更新该任务的已触发线索
+                log.info("更新任务线索：ID={}，新增线索={}，总线索={}",
+                        taskId, relevantNewFragments, updatedFragments);
+
+                haiGuiRoomProgressRepository.updateTaskFragments(
+                        roomId,
+                        taskId,
+                        updatedFragments,
                         LocalDateTime.now()
                 );
             }
         }
 
-        // 更新已触发线索（即使没有任务完成）
-        if (parsedResponse.getNewTriggeredFragments() != null &&
-                !parsedResponse.getNewTriggeredFragments().isEmpty()) {
-            haiGuiRoomProgressRepository.addTriggeredFragments(
-                    roomId,
-                    new ArrayList<>(allFragments)
-            );
+        // 4. 处理AI明确标记完成的任务（覆盖自动判断）
+        if (parsedResponse.getCompletedTasks() != null && !parsedResponse.getCompletedTasks().isEmpty()) {
+            for (Long taskId : parsedResponse.getCompletedTasks()) {
+                // 找到对应的任务
+                Optional<InferenceTask> taskOpt = incompleteTasks.stream()
+                        .filter(t -> t.getTaskId().equals(taskId))
+                        .findFirst();
+
+                if (taskOpt.isPresent()) {
+                    InferenceTask task = taskOpt.get();
+                    Set<Long> prerequisiteIds = task.getPrerequisiteFragmentIds();
+
+                    // 获取该任务当前的已触发线索
+                    Set<Long> currentFragments = taskFragmentsMap.getOrDefault(taskId, new HashSet<>());
+                    Set<Long> updatedFragments = new HashSet<>(currentFragments);
+                    updatedFragments.addAll(newFragments); // 添加所有新线索
+
+                    log.info("AI强制完成任务：ID={}，前置线索={}，已触发线索={}",
+                            taskId, prerequisiteIds, updatedFragments);
+
+                    haiGuiRoomProgressRepository.updateTaskStatus(
+                            roomId,
+                            taskId,
+                            true,
+                            updatedFragments,
+                            LocalDateTime.now()
+                    );
+                }
+            }
         }
     }
 
-    // @Override
-    // @Transactional
-    // public String processSoupQuestion(SoupQuestionRequest request) {
-    //
-    //     log.info("开始处理海龟汤问题: soupId={}, question={}",
-    //             request.getSoupId(),
-    //             request.getQuestion().substring(0, Math.min(50, request.getQuestion().length())));
-    //
-    //     // 2. 向量化问题
-    //     List<Float> questionVector = vectorizeQuestion(request.getQuestion());
-    //
-    //
-    //     log.info("问题向量化成功，维度: {}", questionVector.size());
-    //
-    //     // 3. 搜索相关线索
-    //     Map<String, List<ContextMatchResult>> relevantClues = searchRelevantClues(
-    //             request.getSoupId(),
-    //             questionVector,
-    //             request.getTopK(),
-    //             request.getMinSimilarity(),
-    //             request.getQuestion()
-    //     );
-    //     log.info("搜索相关线索成功，数量: {}", relevantClues.size());
-    //
-    //     // 4. 获取海龟汤信息
-    //     SoupInfo soupInfo = getSoupInfo(request.getSoupId());
-    //
-    //     // 5. 构建AI提示词
-    //     String aiPrompt = buildAIPrompt(
-    //             request.getRoomId(),
-    //             request.getQuestion(),
-    //             relevantClues,
-    //             soupInfo,
-    //             triggeredFragmentIds,
-    //             incompleteTasks
-    //     );
-    //
-    //     log.info("构建AI提示词成功: {}", aiPrompt);
-    //
-    //     return aiPrompt;
-    // }
-    //
-    // @Override
-    // public boolean validateRequest(SoupQuestionRequest request) {
-    //     if (request == null) {
-    //         log.warn("请求对象为空");
-    //         return false;
-    //     }
-    //
-    //     if (request.getSoupId() == null || request.getSoupId().trim().isEmpty()) {
-    //         log.warn("海龟汤ID为空");
-    //         return false;
-    //     }
-    //
-    //     if (request.getQuestion() == null || request.getQuestion().trim().isEmpty()) {
-    //         log.warn("问题内容为空");
-    //         return false;
-    //     }
-    //
-    //     if (request.getTopK() != null && (request.getTopK() <= 0 || request.getTopK() > 20)) {
-    //         log.warn("topK参数超出范围: {}", request.getTopK());
-    //         return false;
-    //     }
-    //
-    //     if (request.getMinSimilarity() != null && (request.getMinSimilarity() < 0 || request.getMinSimilarity() > 1)) {
-    //         log.warn("minSimilarity参数超出范围: {}", request.getMinSimilarity());
-    //         return false;
-    //     }
-    //
-    //     return true;
-    // }
+    // 获取每个任务独立的已触发线索
+    private Map<Long, Set<Long>> getCurrentTaskFragments(String roomId, List<InferenceTask> tasks) {
+        List<Long> taskIds = tasks.stream()
+                .map(InferenceTask::getTaskId)
+                .collect(Collectors.toList());
+
+        Map<Long, Set<Long>> taskFragmentsMap = new HashMap<>();
+
+        if (!taskIds.isEmpty()) {
+            // 调用修改后的仓库方法
+            List<Object[]> results = haiGuiRoomProgressRepository.findTaskFragmentsRaw(roomId, taskIds);
+
+            for (Object[] result : results) {
+                Long taskId = (Long) result[0];
+                Set<Long> fragments = (Set<Long>) result[1];
+                taskFragmentsMap.put(taskId, fragments);
+            }
+        }
+
+        // 为所有任务添加条目（即使没有记录）
+        for (InferenceTask task : tasks) {
+            taskFragmentsMap.putIfAbsent(task.getTaskId(), new HashSet<>());
+        }
+
+        return taskFragmentsMap;
+    }
+
+    // 辅助方法：获取当前已触发的线索
+    private Set<Long> getCurrentTriggeredFragments(String roomId) {
+        // 合并所有记录的线索
+        List<HaiGuiRoomProgress> allProgress = haiGuiRoomProgressRepository.findByRoomId(roomId);
+        Set<Long> allFragments = new HashSet<>();
+        for (HaiGuiRoomProgress progress : allProgress) {
+            allFragments.addAll(progress.getTriggeredFragmentIds());
+        }
+        return allFragments;
+    }
+
+
+
+    // 辅助方法：将 Long 集合转换为 JSON 数组字符串
+    private String convertToJsonArray(Set<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return "[]";
+        }
+
+        StringBuilder jsonArray = new StringBuilder("[");
+        for (Iterator<Long> it = ids.iterator(); it.hasNext(); ) {
+            jsonArray.append(it.next());
+            if (it.hasNext()) {
+                jsonArray.append(",");
+            }
+        }
+        jsonArray.append("]");
+        return jsonArray.toString();
+    }
+
 
     @Override
     public List<Float> vectorizeQuestion(String question) {
@@ -346,26 +393,25 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
     }
 
     public String buildAIPrompt(
-            String roomId,
             String question,
             Map<String, List<ContextMatchResult>> relevantClues,
             SoupInfo soupInfo,
-            List<Long> triggeredFragmentIds,       // 新增：已触发的线索ID列表
-            List<InferenceTask> incompleteTasks     // 新增：未完成的任务列表
+            Set<Long> triggeredFragmentIds,       // 改为 Set<Long> 类型
+            List<InferenceTask> incompleteTasks
     ) {
         StringBuilder prompt = new StringBuilder();
 
-        // 1. 海龟汤背景信息（保持不变）
+        // 1. 海龟汤背景信息
         prompt.append("=== 海龟汤背景 ===\n");
         prompt.append(String.format("标题：%s\n", soupInfo.getSoupTitle()));
         prompt.append(String.format("汤面：%s\n", soupInfo.getSoupSurface()));
         prompt.append(String.format("汤底：%s\n", soupInfo.getSoupBottom()));
         prompt.append(String.format("主持人手册：%s\n\n", soupInfo.getHostManual()));
 
-        // 2. 房间当前状态（新增核心部分）
+        // 2. 房间当前状态
         prompt.append("=== 房间当前状态 ===\n");
-        prompt.append(String.format("房间ID: %s\n", roomId));
-        prompt.append(String.format("海龟汤ID: %s\n", soupInfo.getSoupId()));
+
+        // 直接使用 Set<Long>，转换为字符串表示
         prompt.append(String.format("已触发线索ID列表: %s\n",
                 triggeredFragmentIds.toString().replace(" ", "")));
 
@@ -384,11 +430,11 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         }
         prompt.append("\n");
 
-        // 3. 玩家新问题上下文（新增）
+        // 3. 玩家新问题上下文
         prompt.append("=== 玩家新问题上下文 ===\n");
         prompt.append(String.format("玩家问题: %s\n", question));
 
-        // 提取新问题匹配的线索ID（从relevantClues中获取）
+        // 提取新问题匹配的线索ID
         List<String> newMatchedFragmentIds = new ArrayList<>();
         for (List<ContextMatchResult> results : relevantClues.values()) {
             for (ContextMatchResult result : results) {
@@ -398,13 +444,13 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         prompt.append(String.format("新问题匹配的线索ID: %s\n\n",
                 newMatchedFragmentIds.toString().replace(" ", "")));
 
-        // 4. 任务完成规则（新增）
+        // 4. 任务完成规则
         prompt.append("=== 任务完成规则 ===\n");
         prompt.append("1. 线索触发：任务完成当且仅当「任务的所有前置线索ID都在已触发线索列表中」（含本次新触发的线索）\n");
         prompt.append("2. 只触发一次：已完成的任务不再更新\n");
         prompt.append("3. 去重：已存在的线索ID不重复添加到已触发列表\n\n");
 
-        // 5. 输出要求（修改格式）
+        // 5. 输出要求
         prompt.append("=== 回答要求 ===\n");
         prompt.append("请严格按照以下格式返回结果：\n");
         prompt.append("ANSWER: [是/不是/是或不是/不重要]\n");
@@ -416,8 +462,35 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         return prompt.toString();
     }
 
+    /**
+     * 获取模拟AI响应数据（调试模式使用）
+     * @return 模拟的AI响应JSON字符串
+     */
+    private String getMockAiResponse() {
+        try {
+            ClassPathResource resource = new ClassPathResource("temp/aiResponse2.txt");
+            if (!resource.exists()) {
+                log.error("模拟AI响应文件不存在: temp/aiResponse.txt");
+                throw new AiResponseException("模拟AI响应文件不存在");
+            }
+
+            byte[] data = FileCopyUtils.copyToByteArray(resource.getInputStream());
+            String mockResponse = new String(data, StandardCharsets.UTF_8);
+
+            log.info("成功读取模拟AI响应，文件大小: {} 字节", mockResponse.length());
+            return mockResponse;
+
+        } catch (IOException e) {
+            log.error("读取模拟AI响应文件失败", e);
+            throw new AiResponseException("模拟AI响应文件不存在");
+        }
+    }
+
     @Override
     public String generateAIResponse(String prompt) {
+        if (debugMode) {
+            return getMockAiResponse();
+        }
         try {
             log.debug("调用AI生成判断，提示词长度: {}", prompt.length());
 

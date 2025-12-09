@@ -228,18 +228,18 @@ public class TurtleSoupService {
         // 关键修复：使用处理后的前置线索ID（已经是真实ID）
         Object prerequisiteIds = processedTaskData.get("prerequisiteFragmentIds");
         if (prerequisiteIds instanceof List<?>) {
-            List<String> ids = new ArrayList<>();
+            Set<Long> ids = new HashSet<>();
             for (Object idObj : (List<?>) prerequisiteIds) {
-                if (idObj instanceof String) {
-                    ids.add((String) idObj);
+                if (idObj instanceof Long) {
+                    ids.add((Long) idObj);
                 } else if (idObj != null) {
-                    ids.add(idObj.toString());
+                    ids.add(Long.valueOf((String) idObj));
                 }
             }
             task.setPrerequisiteFragmentIds(ids);
         } else {
             // 如果没有前置线索，设置为空列表
-            task.setPrerequisiteFragmentIds(new ArrayList<>());
+            task.setPrerequisiteFragmentIds(new HashSet<>());
         }
 
         // 处理目标关键词
@@ -264,6 +264,8 @@ public class TurtleSoupService {
     // 保存线索片段（保持不变）
     private Map<Integer, Long> saveClueFragments(HaiGuiSoup soup, List<ClueFragment> fragments) {
         Map<Integer, Long> fragmentOrderToIdMap = new HashMap<>();
+        List<String> fragmentIdList = new ArrayList<>(); // 临时收集fragmentId（字符串形式）
+        String soupFragmentsKey = String.format("hai_gui:soup:%s:fragment", soup.getSoupId()); // Redis集合键
 
         for (ClueFragment fragment : fragments) {
             fragment.setSoupId(soup.getSoupId());
@@ -281,7 +283,13 @@ public class TurtleSoupService {
             ClueFragment savedFragment = clueFragmentRepository.saveAndFlush(fragment);
             String soupFragmentKey = String.format("hai_gui:soup:%s:fragment:%s", soup.getSoupId(), fragment.getFragmentId());
             redisClient.storeVector(soupFragmentKey, fragment.getVectorData());
+            fragmentIdList.add(savedFragment.getFragmentId().toString());
             fragmentOrderToIdMap.put(savedFragment.getFragmentOrder(), savedFragment.getFragmentId());
+        }
+        if (!fragmentIdList.isEmpty()) {
+            redisClient.add(soupFragmentsKey,fragmentIdList);
+            // 使用Redis的SADD命令批量添加成员（支持多个参数）
+            log.info("批量插入Redis集合: key={}, 成员数={}", soupFragmentsKey, fragmentIdList.size());
         }
 
         return fragmentOrderToIdMap;
@@ -323,7 +331,7 @@ public class TurtleSoupService {
             defaultTask.setTaskOrder(1);
 
             // 关键修复：设置为空列表
-            defaultTask.setPrerequisiteFragmentIds(new ArrayList<>());
+            defaultTask.setPrerequisiteFragmentIds(new HashSet<>());
             defaultTask.setTargetKeywords(new ArrayList<>());
 
             InferenceTask savedTask = inferenceTaskRepository.saveAndFlush(defaultTask);
@@ -351,7 +359,7 @@ public class TurtleSoupService {
             fallbackTask.setTaskOrder(1);
 
             // 关键修复：设置为空列表
-            fallbackTask.setPrerequisiteFragmentIds(new ArrayList<>());
+            fallbackTask.setPrerequisiteFragmentIds(new HashSet<>());
             fallbackTask.setTargetKeywords(new ArrayList<>());
 
             InferenceTask savedTask = inferenceTaskRepository.saveAndFlush(fallbackTask);

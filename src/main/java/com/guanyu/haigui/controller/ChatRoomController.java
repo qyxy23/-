@@ -184,7 +184,7 @@ public class ChatRoomController {
         return Result.success(roomService.checkRoomStatus(roomId));
     }
 
-    @Operation(summary = "取消准备，测试用")
+    @Operation(summary = "将大厅的开始状态改为等待中，测试用")
     @PostMapping("/CancelRoom/{roomId}")
     @ResponseBody
     public Result<String> CancelRoom(@PathVariable String roomId) {
