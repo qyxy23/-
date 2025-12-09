@@ -26,7 +26,6 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class InferenceTask {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long taskId;
@@ -45,9 +44,8 @@ public class InferenceTask {
 
     @Column(name = "target_keywords", columnDefinition = "JSON")
     @Convert(converter = ListStringConverter.class)
-    private List<String> targetKeywords = new ArrayList<>(); // 初始化空列表
+    private List<String> targetKeywords; // 移除初始化
 
-    // 修正：使用TEXT类型替代VARCHAR(255)
     @Column(name = "reasoning_goal", nullable = false, columnDefinition = "TEXT")
     private String reasoningGoal;
 
@@ -57,18 +55,18 @@ public class InferenceTask {
     @Column(name = "is_mandatory", columnDefinition = "TINYINT(1) DEFAULT 1")
     private Boolean isMandatory = true;
 
-    @Column(name = "task_order", columnDefinition = "INT DEFAULT 0")
+    @Column(name = "task_order", nullable = false)
     private Integer taskOrder = 0;
 
-    // 新增：前置线索ID列表（关键修复）
-    @Column(name = "prerequisite_fragment_ids", nullable = false, columnDefinition = "JSON")
+    // 关键修复：允许为null，在@PrePersist中初始化
+    @Column(name = "prerequisite_fragment_ids", columnDefinition = "JSON")
     @Convert(converter = ListStringConverter.class)
-    private List<String> prerequisiteFragmentIds = new ArrayList<>(); // 初始化空列表
+    private List<String> prerequisiteFragmentIds;
 
     @Column(name = "is_deleted", columnDefinition = "TINYINT(1) DEFAULT 0")
     private Boolean isDeleted = false;
 
-    @Column(name = "created_at", nullable = false, columnDefinition = "DATETIME(6)")
+    @Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "DATETIME(6)")
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at", nullable = false, columnDefinition = "DATETIME(6)")
@@ -80,7 +78,7 @@ public class InferenceTask {
         if (createdAt == null) createdAt = now;
         if (updatedAt == null) updatedAt = now;
 
-        // 确保JSON字段不为null
+        // 关键修复：在持久化前初始化集合
         if (targetKeywords == null) targetKeywords = new ArrayList<>();
         if (prerequisiteFragmentIds == null) prerequisiteFragmentIds = new ArrayList<>();
     }

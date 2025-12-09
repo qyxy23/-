@@ -1,13 +1,12 @@
 package com.guanyu.haigui.pojo.model;
 
 import com.guanyu.haigui.converter.ListDoubleConverter;
-import com.guanyu.haigui.converter.ListIntegerConverter;
 import com.guanyu.haigui.converter.ListStringConverter;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -45,16 +44,9 @@ public class ClueFragment {
     @Column(name = "inference_level", columnDefinition = "INT")
     private Integer inferenceLevel = 1;
 
-    @Column(name = "vector_hash", columnDefinition = "VARCHAR(64)")
-    private String vectorHash;
-
     @Column(name = "vector_data", columnDefinition = "JSON")
     @Convert(converter = ListDoubleConverter.class)
     private List<Double> vectorData;
-
-    @Column(name = "associated_task_ids", columnDefinition = "JSON")
-    @Convert(converter = ListIntegerConverter.class)
-    private List<Integer> associatedTaskIds;
 
     @Column(name = "difficulty", columnDefinition = "INT")
     private Integer difficulty = 2;
@@ -78,8 +70,6 @@ public class ClueFragment {
     @Column(name = "generation_source", columnDefinition = "VARCHAR(20)")
     private String generationSource = "AI";
 
-    @Column(name = "ai_analysis_confidence", columnDefinition = "DECIMAL(3,2)")
-    private Double aiAnalysisConfidence;
 
     @Column(name = "is_deleted", nullable = false, columnDefinition = "TINYINT(1)")
     private Boolean isDeleted = false;
@@ -111,42 +101,5 @@ public class ClueFragment {
         this.isDeleted = false;
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
-    }
-
-    // 片段类型枚举
-    public enum FragmentType {
-        TIME("时间"),
-        PLACE("地点"),
-        CHARACTER("人物"),
-        PLOT("情节"),
-        OBJECT("物品"),
-        TRUTH("真相");
-
-        private final String description;
-
-        FragmentType(String description) {
-            this.description = description;
-        }
-
-        public String getDescription() {
-            return description;
-        }
-    }
-
-    // 生成来源枚举
-    public enum GenerationSource {
-        AI("AI拆解"),
-        MANUAL("手动拆解"),
-        TEMPLATE("模板生成");
-
-        private final String description;
-
-        GenerationSource(String description) {
-            this.description = description;
-        }
-
-        public String getDescription() {
-            return description;
-        }
     }
 }

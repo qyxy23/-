@@ -1,5 +1,7 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
+import cn.hutool.core.io.resource.ClassPathResource;
+import cn.hutool.core.io.resource.Resource;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.guanyu.haigui.Exception.AiResponseException;
@@ -17,6 +19,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -38,6 +45,19 @@ public class ClueDecompositionService {
     @Value("${haiqutang.ai.debug-mode:false}")
     private boolean debugMode;
 
+    // 添加文件读取工具方法
+    private String readAiResponseFromFile() throws IOException {
+        Resource resource = new ClassPathResource("temp/aiResponse.txt");
+        try (InputStream inputStream = resource.getStream();
+             BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+            StringBuilder content = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                content.append(line).append("\n");
+            }
+            return content.toString();
+        }
+    }
 
     public DecompositionResult decomposeWithAIAndUserCluesAndTasks(
             HaiGuiSoup soup, List<GameClue> userClues, List<InferenceTask> userProvidedTasks
@@ -47,26 +67,32 @@ public class ClueDecompositionService {
         String soupSurface = soup.getSoupSurface();
         String soupBottom = soup.getSoupBottom();
         int difficultyLevel = soup.getDifficultyLevel().ordinal();
-        double baseFragmentCount = 8.0; // 基础线索数量
-        double lengthFactor = 0.05; // 每100字符增加的线索系数（0.05=每20字符加1条）
-        double difficultyFactor = 0.5; // 每难度级别增加的线索系数（0.5=每星加2条）
+        double baseFragmentCount = 8.0;
+        double lengthFactor = 0.05;
+        double difficultyFactor = 0.5;
         int targetFragmentCount = (int) (baseFragmentCount +
-                (soupLength / 100.0) * lengthFactor +
+                soupLength * lengthFactor +
                 difficultyLevel * difficultyFactor);
-        targetFragmentCount = Math.max(8, Math.min(targetFragmentCount, 30)); // 限制8-30条
+        targetFragmentCount = Math.max(8, Math.min(targetFragmentCount, 30));
+
         try {
-            // 生成提示词
-            String prompt = generateDecompositionPromptWithUserCluesAndTasks(
-                    soupTitle, soupSurface, soupBottom, userClues, userProvidedTasks,
-                    targetFragmentCount, difficultyLevel, soupLength
-            );
+            String aiResponse;
+            if (!debugMode) {
+                // 非调试模式：调用真实AI
+                String prompt = generateDecompositionPromptWithUserCluesAndTasks(
+                        soupTitle, soupSurface, soupBottom, userClues, userProvidedTasks,
+                        targetFragmentCount, difficultyLevel, soupLength
+                );
+                String systemPrompt = "你是专业的海龟汤分析师，请严格按照JSON格式返回拆解结果，不要包含任何额外文字。";
+                aiResponse = aiManager.doChat(systemPrompt, prompt);
+                log.info("AI返回响应长度: {}", aiResponse.length());
+            } else {
+                // 调试模式：从文件读取预存响应
+                aiResponse = readAiResponseFromFile();
+                log.info("使用预存AI响应，长度: {}", aiResponse.length());
+            }
 
-            String systemPrompt = "你是专业的海龟汤分析师，请严格按照JSON格式返回拆解结果，不要包含任何额外文字。";
-            String aiResponse = aiManager.doChat(systemPrompt, prompt);
-
-            log.info("AI返回响应长度: {}", aiResponse.length());
-
-            // 清理AI响应（移除可能的markdown格式）
+            // 清理AI响应（共用逻辑）
             String cleanedResponse = aiResponse.trim();
             if (cleanedResponse.startsWith("```json")) {
                 cleanedResponse = cleanedResponse.substring(7);
@@ -76,7 +102,7 @@ public class ClueDecompositionService {
             }
             cleanedResponse = cleanedResponse.trim();
 
-            // 解析JSON
+            // 解析JSON（共用逻辑）
             JsonNode rootNode = objectMapper.readTree(cleanedResponse);
             JsonNode fragmentsNode = rootNode.get("fragments");
             JsonNode tasksNode = rootNode.get("tasks");
@@ -85,7 +111,7 @@ public class ClueDecompositionService {
             List<ClueFragment> fragments = new ArrayList<>();
             for (JsonNode fragmentNode : fragmentsNode) {
                 ClueFragment fragment = new ClueFragment();
-                fragment.setSoupId(null); // 稍后设置
+                fragment.setSoupId(null);
                 fragment.setFragmentContent(fragmentNode.get("content").asText());
                 fragment.setFragmentType(fragmentNode.get("fragmentType").asText());
                 fragment.setInferenceLevel(fragmentNode.get("inferenceLevel").asInt());
@@ -95,12 +121,8 @@ public class ClueDecompositionService {
                 fragment.setIsCoreClue(fragmentNode.get("isCoreClue").asBoolean());
                 fragment.setFragmentOrder(fragmentNode.get("fragmentOrder").asInt());
                 fragment.setGenerationSource(fragmentNode.get("generationSource").asText());
-                fragment.setVectorData(new ArrayList<>()); // 空数组
-
-                // 解析JSON数组字段
+                fragment.setVectorData(new ArrayList<>());
                 fragment.setTriggerKeywords(parseJsonStringArray(fragmentNode.get("triggerKeywords")));
-                fragment.setAssociatedTaskIds(parseJsonIntArray(fragmentNode.get("associatedTaskIds")));
-
                 fragments.add(fragment);
             }
 
@@ -117,16 +139,15 @@ public class ClueDecompositionService {
                 task.put("isMandatory", taskNode.get("isMandatory").asBoolean());
                 task.put("taskOrder", taskNode.get("taskOrder").asInt());
                 task.put("prerequisiteFragmentIds", parseJsonIntArray(taskNode.get("prerequisiteFragmentIds")));
-
                 tasks.add(task);
             }
 
-            log.info("成功解析AI响应：{}个线索片段，{}个任务", fragments.size(), tasks.size());
+            log.info("成功解析响应：{}个线索片段，{}个任务", fragments.size(), tasks.size());
             return new DecompositionResult(fragments, tasks);
 
         } catch (Exception e) {
-            log.error("AI拆解失败", e);
-            throw new AiResponseException("AI拆解失败");
+            log.error("拆解失败", e);
+            throw new AiResponseException("拆解失败");
         }
     }
 
@@ -294,35 +315,6 @@ public class ClueDecompositionService {
 
 
     /**
-     * 转换AI响应为ClueFragment对象
-     */
-    @SuppressWarnings("unchecked")
-    private ClueFragment mapToClueFragment(Map<String, Object> data) {
-        ClueFragment fragment = new ClueFragment();
-        fragment.setFragmentContent((String) data.get("content"));
-        fragment.setFragmentType((String) data.get("fragmentType"));
-        fragment.setInferenceLevel((Integer) data.get("inferenceLevel"));
-        fragment.setTriggerKeywords((List<String>) data.get("keywords"));
-        fragment.setIsCoreClue((Boolean) data.getOrDefault("isCoreClue", false));
-        fragment.setSimilarityThreshold(((Number) data.getOrDefault("similarityThreshold", 0.7)).doubleValue());
-
-        // 根据推理层次设置默认的任务关联
-        Integer inferenceLevel = (Integer) data.get("inferenceLevel");
-        List<Integer> defaultTaskIds = getDefaultTaskIdsForInferenceLevel(inferenceLevel);
-
-        fragment.setAssociatedTaskIds((List<Integer>) data.getOrDefault("associatedTaskIds", defaultTaskIds));
-        fragment.setFragmentOrder((Integer) data.getOrDefault("order", 0));
-        fragment.setGenerationSource("AI");
-        fragment.setAiAnalysisConfidence(0.9);
-        fragment.setIsDeleted(false);
-
-        // 临时设置fragmentId为0，表示这是新对象，JPA保存后会自动生成ID
-        fragment.setFragmentId(0L);
-
-        return fragment;
-    }
-
-    /**
      * 根据推理层次获取默认的任务关联ID
      */
     private List<Integer> getDefaultTaskIdsForInferenceLevel(Integer inferenceLevel) {
@@ -360,7 +352,6 @@ public class ClueDecompositionService {
         fragment.setTriggerKeywords((List<String>) data.get("keywords"));
         fragment.setIsCoreClue((Boolean) data.getOrDefault("isCoreClue", false));
         fragment.setSimilarityThreshold(((Number) data.getOrDefault("similarityThreshold", 0.7)).doubleValue());
-        fragment.setAssociatedTaskIds((List<Integer>) data.getOrDefault("associatedTaskIds", new ArrayList<>()));
         fragment.setFragmentOrder((Integer) data.getOrDefault("order", 0));
 
         // 设置增强的属性
@@ -369,7 +360,6 @@ public class ClueDecompositionService {
 
         String source = (String) data.getOrDefault("source", "AI");
         fragment.setGenerationSource(source);
-        fragment.setAiAnalysisConfidence("AUGMENTED_USER".equals(source) ? 0.95 : 0.9);
         fragment.setIsDeleted(false);
 
         // 临时设置fragmentId为0，表示这是新对象，JPA保存后会自动生成ID
@@ -399,7 +389,6 @@ public class ClueDecompositionService {
                 String vectorHash = generateVectorHash(vector);
 
                 fragment.setVectorData(vector);
-                fragment.setVectorHash(vectorHash);
 
                 log.debug("为片段生成向量完成: {}", fragment.getFragmentContent());
 
@@ -407,7 +396,6 @@ public class ClueDecompositionService {
                 log.error("为片段生成向量失败: {}", fragment.getFragmentContent(), e);
                 // 生成空向量避免中断
                 fragment.setVectorData(new ArrayList<>());
-                fragment.setVectorHash("");
             }
         }
     }
@@ -474,7 +462,6 @@ public class ClueDecompositionService {
             fragment.setFragmentOrder(i);
             fragment.setTriggerKeywords(Arrays.asList(clue.getContent().split(" ")));
             fragment.setGenerationSource("USER_BASIC");
-            fragment.setAiAnalysisConfidence(0.5); // 基本分析的置信度较低
 
             // 基本分析设置默认值
             if (clue.getIsKey()) {
@@ -487,7 +474,6 @@ public class ClueDecompositionService {
             }
 
             fragment.setSimilarityThreshold(0.7); // 默认相似度阈值
-            fragment.setAssociatedTaskIds(List.of(1)); // 默认关联第一个推理任务
 
             fragments.add(fragment);
         }
@@ -576,7 +562,7 @@ public class ClueDecompositionService {
         };
         double difficultyCoefficient = difficultyLevel == 1 ? 1.0 : difficultyLevel == 2 ? 1.2 : 1.4;
 
-        // 4. 生成详细的提示词
+        // 4. 生成修改后的提示词（移除了associatedTaskIds和vectorData）
         return String.format("""
 你是专业的海龟汤分析师，请按以下要求拆解汤底并分析用户线索。**请严格按照指定的JSON格式返回结果**。
 
@@ -607,8 +593,6 @@ public class ClueDecompositionService {
    - fragmentOrder: 片段顺序（唯一整数ID，从1开始）
    - generationSource: 生成来源（"AI"）
    - triggerKeywords: 触发关键词数组（如["时间","夜晚"]）
-   - associatedTaskIds: 关联任务ID数组（如[1,2]）
-   - vectorData: 向量数据（暂时为空数组[]）
 
 3. 每个推理任务必须包含以下字段（与数据库表hai_gui_soup_inference_task对应）：
    - taskName: 任务名称（字符串）
@@ -636,9 +620,7 @@ public class ClueDecompositionService {
       "isCoreClue": false,
       "fragmentOrder": 1,
       "generationSource": "AI",
-      "triggerKeywords": ["关键词1", "关键词2"],
-      "associatedTaskIds": [1, 2],
-      "vectorData": []
+      "triggerKeywords": ["关键词1", "关键词2"]
     }
   ],
   "tasks": [
@@ -662,6 +644,7 @@ public class ClueDecompositionService {
 - prerequisiteFragmentIds使用fragmentOrder的值作为ID
 - 所有字段名必须与上述格式完全一致
 - 返回纯JSON，不要加任何说明文字
+- 线索片段中不要包含associatedTaskIds和vectorData字段
 """,
                 soupTitle, soupSurface, soupBottom, soupLength, difficultyDesc,
                 targetFragmentCount, soupLength, difficultyCoefficient,
@@ -748,14 +731,10 @@ public class ClueDecompositionService {
         fragment.setSimilarityThreshold(threshold);
 
         // 根据推理层次设置默认的任务关联
-        List<Integer> defaultTaskIds = getDefaultTaskIdsForInferenceLevel(level);
-        fragment.setAssociatedTaskIds(defaultTaskIds);
 
         fragment.setFragmentOrder(0);
         fragment.setGenerationSource("FALLBACK");
-        fragment.setAiAnalysisConfidence(0.5);
         fragment.setVectorData(new ArrayList<>());
-        fragment.setVectorHash("");
         fragment.setIsDeleted(false);
         return fragment;
     }
