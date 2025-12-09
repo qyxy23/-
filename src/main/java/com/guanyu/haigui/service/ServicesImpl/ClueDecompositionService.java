@@ -559,7 +559,7 @@ public class ClueDecompositionService {
         };
         double difficultyCoefficient = difficultyLevel == 1 ? 1.0 : difficultyLevel == 2 ? 1.2 : 1.4;
 
-        // 4. 生成修改后的提示词（移除了associatedTaskIds和vectorData）
+        // 4. 生成修改后的提示词（支持任务独立解锁）
         return String.format("""
 你是专业的海龟汤分析师，请按以下要求拆解汤底并分析用户线索。**请严格按照指定的JSON格式返回结果**。
 
@@ -579,7 +579,8 @@ public class ClueDecompositionService {
 
 === 拆解要求 ===
 1. 线索数量：严格控制在%d±2条范围内
-2. 每个线索片段必须包含以下字段（与数据库表hai_gui_soup_clue_fragment对应）：
+2. 任务数量：严格控制在3-5个（根据汤底复杂度合理分配）
+3. 每个线索片段必须包含以下字段（与数据库表hai_gui_soup_clue_fragment对应）：
    - content: 线索内容（字符串，最多500字符）
    - fragmentType: 片段类型（TIME/PLACE/CHARACTER/PLOT/OBJECT/TRUTH）
    - inferenceLevel: 推理深度（1-4）
@@ -591,16 +592,21 @@ public class ClueDecompositionService {
    - generationSource: 生成来源（"AI"）
    - triggerKeywords: 触发关键词数组（如["时间","夜晚"]）
 
-3. 每个推理任务必须包含以下字段（与数据库表hai_gui_soup_inference_task对应）：
+4. 每个推理任务必须包含以下字段（与数据库表hai_gui_soup_inference_task对应）：
    - taskName: 任务名称（字符串）
    - taskDescription: 任务描述（字符串）
    - understandingLevel: 理解层次（1-4）
    - targetKeywords: 目标关键词数组（如["时间异常","身份替换"]）
    - reasoningGoal: 推理目标（字符串）
-   - progressWeight: 进度权重（数字，如30.0）
+   - progressWeight: 进度权重（数字，**所有任务权重总和必须为100**）
    - isMandatory: 是否必做（true/false，默认true）
    - taskOrder: 任务顺序（唯一整数ID）
-   - prerequisiteFragmentIds: 前置线索ID数组（用fragmentOrder作为ID，如[1,3]）
+   - prerequisiteFragmentIds: 前置线索ID数组（**必须填写**，用fragmentOrder作为ID，如[1,3]）
+
+=== 任务解锁规则 ===
+- **任务之间相互独立**：玩家可以自由探索线索，无需按顺序完成任务
+- **任务解锁条件**：只需获得该任务指定的前置线索（prerequisiteFragmentIds）即可解锁
+- **示例**：任务B只需线索3和5，即使任务A未完成也可解锁
 
 === 输出格式要求 ===
 请返回严格的JSON格式，**不要包含任何其他文字**：
@@ -638,15 +644,19 @@ public class ClueDecompositionService {
 === 重要提醒 ===
 - fragmentOrder在fragments中必须唯一（1,2,3...）
 - taskOrder在tasks中必须唯一（1,2,3...）
-- prerequisiteFragmentIds使用fragmentOrder的值作为ID
+- **prerequisiteFragmentIds必须填写，不可省略**
+- **每个任务只需依赖特定线索，不依赖其他任务**
+- **任务之间相互独立，玩家可自由探索**
+- **任务数量严格控制在3-5个**
+- **所有任务的progressWeight总和必须为100**
 - 所有字段名必须与上述格式完全一致
 - 返回纯JSON，不要加任何说明文字
-- 线索片段中不要包含associatedTaskIds和vectorData字段
+- **前置线索ID必须使用fragmentOrder的值**
 """,
                 soupTitle, soupSurface, soupBottom, soupLength, difficultyDesc,
                 targetFragmentCount, soupLength, difficultyCoefficient,
                 (soupLength/100.0) * difficultyCoefficient, targetFragmentCount,
-                userCluesText.toString(), userTasksText.toString(),
+                userCluesText, userTasksText,
                 targetFragmentCount);
     }
 

@@ -1,202 +1,158 @@
 {
   "fragments": [
     {
-      "content": "古董画消失时博物馆的安保情况正常",
-      "fragmentType": "PLACE",
-      "inferenceLevel": 1,
-      "difficulty": 2,
-      "importance": 5,
-      "similarityThreshold": 0.7,
-      "isCoreClue": false,
-      "fragmentOrder": 1,
-      "generationSource": "AI",
-      "triggerKeywords": ["古董画消失", "安保情况"]
-    },
-    {
-      "content": "盗窃团伙成员混入了博物馆工作人员中",
+      "content": "博物馆近期经历了管理层的重大变动",
       "fragmentType": "CHARACTER",
       "inferenceLevel": 2,
       "difficulty": 3,
       "importance": 6,
       "similarityThreshold": 0.7,
-      "isCoreClue": true,
-      "fragmentOrder": 2,
+      "isCoreClue": false,
+      "fragmentOrder": 1,
       "generationSource": "AI",
-      "triggerKeywords": ["盗窃团伙", "混入", "工作人员"]
+      "triggerKeywords": ["博物馆", "管理层变动"]
     },
     {
-      "content": "赝品是提前就被放入博物馆的",
-      "fragmentType": "OBJECT",
+      "content": "展览期间，博物馆的安保系统曾出现短暂故障",
+      "fragmentType": "PLACE",
       "inferenceLevel": 2,
       "difficulty": 3,
       "importance": 6,
       "similarityThreshold": 0.7,
-      "isCoreClue": true,
-      "fragmentOrder": 3,
+      "isCoreClue": false,
+      "fragmentOrder": 2,
       "generationSource": "AI",
-      "triggerKeywords": ["赝品", "提前", "放入博物馆"]
+      "triggerKeywords": ["展览期间", "安保系统故障"]
     },
     {
-      "content": "博物馆当天的客流量比平时多",
+      "content": "古董画的消失时间是在深夜闭馆后",
       "fragmentType": "TIME",
       "inferenceLevel": 1,
       "difficulty": 2,
       "importance": 5,
       "similarityThreshold": 0.7,
       "isCoreClue": false,
-      "fragmentOrder": 4,
+      "fragmentOrder": 3,
       "generationSource": "AI",
-      "triggerKeywords": ["博物馆", "客流量", "当天"]
+      "triggerKeywords": ["深夜", "闭馆后"]
     },
     {
-      "content": "博物馆的监控系统在古董画消失时出现了短暂故障",
-      "fragmentType": "PLACE",
+      "content": "负责安保的人员有部分是新来的",
+      "fragmentType": "CHARACTER",
       "inferenceLevel": 2,
       "difficulty": 3,
       "importance": 6,
       "similarityThreshold": 0.7,
-      "isCoreClue": true,
-      "fragmentOrder": 5,
+      "isCoreClue": false,
+      "fragmentOrder": 4,
       "generationSource": "AI",
-      "triggerKeywords": ["监控系统", "古董画消失", "故障"]
+      "triggerKeywords": ["安保人员", "新来"]
     },
     {
-      "content": "盗窃团伙制造了其他混乱场景来配合古董画的消失",
+      "content": "展览当天，有几位神秘的参观者在画前停留时间较长",
+      "fragmentType": "CHARACTER",
+      "inferenceLevel": 2,
+      "difficulty": 3,
+      "importance": 6,
+      "similarityThreshold": 0.7,
+      "isCoreClue": false,
+      "fragmentOrder": 5,
+      "generationSource": "AI",
+      "triggerKeywords": ["展览当天", "神秘参观者"]
+    },
+    {
+      "content": "博物馆的监控录像在古董画消失的时间段内有部分缺失",
+      "fragmentType": "OBJECT",
+      "inferenceLevel": 2,
+      "difficulty": 3,
+      "importance": 6,
+      "similarityThreshold": 0.7,
+      "isCoreClue": false,
+      "fragmentOrder": 6,
+      "generationSource": "AI",
+      "triggerKeywords": ["监控录像", "缺失"]
+    },
+    {
+      "content": "盗窃团伙中有成员擅长制作赝品",
+      "fragmentType": "CHARACTER",
+      "inferenceLevel": 3,
+      "difficulty": 4,
+      "importance": 7,
+      "similarityThreshold": 0.7,
+      "isCoreClue": true,
+      "fragmentOrder": 7,
+      "generationSource": "AI",
+      "triggerKeywords": ["盗窃团伙", "制作赝品"]
+    },
+    {
+      "content": "古董画的保险金额极高",
       "fragmentType": "PLOT",
       "inferenceLevel": 3,
       "difficulty": 4,
       "importance": 7,
       "similarityThreshold": 0.7,
       "isCoreClue": true,
-      "fragmentOrder": 6,
+      "fragmentOrder": 8,
       "generationSource": "AI",
-      "triggerKeywords": ["盗窃团伙", "混乱场景", "配合消失"]
+      "triggerKeywords": ["古董画", "保险金额"]
     },
     {
-      "content": "博物馆的馆长与盗窃团伙有勾结",
-      "fragmentType": "CHARACTER",
-      "inferenceLevel": 3,
-      "difficulty": 4,
-      "importance": 8,
-      "similarityThreshold": 0.7,
-      "isCoreClue": true,
-      "fragmentOrder": 7,
-      "generationSource": "AI",
-      "triggerKeywords": ["馆长", "盗窃团伙", "勾结"]
-    },
-    {
-      "content": "盗窃团伙计划将赝品出售给特定买家",
+      "content": "博物馆在古董画消失后收到了一封匿名信，要求支付赎金",
       "fragmentType": "PLOT",
       "inferenceLevel": 3,
       "difficulty": 4,
-      "importance": 8,
-      "similarityThreshold": 0.7,
-      "isCoreClue": true,
-      "fragmentOrder": 8,
-      "generationSource": "AI",
-      "triggerKeywords": ["盗窃团伙", "赝品", "出售", "买家"]
-    },
-    {
-      "content": "真正的古董画被藏在了博物馆的某个秘密地点",
-      "fragmentType": "PLACE",
-      "inferenceLevel": 4,
-      "difficulty": 5,
-      "importance": 9,
+      "importance": 7,
       "similarityThreshold": 0.7,
       "isCoreClue": true,
       "fragmentOrder": 9,
       "generationSource": "AI",
-      "triggerKeywords": ["真正古董画", "秘密地点", "博物馆"]
+      "triggerKeywords": ["匿名信", "赎金"]
     }
   ],
   "tasks": [
     {
-      "taskName": "调查古董画消失时的安保情况",
-      "taskDescription": "深入了解古董画消失时博物馆的安保细节，包括人员巡逻、门禁系统等情况",
-      "understandingLevel": 1,
-      "targetKeywords": ["安保情况", "人员巡逻", "门禁系统"],
-      "reasoningGoal": "确定安保是否存在漏洞或异常",
-      "progressWeight": 10.0,
+      "taskName": "调查博物馆管理层变动的原因",
+      "taskDescription": "了解博物馆近期管理层变动的具体情况和原因，分析是否与古董画失踪有关",
+      "understandingLevel": 2,
+      "targetKeywords": ["管理层变动", "关联分析"],
+      "reasoningGoal": "找出管理层变动与古董画失踪之间可能存在的联系",
+      "progressWeight": 20.0,
       "isMandatory": true,
       "taskOrder": 1,
       "prerequisiteFragmentIds": [1]
     },
     {
-      "taskName": "排查博物馆工作人员",
-      "taskDescription": "对博物馆所有工作人员进行背景调查和近期行为分析，找出可能与盗窃团伙有关的人员",
+      "taskName": "调查安保系统故障的情况",
+      "taskDescription": "深入调查安保系统故障的原因、时间和影响范围，判断是否为古董画失踪提供了便利",
       "understandingLevel": 2,
-      "targetKeywords": ["工作人员", "背景调查", "行为分析"],
-      "reasoningGoal": "确定是否有工作人员参与盗窃计划",
+      "targetKeywords": ["安保系统故障", "便利条件"],
+      "reasoningGoal": "确定安保系统故障与古董画失踪之间的关联",
       "progressWeight": 20.0,
       "isMandatory": true,
       "taskOrder": 2,
-      "prerequisiteFragmentIds": [1]
-    },
-    {
-      "taskName": "追踪赝品的来源",
-      "taskDescription": "调查赝品是如何被制作以及提前放入博物馆的过程，找出相关线索和人员",
-      "understandingLevel": 2,
-      "targetKeywords": ["赝品来源", "制作过程", "放入博物馆"],
-      "reasoningGoal": "了解赝品的准备情况和相关人员",
-      "progressWeight": 20.0,
-      "isMandatory": true,
-      "taskOrder": 3,
       "prerequisiteFragmentIds": [2]
     },
     {
-      "taskName": "分析监控系统故障原因",
-      "taskDescription": "检查博物馆监控系统在古董画消失时出现故障的具体原因，判断是否为人为操作",
+      "taskName": "分析神秘参观者的身份和行为",
+      "taskDescription": "对展览当天在古董画前停留时间较长的神秘参观者进行身份调查和行为分析，判断他们是否与古董画失踪有关",
       "understandingLevel": 2,
-      "targetKeywords": ["监控系统故障", "人为操作"],
-      "reasoningGoal": "确定监控系统故障与古董画消失的关联",
+      "targetKeywords": ["神秘参观者", "身份调查", "行为分析"],
+      "reasoningGoal": "找出神秘参观者与古董画失踪之间的潜在联系",
       "progressWeight": 20.0,
       "isMandatory": true,
-      "taskOrder": 4,
-      "prerequisiteFragmentIds": [3]
+      "taskOrder": 3,
+      "prerequisiteFragmentIds": [5]
     },
     {
-      "taskName": "调查混乱场景的制造者",
-      "taskDescription": "查明盗窃团伙制造的其他混乱场景是如何实施的，以及背后的策划者",
+      "taskName": "破解匿名信的来源和意图",
+      "taskDescription": "对博物馆收到的匿名信进行分析，尝试破解其来源和意图，判断是否与盗窃团伙有关",
       "understandingLevel": 3,
-      "targetKeywords": ["混乱场景", "实施方式", "策划者"],
-      "reasoningGoal": "了解盗窃团伙的作案手法和配合方式",
-      "progressWeight": 20.0,
-      "isMandatory": true,
-      "taskOrder": 5,
-      "prerequisiteFragmentIds": [4, 5]
-    },
-    {
-      "taskName": "调查馆长的可疑行为",
-      "taskDescription": "对博物馆馆长进行详细调查，包括其近期的财务状况、社交活动等，判断是否与盗窃团伙有勾结",
-      "understandingLevel": 3,
-      "targetKeywords": ["馆长", "财务状况", "社交活动", "勾结"],
-      "reasoningGoal": "确定馆长是否参与盗窃案",
-      "progressWeight": 30.0,
-      "isMandatory": true,
-      "taskOrder": 6,
-      "prerequisiteFragmentIds": [6]
-    },
-    {
-      "taskName": "追踪赝品的去向",
-      "taskDescription": "寻找盗窃团伙计划将赝品出售的特定买家，了解交易的时间、地点和方式",
-      "understandingLevel": 3,
-      "targetKeywords": ["赝品去向", "买家", "交易时间", "交易地点", "交易方式"],
-      "reasoningGoal": "掌握赝品的后续流向和相关交易信息",
-      "progressWeight": 30.0,
-      "isMandatory": true,
-      "taskOrder": 7,
-      "prerequisiteFragmentIds": [7]
-    },
-    {
-      "taskName": "寻找真正古董画的藏匿地点",
-      "taskDescription": "根据已掌握的线索，在博物馆内寻找真正古董画被藏匿的秘密地点",
-      "understandingLevel": 4,
-      "targetKeywords": ["真正古董画", "藏匿地点"],
-      "reasoningGoal": "找回真正的古董画",
+      "targetKeywords": ["匿名信", "来源破解", "意图分析"],
+      "reasoningGoal": "确定匿名信与古董画失踪以及盗窃团伙之间的关系",
       "progressWeight": 40.0,
       "isMandatory": true,
-      "taskOrder": 8,
-      "prerequisiteFragmentIds": [8]
+      "taskOrder": 4,
+      "prerequisiteFragmentIds": [9]
     }
   ]
 }

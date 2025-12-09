@@ -1,5 +1,7 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.gson.Gson;
@@ -529,59 +531,133 @@ public class TurtleSoupService {
         }
 
         try {
-            // 尝试解析为JSON
-            Object progressSettingsObj = objectMapper.readValue(progressSettingsInput, Object.class);
+            ObjectMapper objectMapper = new ObjectMapper();
+            JsonNode rootNode = objectMapper.readTree(progressSettingsInput);
 
-            // 如果是数组，直接解析为任务列表
-            if (progressSettingsObj instanceof List) {
-                List<Map<String, Object>> tasksData = (List<Map<String, Object>>) progressSettingsObj;
-                List<InferenceTask> tasks = new ArrayList<>();
-
-                for (Map<String, Object> taskData : tasksData) {
-                    try {
-                        String taskName = (String) taskData.getOrDefault("taskName", "未知任务");
-                        String description = (String) taskData.getOrDefault("description", "");
-                        Integer understandingLevel = (Integer) taskData.getOrDefault("understandingLevel", 1);
-                        String reasoningGoal = (String) taskData.getOrDefault("reasoningGoal", "");
-                        Double progressWeight = ((Number) taskData.getOrDefault("progressWeight", 30.0)).doubleValue();
-                        Boolean isMandatory = (Boolean) taskData.getOrDefault("isMandatory", true);
-                        Integer taskOrder = (Integer) taskData.getOrDefault("taskOrder", tasks.size() + 1);
-                        List<String> targetKeywords = (List<String>) taskData.getOrDefault("targetKeywords", new ArrayList<>());
-
-                        InferenceTask task = new InferenceTask();
-                        task.setTaskName(taskName);
-                        task.setTaskDescription(description);
-                        task.setUnderstandingLevel(understandingLevel);
-                        task.setReasoningGoal(reasoningGoal);
-                        task.setProgressWeight(progressWeight);
-                        task.setIsMandatory(isMandatory);
-                        task.setTaskOrder(taskOrder);
-                        task.setTargetKeywords(targetKeywords);
-                        task.setIsDeleted(false);
-
-                        tasks.add(task);
-
-                        log.debug("解析用户任务: taskName={}, taskOrder={}, isMandatory={}",
-                            taskName, taskOrder, isMandatory);
-
-                    } catch (Exception e) {
-                        log.warn("解析单个用户任务失败", e);
-                    }
+            // 情况1：直接是任务数组
+            if (rootNode.isArray()) {
+                return parseTaskArray(rootNode);
+            }
+            // 情况2：包含customTasks字段的对象
+            else if (rootNode.isObject()) {
+                JsonNode customTasksNode = rootNode.path("customTasks");
+                if (customTasksNode.isArray() && !customTasksNode.isEmpty()) {
+                    return parseTaskArray(customTasksNode);
                 }
 
-                log.info("成功解析{}个用户提供的推理任务", tasks.size());
-                return tasks;
-
-            } else {
-                // 如果是其他格式，暂时忽略
-                log.debug("progressSettings不是任务列表格式，忽略: {}", progressSettingsInput);
-                return new ArrayList<>();
+                // 情况3：顶层就是任务对象（兼容旧格式）
+                if (rootNode.has("taskName")) {
+                    return parseSingleTask(rootNode);
+                }
             }
 
+            log.warn("无法识别的任务格式: {}", progressSettingsInput);
+            return new ArrayList<>();
+
         } catch (Exception e) {
-            log.warn("解析用户提供的推理任务失败: {}", progressSettingsInput, e);
-            throw new BusinessException(500, "解析用户提供的推理任务失败");
+            log.error("解析用户提供的推理任务失败: {}", progressSettingsInput, e);
+            throw new BusinessException(500, "解析用户提供的推理任务失败: " + e.getMessage());
         }
+    }
+
+    // 解析任务数组
+    private List<InferenceTask> parseTaskArray(JsonNode arrayNode) throws JsonProcessingException {
+        List<InferenceTask> tasks = new ArrayList<>();
+
+        for (JsonNode taskNode : arrayNode) {
+            if (taskNode.isObject()) {
+                InferenceTask task = parseTaskObject(taskNode);
+                if (task != null) {
+                    tasks.add(task);
+                }
+            }
+        }
+
+        log.info("成功解析{}个用户提供的推理任务", tasks.size());
+        return tasks;
+    }
+
+    // 解析单个任务对象
+    private InferenceTask parseTaskObject(JsonNode taskNode) {
+        try {
+            InferenceTask task = new InferenceTask();
+
+            // 必需字段
+            task.setTaskName(getTextValue(taskNode, "taskName", "未知任务"));
+            task.setTaskDescription(getTextValue(taskNode, "description", ""));
+
+            // 数值字段
+            task.setUnderstandingLevel(getIntValue(taskNode, "understandingLevel", 1));
+            task.setProgressWeight(getDoubleValue(taskNode, "progressWeight", 30.0));
+            task.setTaskOrder(getIntValue(taskNode, "taskOrder", 1));
+
+            // 布尔字段
+            task.setIsMandatory(getBoolValue(taskNode, "isMandatory", true));
+
+            // 目标关键词
+            JsonNode keywordsNode = taskNode.path("targetKeywords");
+            if (keywordsNode.isArray() && keywordsNode.size() > 0) {
+                List<String> keywords = new ArrayList<>();
+                for (JsonNode keyword : keywordsNode) {
+                    if (keyword.isTextual()) {
+                        keywords.add(keyword.asText());
+                    }
+                }
+                task.setTargetKeywords(keywords);
+            } else {
+                task.setTargetKeywords(new ArrayList<>());
+            }
+
+            // 推理目标
+            task.setReasoningGoal(getTextValue(taskNode, "reasoningGoal", ""));
+
+            // 其他字段
+            task.setIsDeleted(false);
+
+            log.debug("解析用户任务: taskName={}, taskOrder={}, isMandatory={}",
+                    task.getTaskName(), task.getTaskOrder(), task.getIsMandatory());
+
+            return task;
+        } catch (Exception e) {
+            log.warn("解析单个任务失败: {}", taskNode, e);
+            return null;
+        }
+    }
+
+    // 解析单个任务（顶层对象）
+    private List<InferenceTask> parseSingleTask(JsonNode taskNode) {
+        InferenceTask task = parseTaskObject(taskNode);
+        if (task != null) {
+            log.info("成功解析1个用户提供的推理任务");
+            return Collections.singletonList(task);
+        }
+        return new ArrayList<>();
+    }
+
+    // 辅助方法：安全获取文本值
+    private String getTextValue(JsonNode node, String field, String defaultValue) {
+        JsonNode valueNode = node.path(field);
+        return valueNode.isTextual() ? valueNode.asText() : defaultValue;
+    }
+
+    // 辅助方法：安全获取整型值
+    private int getIntValue(JsonNode node, String field, int defaultValue) {
+        JsonNode valueNode = node.path(field);
+        return valueNode.isInt() ? valueNode.asInt() : defaultValue;
+    }
+
+    // 辅助方法：安全获取浮点值
+    private double getDoubleValue(JsonNode node, String field, double defaultValue) {
+        JsonNode valueNode = node.path(field);
+        if (valueNode.isDouble()) return valueNode.asDouble();
+        if (valueNode.isInt()) return valueNode.asInt();
+        return defaultValue;
+    }
+
+    // 辅助方法：安全获取布尔值
+    private boolean getBoolValue(JsonNode node, String field, boolean defaultValue) {
+        JsonNode valueNode = node.path(field);
+        return valueNode.isBoolean() ? valueNode.asBoolean() : defaultValue;
     }
 
     public String uploadHaiGuiSoupAvatar(MultipartFile avatarFile, String soupId) {
