@@ -46,7 +46,7 @@ public class ClueFragment {
 
     @Column(name = "vector_data", columnDefinition = "JSON")
     @Convert(converter = ListDoubleConverter.class)
-    private List<Double> vectorData;
+    private List<Float> vectorData;
 
     @Column(name = "difficulty", columnDefinition = "INT")
     private Integer difficulty = 2;

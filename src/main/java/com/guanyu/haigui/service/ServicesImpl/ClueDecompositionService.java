@@ -380,13 +380,10 @@ public class ClueDecompositionService {
 
                 // 调用BGE向量服务
                 SingleEncodeResponse response = BgeVectorClientUtil.encodeSingle(vectorText);
-                List<Double> vector = response.getEmbeddings().get(0)
-                        .stream()
-                        .map(Float::doubleValue)
-                        .collect(java.util.stream.Collectors.toList());
+                List<Float> vector = response.getEmbeddings().get(0);
 
                 // 生成向量哈希
-                String vectorHash = generateVectorHash(vector);
+                // String vectorHash = generateVectorHash(vector);
 
                 fragment.setVectorData(vector);
 

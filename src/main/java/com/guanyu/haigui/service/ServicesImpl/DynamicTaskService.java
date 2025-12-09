@@ -235,12 +235,9 @@ public class DynamicTaskService {
         fragment.setTriggerKeywords(Arrays.asList(content.split(" ")));
         fragment.setIsCoreClue(level >= 3);
         fragment.setSimilarityThreshold(0.7);
-        fragment.setAssociatedTaskIds(new ArrayList<>());
         fragment.setFragmentOrder(0);
         fragment.setGenerationSource("FALLBACK");
-        fragment.setAiAnalysisConfidence(0.5);
         fragment.setVectorData(new ArrayList<>());
-        fragment.setVectorHash("");
         return fragment;
     }
 

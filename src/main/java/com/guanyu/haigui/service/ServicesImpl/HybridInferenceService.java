@@ -2,16 +2,19 @@ package com.guanyu.haigui.service.ServicesImpl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.guanyu.haigui.manager.AIManager;
-import com.guanyu.haigui.pojo.dto.TurtleSoupEnhanceDTO;
-import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
 import com.guanyu.haigui.pojo.model.ClueFragment;
+import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.security.MessageDigest;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -104,11 +107,8 @@ public class HybridInferenceService {
     private VectorMatchResult performVectorMatching(String question, List<ClueFragment> fragments) {
         try {
             // 生成问题向量
-            SingleEncodeResponse response = vectorClient.encodeSingle(question);
-            List<Double> questionVector = response.getEmbeddings().get(0)
-                    .stream()
-                    .map(Float::doubleValue)
-                    .collect(java.util.stream.Collectors.toList());
+            SingleEncodeResponse response = BgeVectorClientUtil.encodeSingle(question);
+            List<Float> questionVector = response.getEmbeddings().get(0);
 
             // 计算与每个片段的相似度
             List<FragmentMatch> matches = new ArrayList<>();
@@ -304,7 +304,7 @@ public class HybridInferenceService {
     /**
      * 计算余弦相似度
      */
-    private double calculateCosineSimilarity(List<Double> vec1, List<Double> vec2) {
+    private double calculateCosineSimilarity(List<Float> vec1, List<Float> vec2) {
         if (vec1.size() != vec2.size()) {
             return 0.0;
         }
@@ -372,39 +372,21 @@ public class HybridInferenceService {
     }
 
     // 内部数据类
-
+    @Data
     public static class VectorMatchResult {
-        private List<Double> questionVector;
+        private List<Float> questionVector;
         private List<FragmentMatch> matches;
         private int totalMatches;
-
-        // Getters and Setters
-        public List<Double> getQuestionVector() { return questionVector; }
-        public void setQuestionVector(List<Double> questionVector) { this.questionVector = questionVector; }
-
-        public List<FragmentMatch> getMatches() { return matches; }
-        public void setMatches(List<FragmentMatch> matches) { this.matches = matches; }
-
-        public int getTotalMatches() { return totalMatches; }
-        public void setTotalMatches(int totalMatches) { this.totalMatches = totalMatches; }
     }
 
+    @Data
     public static class FragmentMatch {
         private ClueFragment fragment;
         private double similarity;
         private double threshold;
-
-        // Getters and Setters
-        public ClueFragment getFragment() { return fragment; }
-        public void setFragment(ClueFragment fragment) { this.fragment = fragment; }
-
-        public double getSimilarity() { return similarity; }
-        public void setSimilarity(double similarity) { this.similarity = similarity; }
-
-        public double getThreshold() { return threshold; }
-        public void setThreshold(double threshold) { this.threshold = threshold; }
     }
 
+    @Data
     public static class AIJudgmentResult {
         private String prompt;
         private String response;
@@ -412,27 +394,9 @@ public class HybridInferenceService {
         private double overallUnderstanding;
         private List<String> keyInsights;
         private String recommendation;
-
-        // Getters and Setters
-        public String getPrompt() { return prompt; }
-        public void setPrompt(String prompt) { this.prompt = prompt; }
-
-        public String getResponse() { return response; }
-        public void setResponse(String response) { this.response = response; }
-
-        public List<Map<String, Object>> getTaskProgresses() { return taskProgresses; }
-        public void setTaskProgresses(List<Map<String, Object>> taskProgresses) { this.taskProgresses = taskProgresses; }
-
-        public double getOverallUnderstanding() { return overallUnderstanding; }
-        public void setOverallUnderstanding(double overallUnderstanding) { this.overallUnderstanding = overallUnderstanding; }
-
-        public List<String> getKeyInsights() { return keyInsights; }
-        public void setKeyInsights(List<String> keyInsights) { this.keyInsights = keyInsights; }
-
-        public String getRecommendation() { return recommendation; }
-        public void setRecommendation(String recommendation) { this.recommendation = recommendation; }
     }
 
+    @Data
     public static class InferenceResult {
         private String question;
         private VectorMatchResult vectorMatchResult;
@@ -445,39 +409,5 @@ public class HybridInferenceService {
         private boolean error;
         private String errorMessage;
         private long timestamp;
-
-        // Getters and Setters
-        public String getQuestion() { return question; }
-        public void setQuestion(String question) { this.question = question; }
-
-        public VectorMatchResult getVectorMatchResult() { return vectorMatchResult; }
-        public void setVectorMatchResult(VectorMatchResult vectorMatchResult) { this.vectorMatchResult = vectorMatchResult; }
-
-        public AIJudgmentResult getAiJudgmentResult() { return aiJudgmentResult; }
-        public void setAiJudgmentResult(AIJudgmentResult aiJudgmentResult) { this.aiJudgmentResult = aiJudgmentResult; }
-
-        public String getUserResponse() { return userResponse; }
-        public void setUserResponse(String userResponse) { this.userResponse = userResponse; }
-
-        public long getVectorMatchTime() { return vectorMatchTime; }
-        public void setVectorMatchTime(long vectorMatchTime) { this.vectorMatchTime = vectorMatchTime; }
-
-        public long getAiJudgmentTime() { return aiJudgmentTime; }
-        public void setAiJudgmentTime(long aiJudgmentTime) { this.aiJudgmentTime = aiJudgmentTime; }
-
-        public long getTotalProcessingTime() { return totalProcessingTime; }
-        public void setTotalProcessingTime(long totalProcessingTime) { this.totalProcessingTime = totalProcessingTime; }
-
-        public boolean isFromCache() { return fromCache; }
-        public void setFromCache(boolean fromCache) { this.fromCache = fromCache; }
-
-        public boolean isError() { return error; }
-        public void setError(boolean error) { this.error = error; }
-
-        public String getErrorMessage() { return errorMessage; }
-        public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
-
-        public long getTimestamp() { return timestamp; }
-        public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
     }
 }

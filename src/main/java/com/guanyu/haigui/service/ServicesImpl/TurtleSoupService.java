@@ -130,6 +130,7 @@ public class TurtleSoupService {
                 updateSoupWithClueInfo(savedSoup, aiFragments);
                 haiGuiSoupRepository.saveAndFlush(savedSoup);
 
+
                 log.info("海龟汤新增成功: soupId={}", savedSoup.getSoupId());
                 return true;
 
@@ -265,6 +266,9 @@ public class TurtleSoupService {
         for (ClueFragment fragment : fragments) {
             fragment.setSoupId(soup.getSoupId());
             fragment.setFragmentId(null); // 重置ID
+            List<Float> FragmentVector = vectorizeFragment(fragment.getFragmentContent());
+            fragment.setVectorData(FragmentVector);
+
 
             // 确保向量数据不为null
             if (fragment.getVectorData() == null) {
@@ -273,10 +277,34 @@ public class TurtleSoupService {
 
             // 保存并刷新
             ClueFragment savedFragment = clueFragmentRepository.saveAndFlush(fragment);
+            String soupFragmentKey = String.format("hai_gui:soup:%s:fragment:%s", soup.getSoupId(), fragment.getFragmentId());
+            redisClient.storeVector(soupFragmentKey, fragment.getVectorData());
             fragmentOrderToIdMap.put(savedFragment.getFragmentOrder(), savedFragment.getFragmentId());
         }
 
         return fragmentOrderToIdMap;
+    }
+
+    public List<Float> vectorizeFragment(String FragmentVector) {
+        try {
+            log.debug("开始向量化线索: {}", FragmentVector.substring(0, Math.min(30, FragmentVector.length())));
+
+            // 使用BGE模型向量化
+            SingleEncodeResponse response = BgeVectorClientUtil.encodeSingle(FragmentVector);
+            if (response.getEmbeddings() == null || response.getEmbeddings().isEmpty()) {
+                log.error("BGE向量化失败: {}", FragmentVector);
+                return Collections.emptyList();
+            }
+
+            List<Float> vector = response.getEmbeddings().get(0);
+            log.debug("线索向量化成功，维度: {}", vector.size());
+
+            return vector;
+
+        } catch (Exception e) {
+            log.error("向量化线索失败: {}", FragmentVector, e);
+            return Collections.emptyList();
+        }
     }
 
     // 创建默认任务（使用真实ID）

@@ -1,6 +1,5 @@
 package com.guanyu.haigui.utils;
 
-import com.guanyu.haigui.pojo.model.HaiGuiSoup;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulRedisConnection;
@@ -13,7 +12,6 @@ import org.springframework.stereotype.Component;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.nio.ByteBuffer;
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -62,71 +60,6 @@ public class RedisStackClient {
         }
     }
 
-    /**
-     * 存储海龟汤向量到Redis Stack
-     * @param soupId 海龟汤ID
-     * @param vectorType 向量类型 (SURFACE, BOTTOM, MANUAL)
-     * @param vector 向量数据
-     */
-    public void saveSoupVector(String soupId, String vectorType, List<Float> vector) {
-        try {
-            String vectorKey = String.format("hai_gui:vec:%s:%s", vectorType.toLowerCase(), soupId);
-
-            // 将向量转换为JSON数组格式存储
-            String vectorJson = vector.toString();
-
-            // 存储向量数据
-            commands.set(vectorKey, vectorJson);
-
-            // 设置过期时间（可选，比如30天）
-            commands.expire(vectorKey, 30 * 24 * 60 * 60);
-
-            log.info("成功存储海龟汤向量: key={}, vectorType={}, dimension={}",
-                    vectorKey, vectorType, vector.size());
-
-        } catch (Exception e) {
-            log.error("存储海龟汤向量失败: soupId={}, vectorType={}", soupId, vectorType, e);
-            throw new RuntimeException("向量存储失败", e);
-        }
-    }
-
-    /**
-     * 存储海龟汤完整信息到Redis（包含向量）
-     * @param soup 海龟汤对象
-     * @param surfaceVector 汤面向量
-     * @param bottomVector 汤底向量
-     */
-    public void saveCompleteSoup(HaiGuiSoup soup, List<Float> surfaceVector, List<Float> bottomVector) {
-        try {
-            String soupKey = "hai_gui:soup:" + soup.getSoupId();
-
-            // 存储基本信息到Hash
-            Map<String, String> soupData = new HashMap<>();
-            soupData.put("soupId", soup.getSoupId());
-            soupData.put("soupTitle", soup.getSoupTitle());
-            soupData.put("soupSurface", soup.getSoupSurface());
-            soupData.put("soupBottom", soup.getSoupBottom());
-            soupData.put("hostManual", soup.getHostManual());
-            soupData.put("keyClues", soup.getKeyClues());
-            soupData.put("playCount", String.valueOf(soup.getPlayCount()==null?0:soup.getPlayCount()));
-            soupData.put("createdAt", String.valueOf(LocalDateTime.now()));
-
-            commands.hset(soupKey, soupData);
-
-            // 存储向量
-            saveSoupVector(soup.getSoupId(), "SURFACE", surfaceVector);
-            saveSoupVector(soup.getSoupId(), "BOTTOM", bottomVector);
-
-            // 添加到海龟汤集合（用于快速获取所有海龟汤）
-            commands.sadd("hai_gui:soups:all", soup.getSoupId());
-
-            log.info("成功存储完整海龟汤信息: soupId={}", soup.getSoupId());
-
-        } catch (Exception e) {
-            log.error("存储完整海龟汤信息失败: soupId={}", soup.getSoupId(), e);
-            throw new RuntimeException("海龟汤存储失败", e);
-        }
-    }
 
     /**
      * 获取海龟汤向量
@@ -162,48 +95,6 @@ public class RedisStackClient {
         }
     }
 
-    /**
-     * 基于向量相似度的简单搜索实现
-     * 注意：这是一个简化版本，生产环境建议使用RediSearch的向量搜索功能
-     * @param queryVector 查询向量
-     * @param vectorType 搜索的向量类型
-     * @param topK 返回前K个结果
-     * @return 相似的海龟汤ID列表及其相似度分数
-     */
-    public Map<String, Double> searchSimilarSoups(List<Float> queryVector, String vectorType, int topK) {
-        Map<String, Double> results = new HashMap<>();
-
-        try {
-            // 获取所有海龟汤ID
-            Set<String> soupIds = commands.smembers("hai_gui:soups:all");
-
-            // 计算余弦相似度
-            Map<String, Double> similarities = new HashMap<>();
-            for (String soupId : soupIds) {
-                List<Float> soupVector = getSoupVector(soupId, vectorType);
-                if (soupVector != null) {
-                    double similarity = calculateCosineSimilarity(queryVector, soupVector);
-                    if (similarity > 0.3) { // 设置相似度阈值
-                        similarities.put(soupId, similarity);
-                    }
-                }
-            }
-
-            // 按相似度排序并返回topK结果
-            similarities.entrySet().stream()
-                    .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
-                    .limit(topK)
-                    .forEach(entry -> results.put(entry.getKey(), entry.getValue()));
-
-            log.info("向量搜索完成: queryType={}, totalSoups={}, matchedSoups={}",
-                    vectorType, soupIds.size(), results.size());
-
-        } catch (Exception e) {
-            log.error("向量搜索失败", e);
-        }
-
-        return results;
-    }
 
     /**
      * 计算两个向量的余弦相似度

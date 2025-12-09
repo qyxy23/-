@@ -80,11 +80,8 @@ public class DecompositionResultConverter {
         dto.setTriggerKeywords(fragment.getTriggerKeywords());
         dto.setIsCoreClue(fragment.getIsCoreClue());
         dto.setSimilarityThreshold(fragment.getSimilarityThreshold());
-        dto.setAssociatedTaskIds(fragment.getAssociatedTaskIds());
         dto.setFragmentOrder(fragment.getFragmentOrder());
         dto.setGenerationSource(fragment.getGenerationSource());
-        dto.setAiAnalysisConfidence(fragment.getAiAnalysisConfidence());
-        dto.setVectorHash(fragment.getVectorHash());
         dto.setIsDeleted(fragment.getIsDeleted());
 
         return dto;
