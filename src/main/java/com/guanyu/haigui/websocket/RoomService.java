@@ -15,6 +15,7 @@ import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.repository.*;
 import com.guanyu.haigui.utils.RedisServiceUtil;
 import com.guanyu.haigui.utils.SessionMapUtil;
+import com.guanyu.haigui.utils.VoteMQProducer;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.*;
@@ -52,6 +53,9 @@ public class RoomService {
     private final PrivateMessageRepository privateMessageRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final GameSessionRepository gameSessionRepository;
+    private final HaiGuiVoteRecordRepository haiGuiVoteRecordRepository;
+    private final HaiGuiVoteSessionRepository haiGuiVoteSessionRepository;
+    private final VoteMQProducer voteMQProducer;
 
     /**
      * 创建聊天室
@@ -174,16 +178,6 @@ public class RoomService {
             creator.setUsername((String) map.get("creator_username"));
             creator.setAvatar((String) map.get("creator_avatar"));
             vo.setCreator(creator);
-
-            // // 填充成员列表（从membersMap中取，无则为空Set）
-            // List<MemberSimpleVO> members = membersMap.getOrDefault(vo.getRoomId(), Collections.emptyList());
-            // if (members != null) {
-            //     vo.setMembers(new HashSet<>(members));
-            // } else {
-            //     // 处理单个对象的情况
-            //     List<MemberSimpleVO> newMembers = membersMap.getOrDefault(vo.getRoomId(), Collections.emptyList());
-            //     vo.setMembers(new HashSet<>(newMembers));
-            // }
             vo.setMembers(membersMap.getOrDefault(vo.getRoomId(), Collections.emptyList()));
 
             return vo;
@@ -789,5 +783,129 @@ public class RoomService {
     }
 
 
+    public VoteEndGameVO voteEndGame(String roomId) {
+        Long currentUserId = BaseContext.getCurrentId();
+        ChatGame chatGame = chatGameRepository.findById(roomId)
+                .orElseThrow(() -> new RoomException("房间不存在，房间ID：" + roomId));
+        if(chatGame.getStatus()==RoomStatus.VOTING){
+            return VoteEndGameVO.error("当前房间有正在进行中的投票");
+        }
+        GameSession gameSession = gameSessionRepository.findById(chatGame.getSessionId())
+                .orElseThrow(() -> new RoomException("游戏会话不存在，房间ID：" + roomId));
+        chatGame.setStatus(RoomStatus.VOTING);
+        chatGameRepository.save(chatGame);
+        HaiGuiVoteSession voteSession = new HaiGuiVoteSession();
+        voteSession.setVoteSessionId(UUID.randomUUID().toString());
+        voteSession.setSessionId(gameSession.getSessionId());
+        LocalDateTime endTime = LocalDateTime.now().plusMinutes(5);
+        voteSession.setEndTime(endTime);
+        voteSession.setInitiatorId(currentUserId);
+        voteSession.setStatus(HaiGuiVoteSession.VoteStatus.ONGOING);
+        voteSession.setIsDeleted(false);
+        voteSession.setCreatedAt(LocalDateTime.now());
+        haiGuiVoteSessionRepository.saveAndFlush(voteSession);
 
+        HaiGuiVoteRecord voteRecord = new HaiGuiVoteRecord();
+        voteRecord.setVoteSessionId(voteSession.getVoteSessionId());
+        voteRecord.setVoteOption(HaiGuiVoteRecord.VoteOption.AGREE);
+        voteRecord.setUserId(currentUserId);
+        voteRecord.setIsDeleted(false);
+        haiGuiVoteRecordRepository.save(voteRecord);
+
+
+        VoteCheckMessage delayedMsg = VoteCheckMessage.createDelayedCheck(
+                voteSession.getVoteSessionId(), roomId, 5
+        );
+        voteMQProducer.sendDelayedCheck(delayedMsg, 9); // 延迟级别9 = 5分钟
+
+
+        VoteEndGameVO voteEndGameVO = VoteEndGameVO.success(1,endTime,1);
+        simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId, voteEndGameVO);
+        return voteEndGameVO;
+    }
+
+    public VoteEndGameVO continueVote(String roomId, HaiGuiVoteRecord.VoteOption voteOption) {
+        Long currentUserId = BaseContext.getCurrentId();
+
+        // 1. 验证房间存在且处于投票状态
+        ChatGame chatGame = chatGameRepository.findById(roomId)
+                .orElseThrow(() -> new RoomException("房间不存在，房间ID：" + roomId));
+
+        if (chatGame.getStatus() != RoomStatus.VOTING) {
+            return VoteEndGameVO.error("当前没有进行中的投票");
+        }
+
+        // 2. 获取当前进行中的投票会话（取最新创建的）
+        List<HaiGuiVoteSession> sessions = haiGuiVoteSessionRepository.findBySessionIdAndStatusOrderByCreatedAtDesc(
+                chatGame.getSessionId(), HaiGuiVoteSession.VoteStatus.ONGOING);
+
+        if (sessions.isEmpty()) {
+            return VoteEndGameVO.error("未找到进行中的投票会话");
+        }
+        HaiGuiVoteSession currentSession = sessions.get(0); // 最新创建的会话
+
+        // 3. 检查投票是否超时
+        if (LocalDateTime.now().isAfter(currentSession.getEndTime())) {
+            // 投票已超时，自动处理
+            handleVoteTimeout(currentSession);
+            return VoteEndGameVO.error("投票已超时，请发起新投票");
+        }
+
+        // 4. 检查用户是否已在本次投票中投过票
+        if (haiGuiVoteRecordRepository.existsByVoteSessionIdAndUserId(
+                currentSession.getVoteSessionId(), currentUserId)) {
+            return VoteEndGameVO.error("您已经投过票了");
+        }
+
+        // 5. 创建投票记录
+        HaiGuiVoteRecord voteRecord = new HaiGuiVoteRecord();
+        voteRecord.setVoteSessionId(currentSession.getVoteSessionId());
+        voteRecord.setUserId(currentUserId);
+        voteRecord.setVoteOption(voteOption);
+        voteRecord.setIsDeleted(false);
+        voteRecord.setCreatedAt(LocalDateTime.now());
+        haiGuiVoteRecordRepository.save(voteRecord);
+
+        // 6. 获取当前投票统计
+        List<HaiGuiVoteRecord> records = haiGuiVoteRecordRepository.findByVoteSessionId(
+                currentSession.getVoteSessionId());
+
+        int voteNum = records.size();
+        int agreeNum = (int) records.stream()
+                .filter(r -> r.getVoteOption() == HaiGuiVoteRecord.VoteOption.AGREE)
+                .count();
+
+
+        //  发送即时检查消息
+        VoteCheckMessage immediateMsg = VoteCheckMessage.createImmediateCheck(
+                currentSession.getVoteSessionId(), roomId
+        );
+
+        voteMQProducer.sendImmediateCheck(immediateMsg);
+        VoteEndGameVO voteEndGameVO = VoteEndGameVO.success(voteNum,currentSession.getEndTime(),agreeNum);
+        simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId, voteEndGameVO);
+
+        // 8. 返回最新统计信息
+        return voteEndGameVO;
+    }
+
+    // 处理投票超时
+    private void handleVoteTimeout(HaiGuiVoteSession session) {
+        // 标记为超时结束
+        session.setStatus(HaiGuiVoteSession.VoteStatus.FAILED);
+        session.setUpdatedAt(LocalDateTime.now());
+        haiGuiVoteSessionRepository.save(session);
+    }
+
+    // 结束游戏
+    private void endGame(String roomId) {
+        ChatGame chatGame = chatGameRepository.findById(roomId)
+                .orElseThrow(() -> new RoomException("房间不存在"));
+        chatGame.setStatus(RoomStatus.FINISHED);
+        chatGame.setEndTime(LocalDateTime.now());
+        chatGameRepository.save(chatGame);
+
+        // 这里可以添加游戏结束的其他逻辑
+        // 如：保存游戏结果、发放奖励等
+    }
 }

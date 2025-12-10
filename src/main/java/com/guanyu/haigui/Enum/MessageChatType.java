@@ -24,6 +24,8 @@ public enum MessageChatType {
     CANCEL_READY_ROOM("取消房间准备"),
     START_ROOM("开始游戏"),
     START_ROOM_ERROR("开始游戏失败"),
+    START_VOTING("发起投票"),
+    CONTINUE_VOTING("普通投票"),
     SOUP_QUESTION("海龟汤问答");
 
     private final String description;

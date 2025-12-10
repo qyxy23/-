@@ -8,6 +8,7 @@ import lombok.Getter;
 public enum RoomStatus {
     WAITING("等待集齐"),
     ACTIVE("进行中"),
+    VOTING("进行投票"),
     FINISHED("已结束"),
     CANCELLED("已取消");
 

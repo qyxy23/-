@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 
 @Component
 @Slf4j

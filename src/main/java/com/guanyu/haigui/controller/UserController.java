@@ -21,7 +21,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 import javax.security.sasl.AuthenticationException;
 import java.util.Collections;
 import java.util.Map;

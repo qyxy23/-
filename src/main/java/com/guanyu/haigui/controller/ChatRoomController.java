@@ -2,6 +2,7 @@ package com.guanyu.haigui.controller;
 
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.pojo.dto.*;
+import com.guanyu.haigui.pojo.model.HaiGuiVoteRecord;
 import com.guanyu.haigui.pojo.result.ChatWithAIRoomRequest;
 import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.result.Result;
@@ -199,6 +200,20 @@ public class ChatRoomController {
         RoomSoupQuestionVO response = soupQuestionService.RoomProcessSoupQuestion(request);
         // 返回结果
         return Result.success(response);
+    }
+
+    @Operation(summary = "发起投票结束游戏")
+    @PostMapping("/voteEndGame/{roomId}")
+    @ResponseBody
+    public Result<VoteEndGameVO> voteEndGame(@PathVariable String roomId) {
+        return Result.success(roomService.voteEndGame(roomId));
+    }
+
+    @Operation(summary = "继续投票")
+    @PostMapping("/continueVote/{roomId}/{status}")
+    @ResponseBody
+    public Result<VoteEndGameVO> continueVote(@PathVariable String roomId,@PathVariable HaiGuiVoteRecord.VoteOption status) {
+        return Result.success(roomService.continueVote(roomId,status));
     }
 
 

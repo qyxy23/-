@@ -76,7 +76,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
             return RoomSoupQuestionVO.error("用户未加入房间：ID=" + BaseContext.getCurrentId());
         }
         String soupId = game.getHaiGuiSoup().getSoupId();
-        if(game.getStatus() != RoomStatus.ACTIVE){
+        if(!(game.getStatus() == RoomStatus.ACTIVE|| game.getStatus() == RoomStatus.VOTING)){
             return RoomSoupQuestionVO.error("游戏未开始：ID=" + request.getRoomId());
         }
         HaiGuiSoup soup = haiGuiSoupRepository.findById(soupId).orElse(null);
@@ -134,21 +134,33 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         updateRoomProgress(request.getRoomId(), parsedResponse,incompleteTasks);
 
         // 9. 保存消息记录（使用枚举值）
+        String answerText = parsedResponse.getAnswer().trim();
         QuestionWithAiAnswer answerEnum;
-        try {
-            answerEnum = QuestionWithAiAnswer.valueOf(parsedResponse.getAnswer());
-        } catch (IllegalArgumentException e) {
-            // 处理可能的枚举转换错误
-            answerEnum = QuestionWithAiAnswer.UNKNOWN;
+
+        // 建立中文到枚举的映射关系
+        if ("是".equals(answerText) || "yes".equalsIgnoreCase(answerText)) {
+            answerEnum = QuestionWithAiAnswer.YES;
+        } else if ("不是".equals(answerText) || "no".equalsIgnoreCase(answerText)) {
+            answerEnum = QuestionWithAiAnswer.NO;
+        } else if ("是或不是".equals(answerText) || "部分正确".equals(answerText) || "无法确定".equals(answerText)) {
+            answerEnum = QuestionWithAiAnswer.PARTIAL;  // 需要新增这个枚举值
+        } else {
+            // 保留原始异常处理作为兜底
+            try {
+                answerEnum = QuestionWithAiAnswer.valueOf(answerText.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                answerEnum = QuestionWithAiAnswer.UNKNOWN;
+            }
         }
 
-        HaiGuiChatMessage haiGuiChatMessage = new HaiGuiChatMessage();
+        HaiGuiChatMessageWithFragments haiGuiChatMessage = new HaiGuiChatMessageWithFragments();
         haiGuiChatMessage.setMessageId(UUID.randomUUID().toString());
         haiGuiChatMessage.setQuestionContent(request.getQuestion());
         haiGuiChatMessage.setAiAnswer(answerEnum);
         haiGuiChatMessage.setRoomId(request.getRoomId());
         haiGuiChatMessage.setUserId(userId);
         haiGuiChatMessage.setIsDeleted(false);
+        haiGuiChatMessage.setTriggeredFragmentIds(new HashSet<>(parsedResponse.getNewTriggeredFragments()));
         haiGuiChatMessageRepository.save(haiGuiChatMessage);
         RoomSoupQuestionVO roomSoupQuestionVO = RoomSoupQuestionVO.success(
                 request.getRoomId(),
@@ -256,11 +268,29 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
             // 调用修改后的仓库方法
             List<Object[]> results = haiGuiRoomProgressRepository.findTaskFragmentsRaw(roomId, taskIds);
 
+
             for (Object[] result : results) {
                 Long taskId = (Long) result[0];
-                Set<Long> fragments = (Set<Long>) result[1];
+                Object fragmentObj = result[1];
+
+                // 安全地将 Object 转换为 Set<Long>
+                Set<Long> fragments;
+                if (fragmentObj instanceof Set<?>) {
+                    try {
+                        fragments = ((Set<?>) fragmentObj).stream()
+                                .map(Long.class::cast)
+                                .collect(Collectors.toSet());
+                    } catch (ClassCastException e) {
+                        log.warn("转换任务线索ID失败，taskId={}", taskId, e);
+                        fragments = new HashSet<>();
+                    }
+                } else {
+                    fragments = new HashSet<>();
+                }
+
                 taskFragmentsMap.put(taskId, fragments);
             }
+
         }
 
         // 为所有任务添加条目（即使没有记录）

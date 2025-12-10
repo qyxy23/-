@@ -1,7 +1,9 @@
 server:
   port: 8080
 
-
+rocketmq:
+  # NameServer 地址（替换为你的服务器 IP 和端口，默认端口 9876）
+  name-server: 124.220.226.16:9876
 
 jwt:
   # 设置jwt签名加密时使用的秘钥

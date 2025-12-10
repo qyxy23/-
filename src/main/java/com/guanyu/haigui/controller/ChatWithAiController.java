@@ -1,17 +1,21 @@
 package com.guanyu.haigui.controller;
 
 import com.guanyu.haigui.context.BaseContext;
-import com.guanyu.haigui.pojo.dto.*;
-import com.guanyu.haigui.pojo.vo.*;
+import com.guanyu.haigui.pojo.dto.AfterFirstChatDto;
+import com.guanyu.haigui.pojo.dto.ChatRoomListDetailDto;
+import com.guanyu.haigui.pojo.dto.FirstChatDto;
+import com.guanyu.haigui.pojo.vo.ChatRoomListDetailVO;
+import com.guanyu.haigui.pojo.vo.ChatRoomListVO;
+import com.guanyu.haigui.pojo.vo.FirstChatVo;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.service.ChatService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
-import javax.annotation.Resource;
 import java.util.List;
 
 /**
