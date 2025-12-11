@@ -1,9 +1,11 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
+import com.guanyu.haigui.Enum.MessageChatType;
 import com.guanyu.haigui.Enum.QuestionWithAiAnswer;
 import com.guanyu.haigui.Enum.RoomStatus;
 import com.guanyu.haigui.Enum.VectorType;
 import com.guanyu.haigui.Exception.AiResponseException;
+import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.manager.AIManager;
 import com.guanyu.haigui.pojo.Info.SoupInfo;
@@ -11,6 +13,8 @@ import com.guanyu.haigui.pojo.model.*;
 import com.guanyu.haigui.pojo.response.AIResponse;
 import com.guanyu.haigui.pojo.result.ChatWithAIRoomRequest;
 import com.guanyu.haigui.pojo.result.ContextMatchResult;
+import com.guanyu.haigui.pojo.result.TaskResult;
+import com.guanyu.haigui.pojo.vo.EndGameVO;
 import com.guanyu.haigui.pojo.vo.RoomSoupQuestionVO;
 import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
 import com.guanyu.haigui.repository.*;
@@ -27,9 +31,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.FileCopyUtils;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -71,6 +78,13 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         if(game == null){
             return RoomSoupQuestionVO.error("房间不存在：ID=" + request.getRoomId());
         }
+        GameSession session = gameSessionRepository.findById(game.getSessionId()).orElse(null);
+        if(session == null|| session.getStatus() != GameSession.GameSessionStatus.ONGOING){
+            return RoomSoupQuestionVO.error("游戏未开始或已结束：ID=" + request.getRoomId());
+        }
+        if(session.getRemainingQuestions()<=0){
+            return RoomSoupQuestionVO.error("游戏次数已用完，可充值解锁更多机会");
+        }
         ChatGameMember member = chatGameMemberRepository.findById(new ChatGameMemberId(BaseContext.getCurrentId(), request.getRoomId())).orElse(null);
         if (member == null){
             return RoomSoupQuestionVO.error("用户未加入房间：ID=" + BaseContext.getCurrentId());
@@ -82,10 +96,6 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         HaiGuiSoup soup = haiGuiSoupRepository.findById(soupId).orElse(null);
         if(soup == null){
             return RoomSoupQuestionVO.error("海龟汤不存在：ID=" + soupId);
-        }
-        GameSession session = gameSessionRepository.findById(game.getSessionId()).orElse(null);
-        if(session == null){
-            return RoomSoupQuestionVO.error("游戏未开始：ID=" + request.getRoomId());
         }
         // 2. 向量化问题
         List<Float> questionVector = vectorizeQuestion(request.getQuestion());
@@ -102,7 +112,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
 
         SoupInfo soupInfo = getSoupInfo(soupId);
 
-        // 4. 获取房间当前状态（新增）
+        // 4. 获取房间当前状态
         Set<Long> triggeredFragmentIds = getCurrentTriggeredFragments(request.getRoomId());
         List<InferenceTask> allTasks = inferenceTaskRepository.findBySoupId(soupId);
         List<InferenceTask> incompleteTasks = allTasks.stream()
@@ -127,11 +137,11 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         // 7. 解析新的AI响应格式
         AIResponse parsedResponse = parseAnswer(aiResponse);
         if (parsedResponse == null || parsedResponse.getAnswer() == null) {
-            return RoomSoupQuestionVO.error("AI响应解析失败");
+            return RoomSoupQuestionVO.error("AI响应解析失败,请联系管理员");
         }
 
         // 8. 更新房间进度（新增）
-        updateRoomProgress(request.getRoomId(), parsedResponse,incompleteTasks);
+        BigDecimal progress = updateRoomProgress(request.getRoomId(), parsedResponse,incompleteTasks,allTasks);
 
         // 9. 保存消息记录（使用枚举值）
         String answerText = parsedResponse.getAnswer().trim();
@@ -153,6 +163,12 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
             }
         }
 
+        BigDecimal currentProgress = session.getCurrentProgress(); // 获取当前进度
+        BigDecimal newProgress = currentProgress.add(progress); // 计算新进度
+        session.updateProgress(newProgress); // 更新进度
+        session.setRemainingQuestions(session.getRemainingQuestions() - 1);
+        gameSessionRepository.save(session);
+
         HaiGuiChatMessageWithFragments haiGuiChatMessage = new HaiGuiChatMessageWithFragments();
         haiGuiChatMessage.setMessageId(UUID.randomUUID().toString());
         haiGuiChatMessage.setQuestionContent(request.getQuestion());
@@ -165,13 +181,111 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         RoomSoupQuestionVO roomSoupQuestionVO = RoomSoupQuestionVO.success(
                 request.getRoomId(),
                 request.getQuestion(),
-                parsedResponse.getAnswer()
+                parsedResponse.getAnswer(),
+                progress.doubleValue(),
+                session.getRemainingQuestions()
         );
         simpMessagingTemplate.convertAndSend("/topic/chat/" + request.getRoomId(), roomSoupQuestionVO);
+        if(session.getRemainingQuestions()==0){
+            endGame(request.getRoomId());
+        }
         return roomSoupQuestionVO;
     }
 
-    protected void updateRoomProgress(String roomId, AIResponse parsedResponse, List<InferenceTask> incompleteTasks) {
+    // 结束游戏
+    public void endGame(String roomId) {
+        ChatGame chatGame = chatGameRepository.findById(roomId)
+                .orElseThrow(() -> new BusinessException(404, "房间不存在"));
+        HaiGuiSoup soup = haiGuiSoupRepository.findById(chatGame.getHaiGuiSoup().getSoupId())
+                .orElseThrow(() -> new BusinessException(404, "该海龟汤不存在"));
+        GameSession gameSession = gameSessionRepository.findById(chatGame.getSessionId())
+                .orElseThrow(() -> new BusinessException(404, "游戏会话不存在"));
+
+        // 1. 获取所有任务进度
+        List<HaiGuiRoomProgress> progressList = haiGuiRoomProgressRepository.findByRoomId(roomId);
+        Map<Long, HaiGuiRoomProgress> progressMap = progressList.stream()
+                .collect(Collectors.toMap(HaiGuiRoomProgress::getTaskId, Function.identity()));
+
+        // 2. 获取所有推理任务
+        List<InferenceTask> allTasks = inferenceTaskRepository.findBySoupId(soup.getSoupId());
+
+        // 3. 使用 BigDecimal 计算任务完成情况和得分
+        BigDecimal totalWeight = BigDecimal.ZERO;
+        BigDecimal completedWeight = BigDecimal.ZERO;
+        List<TaskResult> completedTasks = new ArrayList<>();
+        List<TaskResult> uncompletedTasks = new ArrayList<>();
+
+        for (InferenceTask task : allTasks) {
+            HaiGuiRoomProgress progress = progressMap.get(task.getTaskId());
+            boolean isCompleted = progress != null && progress.getCompleted();
+
+            TaskResult result = new TaskResult();
+            result.setTaskId(task.getTaskId());
+            result.setTaskName(task.getTaskName());
+            result.setDescription(task.getTaskDescription());
+            result.setCompleted(isCompleted);
+            result.setCompletionTime(progress != null ? progress.getCompletionTime() : null);
+
+            // 使用 BigDecimal 处理权重
+            BigDecimal taskWeight = BigDecimal.valueOf(task.getProgressWeight());
+
+            if (isCompleted) {
+                completedWeight = completedWeight.add(taskWeight);
+                completedTasks.add(result);
+            } else {
+                uncompletedTasks.add(result);
+            }
+            totalWeight = totalWeight.add(taskWeight);
+        }
+
+        // 4. 计算最终得分 (0-100) - 使用 BigDecimal 精确计算
+        BigDecimal completionPercentage;
+        if (totalWeight.compareTo(BigDecimal.ZERO) > 0) {
+            // (completedWeight / totalWeight) * 100
+            completionPercentage = completedWeight.divide(totalWeight, 4, RoundingMode.HALF_UP)
+                    .multiply(BigDecimal.valueOf(100))
+                    .setScale(2, RoundingMode.HALF_UP); // 保留两位小数
+        } else {
+            completionPercentage = BigDecimal.ZERO;
+        }
+
+        // 计算整数得分（四舍五入）
+        int finalScore = completionPercentage.setScale(0, RoundingMode.HALF_UP).intValueExact();
+
+        // 5. 更新游戏会话状态 - 使用 BigDecimal 版本
+        gameSession.setStatus(GameSession.GameSessionStatus.COMPLETED);
+        gameSession.setEndTime(LocalDateTime.now());
+        gameSession.setCurrentProgress(completionPercentage); // 使用 BigDecimal
+        gameSession.setScore(BigDecimal.valueOf(finalScore)); // 使用 BigDecimal
+        gameSessionRepository.save(gameSession);
+
+        // 6. 更新海龟汤游玩次数
+        soup.setPlayCount(soup.getPlayCount() + 1);
+        haiGuiSoupRepository.save(soup);
+
+        // 7. 更新房间状态
+        chatGame.setStatus(RoomStatus.FINISHED);
+        chatGame.setEndTime(LocalDateTime.now());
+        chatGameRepository.save(chatGame);
+
+        // 8. 构建返回对象 - 转换为 double 和 int 用于 VO
+        EndGameVO endGameVO = new EndGameVO();
+        endGameVO.setRoomId(roomId);
+        endGameVO.setSoupBottom(soup.getSoupBottom());
+        endGameVO.setStatus(RoomStatus.FINISHED);
+        endGameVO.setType(MessageChatType.GAME_END);
+        endGameVO.setCurrentProgress(completionPercentage.doubleValue()); // BigDecimal 转 double
+        endGameVO.setFinalScore(finalScore); // 已经是 int
+        endGameVO.setCompletedTasks(completedTasks);
+        endGameVO.setUncompletedTasks(uncompletedTasks);
+        endGameVO.setTotalTasks(allTasks.size());
+
+        // 9. 发送结果给客户端
+        simpMessagingTemplate.convertAndSend("/topic/memberChange/" + roomId, endGameVO);
+    }
+
+
+    protected BigDecimal updateRoomProgress(String roomId, AIResponse parsedResponse, List<InferenceTask> incompleteTasks, List<InferenceTask> allTasks) {
         // 1. 获取当前所有任务的已触发线索（每个任务独立）
         Map<Long, Set<Long>> taskFragmentsMap = getCurrentTaskFragments(roomId, incompleteTasks);
 
@@ -180,6 +294,9 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         if (parsedResponse.getNewTriggeredFragments() != null) {
             newFragments.addAll(parsedResponse.getNewTriggeredFragments());
         }
+
+        // 使用 BigDecimal 累加进度
+        BigDecimal progress = BigDecimal.ZERO;
 
         // 3. 处理每个未完成任务
         for (InferenceTask task : incompleteTasks) {
@@ -203,6 +320,9 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
                 log.info("任务完成：ID={}，前置线索={}，已触发线索={}",
                         taskId, prerequisiteIds, updatedFragments);
 
+                // 使用 BigDecimal 累加进度
+                BigDecimal taskWeight = BigDecimal.valueOf(task.getProgressWeight());
+                progress = progress.add(taskWeight);
                 haiGuiRoomProgressRepository.updateTaskStatus(
                         roomId,
                         taskId,
@@ -228,7 +348,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         if (parsedResponse.getCompletedTasks() != null && !parsedResponse.getCompletedTasks().isEmpty()) {
             for (Long taskId : parsedResponse.getCompletedTasks()) {
                 // 找到对应的任务
-                Optional<InferenceTask> taskOpt = incompleteTasks.stream()
+                Optional<InferenceTask> taskOpt = allTasks.stream()
                         .filter(t -> t.getTaskId().equals(taskId))
                         .findFirst();
 
@@ -254,6 +374,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
                 }
             }
         }
+        return progress;
     }
 
     // 获取每个任务独立的已触发线索

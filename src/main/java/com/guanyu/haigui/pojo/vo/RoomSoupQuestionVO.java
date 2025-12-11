@@ -17,16 +17,24 @@ public class RoomSoupQuestionVO {
     //答案
     private String answer;
 
+    //当前进度
+    private Double currentProgress;
+
+    //剩余次数
+    private int remainingQuestions;
+
     //消息类型
     private MessageChatType type;
 
 
-    public static RoomSoupQuestionVO success(String roomId, String question,String answer){
+    public static RoomSoupQuestionVO success(String roomId, String question,String answer,Double currentProgress,int remainingQuestions){
         RoomSoupQuestionVO roomSoupQuestionVO = new RoomSoupQuestionVO();
         roomSoupQuestionVO.setRoomId(roomId);
         roomSoupQuestionVO.setQuestion(question);
         roomSoupQuestionVO.setAnswer(answer);
         roomSoupQuestionVO.setMessage("success");
+        roomSoupQuestionVO.setCurrentProgress(currentProgress);
+        roomSoupQuestionVO.setRemainingQuestions(remainingQuestions);
         roomSoupQuestionVO.setType(MessageChatType.SOUP_QUESTION);
         return roomSoupQuestionVO;
     }

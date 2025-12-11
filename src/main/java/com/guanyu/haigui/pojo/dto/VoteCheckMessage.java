@@ -15,33 +15,29 @@ public class VoteCheckMessage implements Serializable {
     }
     
     private String voteSessionId;      // 投票会话ID
-    private String roomId;              // 房间ID
     private Long userId;                 // 用户ID（可选）
     private MessageType messageType;    // 消息类型
     private LocalDateTime triggerTime;  // 触发时间
-    private int requiredAgreeRatio;     // 所需同意比例（默认60%）
-    
-    public static VoteCheckMessage createImmediateCheck(String voteSessionId, String roomId) {
-        return createMessage(voteSessionId, roomId, MessageType.IMMEDIATE);
+
+    public static VoteCheckMessage createImmediateCheck(String voteSessionId) {
+        return createMessage(voteSessionId, MessageType.IMMEDIATE);
     }
     
-    public static VoteCheckMessage createDelayedCheck(String voteSessionId, String roomId, int delayMinutes) {
-        VoteCheckMessage msg = createMessage(voteSessionId, roomId, MessageType.DELAYED);
+    public static VoteCheckMessage createDelayedCheck(String voteSessionId, int delayMinutes) {
+        VoteCheckMessage msg = createMessage(voteSessionId, MessageType.DELAYED);
         msg.setTriggerTime(LocalDateTime.now().plusMinutes(delayMinutes));
         return msg;
     }
     
-    public static VoteCheckMessage createTimeoutCheck(String voteSessionId, String roomId) {
-        return createMessage(voteSessionId, roomId, MessageType.TIMEOUT);
+    public static VoteCheckMessage createTimeoutCheck(String voteSessionId) {
+        return createMessage(voteSessionId, MessageType.TIMEOUT);
     }
     
-    private static VoteCheckMessage createMessage(String voteSessionId, String roomId, MessageType type) {
+    private static VoteCheckMessage createMessage(String voteSessionId, MessageType type) {
         VoteCheckMessage msg = new VoteCheckMessage();
         msg.setVoteSessionId(voteSessionId);
-        msg.setRoomId(roomId);
         msg.setMessageType(type);
         msg.setTriggerTime(LocalDateTime.now());
-        msg.setRequiredAgreeRatio(60); // 默认60%
         return msg;
     }
 }
