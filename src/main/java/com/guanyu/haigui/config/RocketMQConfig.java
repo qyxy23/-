@@ -18,4 +18,6 @@ public class RocketMQConfig {
         template.getProducer().setNamesrvAddr(nameServer);
         return template;
     }
+
+
 }
