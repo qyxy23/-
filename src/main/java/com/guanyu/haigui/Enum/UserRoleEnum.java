@@ -2,26 +2,61 @@ package com.guanyu.haigui.Enum;
 
 import lombok.Getter;
 
-
 @Getter
 public enum UserRoleEnum {
-    USER(1L, "USER"), // 角色ID=1，角色名=USER
-    ADMIN(2L, "ADMIN");
+    // 核心角色定义（ID使用Long类型）
+    USER(1L, "USER", "普通用户"),
+    ADMIN(2L, "ADMIN", "系统管理员"),
+    SOUP_AUDITOR(3L, "SOUP_AUDITOR", "海龟汤审核员");  // 新增审核员角色
 
     private final Long roleId;
-    private final String roleName;
+    private final String roleCode;  // 角色编码（原roleName改为更明确的roleCode）
+    private final String roleDesc;  // 角色描述
 
-    UserRoleEnum(Long roleId, String roleName) {
+    UserRoleEnum(Long roleId, String roleCode, String roleDesc) {
         this.roleId = roleId;
-        this.roleName = roleName;
+        this.roleCode = roleCode;
+        this.roleDesc = roleDesc;
     }
 
-    public static UserRoleEnum getRoleByRoleId(String authority) {
-        for (UserRoleEnum role : UserRoleEnum.values()) {
-            if (role.getRoleName().equals(authority)) {
+    /**
+     * 通过角色编码获取枚举（原方法修复）
+     * @param roleCode 角色编码（如"ADMIN"）
+     * @return 匹配的枚举对象，未找到返回null
+     */
+    public static UserRoleEnum getByRoleCode(String roleCode) {
+        for (UserRoleEnum role : values()) {
+            if (role.roleCode.equals(roleCode)) {
                 return role;
             }
         }
         return null;
+    }
+
+    /**
+     * 通过角色ID获取枚举（新增方法）
+     * @param roleId 角色ID（如2L）
+     * @return 匹配的枚举对象，未找到返回null
+     */
+    public static UserRoleEnum getByRoleId(Long roleId) {
+        for (UserRoleEnum role : values()) {
+            if (role.roleId.equals(roleId)) {
+                return role;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 通过Spring Security的Authority获取枚举（适配框架）
+     * @param authority 权限字符串（格式如"ROLE_ADMIN"）
+     * @return 匹配的枚举对象
+     */
+    public static UserRoleEnum fromAuthority(String authority) {
+        if (authority == null || !authority.startsWith("ROLE_")) {
+            return null;
+        }
+        String code = authority.substring(5); // 去掉"ROLE_"前缀
+        return getByRoleCode(code);
     }
 }
