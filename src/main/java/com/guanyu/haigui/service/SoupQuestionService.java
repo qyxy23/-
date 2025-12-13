@@ -4,6 +4,7 @@ import com.guanyu.haigui.pojo.Info.SoupInfo;
 import com.guanyu.haigui.pojo.response.AIResponse;
 import com.guanyu.haigui.pojo.result.ChatWithAIRoomRequest;
 import com.guanyu.haigui.pojo.result.ContextMatchResult;
+import com.guanyu.haigui.pojo.vo.RoomGetClueVO;
 import com.guanyu.haigui.pojo.vo.RoomSoupQuestionVO;
 
 /**
@@ -67,4 +68,5 @@ public interface SoupQuestionService {
 
     RoomSoupQuestionVO RoomProcessSoupQuestion(ChatWithAIRoomRequest request);
 
+    RoomGetClueVO getClue(String roomId);
 }

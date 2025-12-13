@@ -13,6 +13,7 @@ import com.guanyu.haigui.pojo.result.CompletedTasksResult;
 import com.guanyu.haigui.pojo.result.ContextMatchResult;
 import com.guanyu.haigui.pojo.result.UncompletedTasksResult;
 import com.guanyu.haigui.pojo.vo.EndGameVO;
+import com.guanyu.haigui.pojo.vo.RoomGetClueVO;
 import com.guanyu.haigui.pojo.vo.RoomSoupQuestionVO;
 import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
 import com.guanyu.haigui.repository.*;
@@ -189,6 +190,24 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         }
         return roomSoupQuestionVO;
     }
+
+    @Override
+    public RoomGetClueVO getClue(String roomId) {
+        List<HaiGuiChatMessageWithFragments> messages = haiGuiChatMessageRepository.findAllByRoomId(roomId);
+
+        List<RoomGetClueVO.QuestionClass> questions = messages.stream()
+                .map(message -> {
+                    RoomGetClueVO.QuestionClass questionClass = new RoomGetClueVO.QuestionClass();
+                    questionClass.setQuestion(message.getQuestionContent());
+                    questionClass.setAnswer(message.getAiAnswer() != null ? message.getAiAnswer().getDescription() : "");
+                    questionClass.setSendTime(message.getCreatedAt() != null ? message.getCreatedAt().toString() : "");
+                    return questionClass;
+                })
+                .collect(Collectors.toList());
+
+        return RoomGetClueVO.success(questions);
+    }
+
 
     // 结束游戏
     public EndGameVO endGame(String roomId) {

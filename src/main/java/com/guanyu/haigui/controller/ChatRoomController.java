@@ -211,6 +211,13 @@ public class ChatRoomController {
         return Result.success(roomService.voteEndGame(roomId));
     }
 
+    @Operation(summary = "查询聊天室的线索历史记录")
+    @PostMapping("/getClue/{roomId}")
+    @ResponseBody
+    public Result<RoomGetClueVO> getClue(@PathVariable String roomId) {
+        return Result.success(soupQuestionService.getClue(roomId));
+    }
+
     @Operation(summary = "继续投票")
     @PostMapping("/continueVote/{roomId}/{status}")
     @ResponseBody
