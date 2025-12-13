@@ -23,7 +23,7 @@ public class VoteEndGameVO {
         VoteEndGameVO voteEndGameVO = new VoteEndGameVO();
         voteEndGameVO.setStatus("error");
         voteEndGameVO.setMsg(s);
-        voteEndGameVO.setType(MessageChatType.START_VOTING);
+        voteEndGameVO.setType(MessageChatType.CONTINUE_VOTING);
         return voteEndGameVO;
     }
 
@@ -33,7 +33,7 @@ public class VoteEndGameVO {
         voteEndGameVO.setVoteNum(voteNum);
         voteEndGameVO.setCountDown(countDown);
         voteEndGameVO.setAgreeNum(agreeNum);
-        voteEndGameVO.setType(MessageChatType.START_VOTING);
+        voteEndGameVO.setType(MessageChatType.CONTINUE_VOTING);
         return voteEndGameVO;
     }
 }

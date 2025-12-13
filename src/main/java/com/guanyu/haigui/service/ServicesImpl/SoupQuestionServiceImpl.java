@@ -1,9 +1,6 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
-import com.guanyu.haigui.Enum.MessageChatType;
-import com.guanyu.haigui.Enum.QuestionWithAiAnswer;
-import com.guanyu.haigui.Enum.RoomStatus;
-import com.guanyu.haigui.Enum.VectorType;
+import com.guanyu.haigui.Enum.*;
 import com.guanyu.haigui.Exception.AiResponseException;
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.context.BaseContext;
@@ -12,8 +9,9 @@ import com.guanyu.haigui.pojo.Info.SoupInfo;
 import com.guanyu.haigui.pojo.model.*;
 import com.guanyu.haigui.pojo.response.AIResponse;
 import com.guanyu.haigui.pojo.result.ChatWithAIRoomRequest;
+import com.guanyu.haigui.pojo.result.CompletedTasksResult;
 import com.guanyu.haigui.pojo.result.ContextMatchResult;
-import com.guanyu.haigui.pojo.result.TaskResult;
+import com.guanyu.haigui.pojo.result.UncompletedTasksResult;
 import com.guanyu.haigui.pojo.vo.EndGameVO;
 import com.guanyu.haigui.pojo.vo.RoomSoupQuestionVO;
 import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
@@ -170,16 +168,16 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         gameSessionRepository.save(session);
 
         HaiGuiChatMessageWithFragments haiGuiChatMessage = new HaiGuiChatMessageWithFragments();
-        haiGuiChatMessage.setMessageId(UUID.randomUUID().toString());
         haiGuiChatMessage.setQuestionContent(request.getQuestion());
         haiGuiChatMessage.setAiAnswer(answerEnum);
         haiGuiChatMessage.setRoomId(request.getRoomId());
         haiGuiChatMessage.setUserId(userId);
         haiGuiChatMessage.setIsDeleted(false);
         haiGuiChatMessage.setTriggeredFragmentIds(new HashSet<>(parsedResponse.getNewTriggeredFragments()));
-        haiGuiChatMessageRepository.save(haiGuiChatMessage);
+        haiGuiChatMessageRepository.saveAndFlush(haiGuiChatMessage);
         RoomSoupQuestionVO roomSoupQuestionVO = RoomSoupQuestionVO.success(
                 request.getRoomId(),
+                haiGuiChatMessage.getId(),
                 request.getQuestion(),
                 parsedResponse.getAnswer(),
                 progress.doubleValue(),
@@ -193,7 +191,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
     }
 
     // 结束游戏
-    public void endGame(String roomId) {
+    public EndGameVO endGame(String roomId) {
         ChatGame chatGame = chatGameRepository.findById(roomId)
                 .orElseThrow(() -> new BusinessException(404, "房间不存在"));
         HaiGuiSoup soup = haiGuiSoupRepository.findById(chatGame.getHaiGuiSoup().getSoupId())
@@ -212,18 +210,17 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         // 3. 使用 BigDecimal 计算任务完成情况和得分
         BigDecimal totalWeight = BigDecimal.ZERO;
         BigDecimal completedWeight = BigDecimal.ZERO;
-        List<TaskResult> completedTasks = new ArrayList<>();
-        List<TaskResult> uncompletedTasks = new ArrayList<>();
+        List<CompletedTasksResult> completedTasks = new ArrayList<>();
+        List<UncompletedTasksResult> uncompletedTasks = new ArrayList<>();
 
         for (InferenceTask task : allTasks) {
             HaiGuiRoomProgress progress = progressMap.get(task.getTaskId());
             boolean isCompleted = progress != null && progress.getCompleted();
 
-            TaskResult result = new TaskResult();
+            CompletedTasksResult result = new CompletedTasksResult();
             result.setTaskId(task.getTaskId());
             result.setTaskName(task.getTaskName());
             result.setDescription(task.getTaskDescription());
-            result.setCompleted(isCompleted);
             result.setCompletionTime(progress != null ? progress.getCompletionTime() : null);
 
             // 使用 BigDecimal 处理权重
@@ -233,7 +230,11 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
                 completedWeight = completedWeight.add(taskWeight);
                 completedTasks.add(result);
             } else {
-                uncompletedTasks.add(result);
+                UncompletedTasksResult CurrentResult = new UncompletedTasksResult();
+                CurrentResult.setTaskId(task.getTaskId());
+                CurrentResult.setTaskName(task.getTaskName());
+                CurrentResult.setDescription(task.getTaskDescription());
+                uncompletedTasks.add(CurrentResult);
             }
             totalWeight = totalWeight.add(taskWeight);
         }
@@ -268,6 +269,10 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         chatGame.setEndTime(LocalDateTime.now());
         chatGameRepository.save(chatGame);
 
+        List<ChatGameMember> chatGameMember = chatGameMemberRepository.findByIdRoomId(roomId);
+        chatGameMember.forEach(member -> member.setStatus(MemberStatus.ONLINE));
+        chatGameMemberRepository.saveAll(chatGameMember);
+
         // 8. 构建返回对象 - 转换为 double 和 int 用于 VO
         EndGameVO endGameVO = new EndGameVO();
         endGameVO.setRoomId(roomId);
@@ -282,6 +287,8 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
 
         // 9. 发送结果给客户端
         simpMessagingTemplate.convertAndSend("/topic/memberChange/" + roomId, endGameVO);
+
+        return endGameVO;
     }
 
 
@@ -434,23 +441,6 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
     }
 
 
-
-    // 辅助方法：将 Long 集合转换为 JSON 数组字符串
-    private String convertToJsonArray(Set<Long> ids) {
-        if (ids == null || ids.isEmpty()) {
-            return "[]";
-        }
-
-        StringBuilder jsonArray = new StringBuilder("[");
-        for (Iterator<Long> it = ids.iterator(); it.hasNext(); ) {
-            jsonArray.append(it.next());
-            if (it.hasNext()) {
-                jsonArray.append(",");
-            }
-        }
-        jsonArray.append("]");
-        return jsonArray.toString();
-    }
 
 
     @Override

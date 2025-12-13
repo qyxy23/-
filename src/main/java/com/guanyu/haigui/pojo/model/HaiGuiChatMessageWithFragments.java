@@ -14,17 +14,18 @@ import java.util.Set;
 @Table(name = "hai_gui_chat_message_with_fragments",
         indexes = {
                 @Index(name = "idx_room_id", columnList = "room_id"),
-                @Index(name = "idx_user_time", columnList = "user_id,send_time"),
-                @Index(name = "idx_send_time", columnList = "send_time"),
-                @Index(name = "idx_trigger_time", columnList = "trigger_time"),
+                @Index(name = "idx_user_time", columnList = "user_id,created_at"),
+                @Index(name = "idx_send_time", columnList = "created_at"),
+                @Index(name = "idx_trigger_time", columnList = "created_at"),
                 @Index(name = "idx_triggered_fragments", columnList = "triggered_fragment_ids")
         })
 @Data
 public class HaiGuiChatMessageWithFragments {
 
     @Id
-    @Column(name = "message_id", length = 36)
-    private String messageId;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", nullable = false, updatable = false)
+    private Long id;  // 自增主键（唯一标识）
 
     @Column(name = "room_id", length = 36, nullable = false)
     private String roomId;
@@ -38,7 +39,6 @@ public class HaiGuiChatMessageWithFragments {
     @Enumerated(EnumType.STRING)
     @Column(name = "ai_answer", columnDefinition = "ENUM('YES','NO','PARTIAL','UNKNOWN')", nullable = false)
     private QuestionWithAiAnswer aiAnswer;
-
 
     @Column(name = "triggered_fragment_ids", columnDefinition = "JSON")
     @Convert(converter = LongSetConverter.class)
@@ -57,13 +57,13 @@ public class HaiGuiChatMessageWithFragments {
 
     // 关联关系
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "room_id", referencedColumnName = "room_id", 
-                insertable = false, updatable = false)
+    @JoinColumn(name = "room_id", referencedColumnName = "room_id",
+            insertable = false, updatable = false)
     private ChatGame chatGame;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", referencedColumnName = "user_id", 
-                insertable = false, updatable = false)
+    @JoinColumn(name = "user_id", referencedColumnName = "user_id",
+            insertable = false, updatable = false)
     private UserInfo userInfo;
 
     // 获取触发线索数量
@@ -71,7 +71,7 @@ public class HaiGuiChatMessageWithFragments {
     public int getTriggeredFragmentCount() {
         return triggeredFragmentIds == null ? 0 : triggeredFragmentIds.size();
     }
-    
+
     // 检查是否触发了特定线索
     @Transient
     public boolean hasTriggeredFragment(Long fragmentId) {

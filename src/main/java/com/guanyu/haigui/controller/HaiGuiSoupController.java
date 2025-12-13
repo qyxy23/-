@@ -30,7 +30,6 @@ import java.util.List;
 public class HaiGuiSoupController {
 
     private final TurtleSoupService turtleSoupService;
-    private final SoupQuestionService soupQuestionService;
 
     /**
      * 创建海龟汤（包含向量化）

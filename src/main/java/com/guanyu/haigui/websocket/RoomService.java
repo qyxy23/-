@@ -13,9 +13,9 @@ import com.guanyu.haigui.pojo.dto.*;
 import com.guanyu.haigui.pojo.model.*;
 import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.repository.*;
+import com.guanyu.haigui.service.ServicesImpl.SoupQuestionServiceImpl;
 import com.guanyu.haigui.utils.RedisServiceUtil;
 import com.guanyu.haigui.utils.SessionMapUtil;
-import com.guanyu.haigui.utils.VoteMQProducer;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.*;
@@ -54,7 +54,8 @@ public class RoomService {
     private final GameSessionRepository gameSessionRepository;
     private final HaiGuiVoteRecordRepository haiGuiVoteRecordRepository;
     private final HaiGuiVoteSessionRepository haiGuiVoteSessionRepository;
-    private final VoteMQProducer voteMQProducer;
+    private final SoupQuestionServiceImpl soupQuestionService;
+
 
     /**
      * 创建聊天室
@@ -586,16 +587,16 @@ public class RoomService {
         ChatGame room = chatGameRepository.findById(roomId).orElseThrow(() -> new RoomException("房间不存在"));
         List<ChatGameMember> members = chatGameMemberRepository.findByIdRoomId(roomId);
         if(!Objects.equals(room.getCreator().getUserId(), BaseContext.getCurrentId())){
-            throw new RoomException("您没有权限操作此房间");
+            return CheckRoomStatusVO.error(403, "您没有权限操作此房间");
         }
         if (room.getStatus() != RoomStatus.WAITING) {
-            throw new RoomException("房间已开始");
+            return CheckRoomStatusVO.error(1, "房间已开始或结束");
         }
         if (room.getCurrentMembers() < room.getRequiredMembers()) {
-            throw new RoomException("房间人数不足");
+            return CheckRoomStatusVO.error(2, "房间人数不足");
         }
         if (room.getCurrentMembers() > room.getRequiredMembers()) {
-            throw new RoomException("房间人数超出");
+            return CheckRoomStatusVO.error(3, "房间人数超出");
         }
         for (ChatGameMember member : members){
             if (member.getStatus() != MemberStatus.READY) {
@@ -626,7 +627,10 @@ public class RoomService {
         chatGameRepository.save(room);
         String soupId = room.getHaiGuiSoup().getSoupId();
         List<InferenceTask> tasks = inferenceTaskRepository.findBySoupId(soupId);
-
+        for (ChatGameMember member : members){
+            member.setStatus(MemberStatus.IN_GAME);
+        }
+        chatGameMemberRepository.saveAll(members);
         // 2. 为每个任务创建进度记录
         List<HaiGuiRoomProgress> progresses = tasks.stream()
                 .map(task -> {
@@ -642,6 +646,7 @@ public class RoomService {
 
         // 3. 批量保存
         haiGuiRoomProgressRepository.saveAll(progresses);
+
         log.info("房间任务初始化完成: roomId={}, soupId={}, 任务数={}",
                 roomId, soupId, tasks.size());
         log.info("房间{}已激活", roomId);
@@ -786,7 +791,23 @@ public class RoomService {
         ChatGame chatGame = chatGameRepository.findById(roomId)
                 .orElseThrow(() -> new RoomException("房间不存在，房间ID：" + roomId));
         if(chatGame.getStatus()==RoomStatus.VOTING){
-            return VoteEndGameVO.error("当前房间有正在进行中的投票");
+            List<HaiGuiVoteSession> sessions = haiGuiVoteSessionRepository.findBySessionIdAndStatusOrderByCreatedAtDesc(
+                    chatGame.getSessionId(), HaiGuiVoteSession.VoteStatus.ONGOING);
+
+            if (!sessions.isEmpty()) {
+                HaiGuiVoteSession currentSession = sessions.get(0); // 最新创建的会话
+
+                // 3. 检查投票是否超时
+                if (LocalDateTime.now().isAfter(currentSession.getEndTime())) {
+                    // 投票已超时，自动处理
+                    handleVoteTimeout(chatGame,currentSession);
+                }else{
+                    return VoteEndGameVO.error("当前房间有正在进行中的投票");
+                }
+            }
+        }
+        if(chatGame.getStatus()!=RoomStatus.ACTIVE){
+            return VoteEndGameVO.error("当前房间未开始或已结束");
         }
         GameSession gameSession = gameSessionRepository.findById(chatGame.getSessionId())
                 .orElseThrow(() -> new RoomException("游戏会话不存在，房间ID：" + roomId));
@@ -815,10 +836,10 @@ public class RoomService {
         haiGuiVoteRecordRepository.save(voteRecord);
 
 
-        VoteCheckMessage delayedMsg = VoteCheckMessage.createDelayedCheck(
-                voteSession.getVoteSessionId(), 5
-        );
-        voteMQProducer.sendDelayedCheck(delayedMsg, 9); // 延迟级别9 = 5分钟
+        // VoteCheckMessage delayedMsg = VoteCheckMessage.createDelayedCheck(
+        //         voteSession.getVoteSessionId(), 5
+        // );
+        // voteMQProducer.sendDelayedCheck(delayedMsg, 9); // 延迟级别9 = 5分钟
 
 
         VoteEndGameVO voteEndGameVO = VoteEndGameVO.success(1,endTime,1);
@@ -832,6 +853,13 @@ public class RoomService {
         // 1. 验证房间存在且处于投票状态
         ChatGame chatGame = chatGameRepository.findById(roomId)
                 .orElseThrow(() -> new RoomException("房间不存在，房间ID：" + roomId));
+
+        if(chatGame.getStatus()==RoomStatus.FINISHED){
+            return VoteEndGameVO.error("当前房间已结束");
+        }else if(chatGame.getStatus()==RoomStatus.WAITING){
+            return VoteEndGameVO.error("当前房间未开始");
+        }
+
 
         if (chatGame.getStatus() != RoomStatus.VOTING) {
             return VoteEndGameVO.error("当前没有进行中的投票");
@@ -849,7 +877,7 @@ public class RoomService {
         // 3. 检查投票是否超时
         if (LocalDateTime.now().isAfter(currentSession.getEndTime())) {
             // 投票已超时，自动处理
-            handleVoteTimeout(currentSession);
+            handleVoteTimeout(chatGame,currentSession);
             return VoteEndGameVO.error("投票已超时，请发起新投票");
         }
 
@@ -857,10 +885,6 @@ public class RoomService {
         if (haiGuiVoteRecordRepository.existsByVoteSessionIdAndUserId(
                 currentSession.getVoteSessionId(), currentUserId)) {
             return VoteEndGameVO.error("您已经投过票了");
-        }
-        if(currentSession.getAgreedVotes()>=currentSession.getTotalVoters()){
-            sendImmediateCheckMessage(currentSession.getSessionId());
-            return VoteEndGameVO.error("投票已结束");
         }
 
         // 5. 创建投票记录
@@ -872,31 +896,138 @@ public class RoomService {
         voteRecord.setCreatedAt(LocalDateTime.now());
         haiGuiVoteRecordRepository.save(voteRecord);
 
+        // 更新同意票数
         if(voteOption==HaiGuiVoteRecord.VoteOption.AGREE&&currentSession.getAgreedVotes()<currentSession.getTotalVoters()){
             currentSession.incrementAgreedVotes();
             haiGuiVoteSessionRepository.save(currentSession);
         }
 
-        //  发送即时检查消息
-        sendImmediateCheckMessage(currentSession.getVoteSessionId());
+        // //  发送即时检查消息
+        // sendImmediateCheckMessage(currentSession.getVoteSessionId());
 
+        // 返回最新统计信息
         VoteEndGameVO voteEndGameVO = VoteEndGameVO.success(currentSession.getTotalVoters(),currentSession.getEndTime(),currentSession.getAgreedVotes());
         simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId, voteEndGameVO);
+
+        checkVoteResult(currentSession);
 
         // 8. 返回最新统计信息
         return voteEndGameVO;
     }
 
-    private void sendImmediateCheckMessage(String voteSessionId) {
-        VoteCheckMessage voteCheckMessage = VoteCheckMessage.createImmediateCheck(voteSessionId);
-        voteMQProducer.sendImmediateCheck(voteCheckMessage);
-    }
+    // private void sendImmediateCheckMessage(String voteSessionId) {
+    //     VoteCheckMessage voteCheckMessage = VoteCheckMessage.createImmediateCheck(voteSessionId);
+    //     voteMQProducer.sendImmediateCheck(voteCheckMessage);
+    // }
 
     // 处理投票超时
-    private void handleVoteTimeout(HaiGuiVoteSession session) {
+    private void handleVoteTimeout(ChatGame chatGame,HaiGuiVoteSession session) {
         // 标记为超时结束
+        chatGame.setStatus(RoomStatus.ACTIVE);
+        chatGame.setUpdateTime(LocalDateTime.now());
+        chatGameRepository.save(chatGame);
         session.setStatus(HaiGuiVoteSession.VoteStatus.FAILED);
         session.setUpdatedAt(LocalDateTime.now());
         haiGuiVoteSessionRepository.save(session);
     }
+
+
+    public void processTimeoutVoteCheck(VoteCheckMessage message) {
+        HaiGuiVoteSession session = haiGuiVoteSessionRepository.findById(message.getVoteSessionId())
+                .orElseThrow(() -> new RuntimeException("投票会话不存在"));
+
+        // 如果仍在投票中，则强制结束
+        if (session.getStatus() == HaiGuiVoteSession.VoteStatus.ONGOING) {
+            session.setStatus(HaiGuiVoteSession.VoteStatus.FAILED);
+            session.setEndTime(LocalDateTime.now());
+            haiGuiVoteSessionRepository.save(session);
+
+            // 恢复房间状态
+            restoreRoomStatus(session.getRoomId());
+        }
+    }
+
+    // 检查投票结果
+    //投票人数要大于80%且同意比例要大于60%
+    private void checkVoteResult(HaiGuiVoteSession session) {
+
+        // 如果投票已结束，不再处理
+        if (session.getStatus() != HaiGuiVoteSession.VoteStatus.ONGOING) {
+            return;
+        }
+
+        // 获取房间所有成员
+        int totalMembers = session.getTotalVoters();
+
+        // 获取投票记录
+        int agreeCount = session.getAgreedVotes();
+
+
+        // 获取房间人数（应从房间成员服务获取）
+        int playerCount = session.getTotalVoters();
+
+        // 计算所需票数
+        int requiredVotes = calculateRequiredVotes(playerCount);
+        // 判断是否达到结束条件
+        // 检查是否达到要求
+        // 如果同意比例达到要求，则结束游戏
+        if (agreeCount >= requiredVotes) {
+            session.setStatus(HaiGuiVoteSession.VoteStatus.PASSED);
+            haiGuiVoteSessionRepository.save(session);
+
+            // 结束游戏
+            soupQuestionService.endGame(session.getRoomId());
+        } else if (agreeCount == totalMembers) {
+            // 所有成员已投票但未通过
+            session.setStatus(HaiGuiVoteSession.VoteStatus.FAILED);
+            session.setEndTime(LocalDateTime.now());
+            haiGuiVoteSessionRepository.save(session);
+
+            // 恢复房间状态
+            restoreRoomStatus(session.getRoomId());
+        }
+    }
+
+
+
+
+    // 恢复房间状态
+    private void restoreRoomStatus(String roomId) {
+        ChatGame chatGame = chatGameRepository.findById(roomId)
+                .orElseThrow(() -> new RuntimeException("房间不存在"));
+        chatGame.setStatus(RoomStatus.ACTIVE);
+        chatGameRepository.save(chatGame);
+    }
+
+
+    /**
+     * 根据房间人数计算结束游戏所需的最少同意票数
+     * @param playerCount 房间人数
+     * @return 所需最少同意票数
+     */
+    private int calculateRequiredVotes(int playerCount) {
+        if (playerCount <= 0) {
+            throw new IllegalArgumentException("房间人数必须大于0");
+        }
+        // 根据规则映射表
+        return switch (playerCount) {
+            case 2, 3 -> 2;
+            case 4 -> 3;
+            case 5, 6 -> 4;
+            case 7 -> 5;
+            case 8 -> 6;
+            case 9 -> 7;
+            case 10 -> 8;
+            default -> {
+                // 超过10人的处理规则（可根据需要调整）
+                if (playerCount > 10) {
+                    yield playerCount - 2;
+                }
+                // 少于2人的异常情况
+                yield 1;
+            }
+        };
+    }
+
+
 }

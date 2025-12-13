@@ -70,4 +70,19 @@ public class HaiGuiVoteRecord {
         DISAGREE,   // 不同意
         ABSTAIN     // 弃权
     }
+
+    @Override
+    public String toString() {
+        return "HaiGuiVoteRecord{" +
+                "voteId=" + voteId +
+                ", voteSessionId='" + voteSessionId + '\'' +
+                ", userId=" + userId +
+                ", voteOption=" + voteOption +
+                ", isDeleted=" + isDeleted +
+                ", createdAt=" + createdAt +
+                ", updatedAt=" + updatedAt +
+                ", voteSessionRef=" + (voteSession != null ? voteSession.getVoteSessionId() : "null") +  // 只打印关联对象的ID
+                ", sysUserRef=" + (sysUser != null ? sysUser.getUserId() : "null") +  // 只打印关联对象的ID
+                '}';
+    }
 }

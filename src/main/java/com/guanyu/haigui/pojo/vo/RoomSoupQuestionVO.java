@@ -8,6 +8,9 @@ public class RoomSoupQuestionVO {
     //房间id
     private String roomId;
 
+    //问题id
+    private String questionId;
+
     //问题
     private String question;
 
@@ -23,16 +26,20 @@ public class RoomSoupQuestionVO {
     //剩余次数
     private int remainingQuestions;
 
+    //状态
+    private String status;
+
     //消息类型
     private MessageChatType type;
 
 
-    public static RoomSoupQuestionVO success(String roomId, String question,String answer,Double currentProgress,int remainingQuestions){
+    public static RoomSoupQuestionVO success(String roomId, Long questionId,String question,String answer,Double currentProgress,int remainingQuestions){
         RoomSoupQuestionVO roomSoupQuestionVO = new RoomSoupQuestionVO();
         roomSoupQuestionVO.setRoomId(roomId);
+        roomSoupQuestionVO.setQuestionId(questionId.toString());
         roomSoupQuestionVO.setQuestion(question);
         roomSoupQuestionVO.setAnswer(answer);
-        roomSoupQuestionVO.setMessage("success");
+        roomSoupQuestionVO.setStatus("success");
         roomSoupQuestionVO.setCurrentProgress(currentProgress);
         roomSoupQuestionVO.setRemainingQuestions(remainingQuestions);
         roomSoupQuestionVO.setType(MessageChatType.SOUP_QUESTION);
@@ -42,6 +49,7 @@ public class RoomSoupQuestionVO {
     public static RoomSoupQuestionVO error(String message){
         RoomSoupQuestionVO roomSoupQuestionVO = new RoomSoupQuestionVO();
         roomSoupQuestionVO.setMessage(message);
+        roomSoupQuestionVO.setStatus("error");
         roomSoupQuestionVO.setType(MessageChatType.SOUP_QUESTION);
         return roomSoupQuestionVO;
     }

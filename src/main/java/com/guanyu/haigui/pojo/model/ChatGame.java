@@ -37,7 +37,7 @@ public class ChatGame {
     private HaiGuiSoup haiGuiSoup;
 
     /** 游戏房间名称（对应room_name） */
-    @Column(name = "room_name", nullable = false, length = 255)
+    @Column(name = "room_name", nullable = false)
     private String roomName;
 
     /** 创建者（关联sys_user表，对应creator_id） */
@@ -98,5 +98,26 @@ public class ChatGame {
     // 枚举定义
     public enum PrivacyType {
         PUBLIC, PRIVATE
+    }
+
+    @Override
+    public String toString() {
+        return "ChatGame{" +
+                "roomId='" + roomId + '\'' +
+                ", soupId=" + (haiGuiSoup != null ? haiGuiSoup.getSoupId() : "null") +
+                ", roomName='" + roomName + '\'' +
+                ", creatorId=" + (creator != null ? creator.getUserId() : "null") +
+                ", requiredMembers=" + requiredMembers +
+                ", currentMembers=" + currentMembers +
+                ", status=" + status +
+                ", createTime=" + createTime +
+                ", updateTime=" + updateTime +
+                ", startTime=" + startTime +
+                ", endTime=" + endTime +
+                ", privacyType=" + privacyType +
+                ", needInvite=" + needInvite +
+                ", sessionId='" + sessionId + '\'' +
+                ", memberCount=" + (members != null ? members.size() : 0) +  // 只打印成员数量，不展开集合
+                '}';
     }
 }

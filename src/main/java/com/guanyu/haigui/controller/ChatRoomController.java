@@ -6,6 +6,7 @@ import com.guanyu.haigui.pojo.model.HaiGuiVoteRecord;
 import com.guanyu.haigui.pojo.result.ChatWithAIRoomRequest;
 import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.result.Result;
+import com.guanyu.haigui.service.ServicesImpl.SoupQuestionServiceImpl;
 import com.guanyu.haigui.service.SoupQuestionService;
 import com.guanyu.haigui.websocket.RoomService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,6 +28,7 @@ import java.util.List;
 public class ChatRoomController {
     private final RoomService roomService;
     private final SoupQuestionService soupQuestionService;
+    private final SoupQuestionServiceImpl soupQuestionServiceImpl;
 
 
     /**
@@ -214,6 +216,13 @@ public class ChatRoomController {
     @ResponseBody
     public Result<VoteEndGameVO> continueVote(@PathVariable String roomId,@PathVariable HaiGuiVoteRecord.VoteOption status) {
         return Result.success(roomService.continueVote(roomId,status));
+    }
+
+    @Operation(summary = "结束游戏，测试专用")
+    @PostMapping("/endGame/{roomId}")
+    @ResponseBody
+    public Result<EndGameVO> endGame(@PathVariable String roomId) {
+        return Result.success(soupQuestionServiceImpl.endGame(roomId));
     }
 
 
