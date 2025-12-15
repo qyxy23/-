@@ -11,6 +11,8 @@ import java.util.List;
 public class HaiGuiInfoResult {
     //主持人手册
     private String manual;
+    //线索
     private List<ClueFragment> fragments;
+    //进度任务
     private List<InferenceTask> inferenceTasks;
 }

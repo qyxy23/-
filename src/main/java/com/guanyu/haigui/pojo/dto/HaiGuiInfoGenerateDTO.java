@@ -24,9 +24,6 @@ public class HaiGuiInfoGenerateDTO {
     //难度
     private DifficultyLevel difficultyLevel = DifficultyLevel.BEGINNER;
 
-    // 时间限制
-    private String timeLimit;
-
     // 最大轮数
     private String maxRounds;
 

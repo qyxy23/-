@@ -2,6 +2,8 @@ package com.guanyu.haigui.pojo.model;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.guanyu.haigui.Enum.DifficultyLevel;
+import com.guanyu.haigui.Enum.SoupTag;
+import com.guanyu.haigui.converter.SoupTagConverter;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
@@ -54,8 +56,9 @@ public class HaiGuiSoupAudit {
            columnDefinition = "ENUM('BEGINNER','INTERMEDIATE','ADVANCED') DEFAULT 'BEGINNER'")
     private DifficultyLevel difficultyLevel = DifficultyLevel.BEGINNER;
 
-    @Column(name = "tags", columnDefinition = "JSON")
-    private String tags; // JSON格式的字符串
+    @Column(name = "tags", nullable = false)
+    @Convert(converter = SoupTagConverter.class)
+    private SoupTag tags;
 
     @Column(name = "uploader_id", nullable = false, columnDefinition = "BIGINT UNSIGNED")
     private Long uploaderId;

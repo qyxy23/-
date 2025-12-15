@@ -1,9 +1,7 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.gson.Gson;
 import com.guanyu.haigui.Exception.AiResponseException;
 import com.guanyu.haigui.Exception.BusinessException;
@@ -38,6 +36,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@Transactional
 public class TurtleSoupService {
 
     private final VectorService vectorService;
@@ -52,8 +51,6 @@ public class TurtleSoupService {
     private final HaiGuiSoupAuditRepository haiGuiSoupAuditRepository;
 
 
-    private final ObjectMapper objectMapper = new ObjectMapper()
-            .registerModule(new JavaTimeModule());
 
 
 
@@ -63,7 +60,6 @@ public class TurtleSoupService {
      * @param soup 海龟汤对象
      * @return 是否成功
      */
-    @Transactional
     public boolean addTurtleSoup(CreateHaiGuiSoupDTO soup) {
         try {
             // 1. 创建并保存海龟汤实体
@@ -400,7 +396,8 @@ public class TurtleSoupService {
         haiGuiSoup.setEstimatedDuration(soup.getEstimatedDuration());
         haiGuiSoup.setPlayerCount(soup.getPlayerCount());
         haiGuiSoup.setDifficultyLevel(soup.getDifficultyLevel());
-        haiGuiSoup.setTags(soup.getTagsAsString());
+        // haiGuiSoup.setTags(soup.getTagsAsString());
+        haiGuiSoup.setTags(soup.getTag());
         haiGuiSoup.setKeyClues("[]");
         haiGuiSoup.setUploaderId(userInfo.getUserId());
         haiGuiSoup.setCreatorId(userInfo.getUserId());
@@ -565,7 +562,7 @@ public class TurtleSoupService {
     }
 
     // 解析任务数组
-    private List<InferenceTask> parseTaskArray(JsonNode arrayNode) throws JsonProcessingException {
+    private List<InferenceTask> parseTaskArray(JsonNode arrayNode) {
         List<InferenceTask> tasks = new ArrayList<>();
 
         for (JsonNode taskNode : arrayNode) {

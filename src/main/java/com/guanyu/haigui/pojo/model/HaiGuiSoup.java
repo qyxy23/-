@@ -1,6 +1,7 @@
 package com.guanyu.haigui.pojo.model;
 
 import com.guanyu.haigui.Enum.DifficultyLevel;
+import com.guanyu.haigui.Enum.SoupTag;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -110,8 +111,9 @@ public class HaiGuiSoup {
     private DifficultyLevel difficultyLevel = DifficultyLevel.BEGINNER;
 
     // 海龟汤标签（JSON格式）
-    @Column(name = "tags", columnDefinition = "JSON")
-    private String tags;
+    @Column(name = "tags", nullable = false)
+    @Enumerated(EnumType.STRING)
+    private SoupTag tags;
 
     // 是否删除
     @Column(name = "is_deleted", columnDefinition = "TINYINT(1)", nullable = false)

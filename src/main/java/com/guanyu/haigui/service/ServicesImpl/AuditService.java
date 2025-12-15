@@ -3,9 +3,11 @@ package com.guanyu.haigui.service.ServicesImpl;
 import com.guanyu.haigui.Enum.UserRoleEnum;
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.context.BaseContext;
+import com.guanyu.haigui.pojo.model.SysRole;
 import com.guanyu.haigui.pojo.model.SysUserRole;
 import com.guanyu.haigui.pojo.model.UserInfo;
 import com.guanyu.haigui.pojo.vo.AddAuditUserVO;
+import com.guanyu.haigui.repository.SysRoleRepository;
 import com.guanyu.haigui.repository.SysUserRoleRepository;
 import com.guanyu.haigui.repository.UserInfoRepository;
 import lombok.AllArgsConstructor;
@@ -21,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuditService {
     private final UserInfoRepository userInfoRepository;
     private final SysUserRoleRepository sysUserRoleRepository;
+    private final SysRoleRepository sysRoleRepository;
 
 
     /*
@@ -32,7 +35,7 @@ public class AuditService {
         // 1. 验证当前管理员身份
         Long currentAdminId = BaseContext.getCurrentId();
 
-        UserInfo admin = userInfoRepository.findById(currentAdminId)
+        userInfoRepository.findById(currentAdminId)
                 .orElseThrow(() -> new BusinessException(404,"管理员不存在"));
         
         // 检查当前用户是否具有管理员角色
@@ -61,10 +64,15 @@ public class AuditService {
         // 1. 获取审核员角色ID（直接从枚举中获取）
         Long auditorRoleId = UserRoleEnum.SOUP_AUDITOR.getRoleId();
 
+        SysRole role = sysRoleRepository.findById(auditorRoleId)
+                .orElseThrow(() -> new BusinessException(404, "角色不存在"));
+
         // 2. 创建用户-角色关联对象
         SysUserRole.UserRoleId id = new SysUserRole.UserRoleId(userId, auditorRoleId);
         SysUserRole userRole = new SysUserRole();
         userRole.setId(id);
+        userRole.setRole(role);
+        userRole.setUser(targetUser);
 
         // 3. 直接保存关联
         try {

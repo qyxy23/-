@@ -1,15 +1,27 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.guanyu.haigui.Enum.UserRoleEnum;
+import com.guanyu.haigui.Exception.BusinessException;
+import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.manager.AIManager;
+import com.guanyu.haigui.pojo.dto.CreateTurtleSoupDTO;
 import com.guanyu.haigui.pojo.dto.HaiGuiInfoGenerateDTO;
 import com.guanyu.haigui.pojo.dto.TitleGenerateDTO;
 import com.guanyu.haigui.pojo.dto.TurtleSoupEnhanceDTO;
+import com.guanyu.haigui.pojo.model.HaiGuiSoup;
+import com.guanyu.haigui.pojo.model.HaiGuiSoupAudit;
+import com.guanyu.haigui.pojo.model.SysUserRole;
+import com.guanyu.haigui.pojo.model.UserInfo;
 import com.guanyu.haigui.pojo.result.HaiGuiInfoResult;
 import com.guanyu.haigui.pojo.vo.BatchEncodeResponse;
 import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
 import com.guanyu.haigui.pojo.vo.TitleGenerateResultVO;
 import com.guanyu.haigui.pojo.vo.TurtleSoupEnhanceResultVO;
+import com.guanyu.haigui.repository.HaiGuiSoupAuditRepository;
+import com.guanyu.haigui.repository.HaiGuiSoupRepository;
+import com.guanyu.haigui.repository.SysUserRoleRepository;
+import com.guanyu.haigui.repository.UserInfoRepository;
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
 import com.guanyu.haigui.utils.TurtleSoupPromptUtil;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +33,7 @@ import org.springframework.util.FileCopyUtils;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -28,18 +41,18 @@ import java.util.Map;
 @Slf4j
 @RequiredArgsConstructor
 public class HaiGuiTangServiceImpl {
-
+    private final SysUserRoleRepository sysUserRoleRepository;
+    private final UserInfoRepository userInfoRepository;
     private final AIManager aiManager;
     private final ObjectMapper objectMapper;
     private final TurtleSoupPromptUtil promptUtil;
     private final HaiGuiSoupInfoService haiGuiSoupInfoService;
+    private final HaiGuiSoupRepository haiGuiSoupRepository;
+    private final HaiGuiSoupAuditRepository haiGuiSoupAuditRepository;
 
     // 调试模式配置
     @Value("${haiqutang.ai.debug-mode:false}")
     private boolean debugMode;
-
-
-
 
 
     /**
@@ -306,20 +319,6 @@ public class HaiGuiTangServiceImpl {
         return BgeVectorClientUtil.encodeBatch(content);
     }
 
-    public String generateHostManual(String content) {
-        // 保持向后兼容
-        return "";
-    }
-
-    public String generateKeyClue(String content) {
-        // 保持向后兼容
-        return "";
-    }
-
-    public String generateProgressSetting(String content) {
-        // 保持向后兼容
-        return "";
-    }
 
     /**
      * 清理AI响应中的JSON格式问题
@@ -369,7 +368,7 @@ public class HaiGuiTangServiceImpl {
                 log.error("备用JSON提取方法也失败", e2);
                 log.warn("AI响应原始内容: {}", response);
                 return "{\"error\": \"JSON解析失败\", \"originalResponse\": \"" +
-                       response.replaceAll("\"", "\\\\\"") + "\"}";
+                        response.replaceAll("\"", "\\\\\"") + "\"}";
             }
         }
     }
@@ -492,6 +491,7 @@ public class HaiGuiTangServiceImpl {
 
     /**
      * 获取模拟AI响应数据（调试模式使用）
+     *
      * @return 模拟的AI响应JSON字符串
      */
     private String getMockAiResponse() {
@@ -516,6 +516,7 @@ public class HaiGuiTangServiceImpl {
 
     /**
      * 根据汤面汤底生成标题
+     *
      * @param titleGenerateDTO 标题生成请求
      * @return 标题生成结果
      */
@@ -553,7 +554,7 @@ public class HaiGuiTangServiceImpl {
             TitleGenerateResultVO errorResult = new TitleGenerateResultVO();
             errorResult.setStatus("生成失败: " + e.getMessage());
             errorResult.setGeneratedTitle(titleGenerateDTO.getCurrentTitle() != null ?
-                                          titleGenerateDTO.getCurrentTitle() : "未命名海龟汤");
+                    titleGenerateDTO.getCurrentTitle() : "未命名海龟汤");
             return errorResult;
         }
     }
@@ -563,20 +564,20 @@ public class HaiGuiTangServiceImpl {
      */
     private String generateTitlePrompt(TitleGenerateDTO dto) {
         return String.format("""
-            请根据以下海龟汤的汤面和汤底，生成一个引人入胜的标题。
-
-            汤面：%s
-            汤底：%s
-
-            要求：
-            1. 标题要有悬念感，能吸引玩家
-            2. 长度控制在2-8个汉字之间
-            3. 避免直接剧透汤底内容
-            4. 体现故事的核心矛盾
-            5. 具有海龟汤游戏的特色
-
-            请直接返回生成的标题，不要包含任何解释。
-            """, dto.getSoupSurface(), dto.getSoupBottom());
+                请根据以下海龟汤的汤面和汤底，生成一个引人入胜的标题。
+                
+                汤面：%s
+                汤底：%s
+                
+                要求：
+                1. 标题要有悬念感，能吸引玩家
+                2. 长度控制在2-8个汉字之间
+                3. 避免直接剧透汤底内容
+                4. 体现故事的核心矛盾
+                5. 具有海龟汤游戏的特色
+                
+                请直接返回生成的标题，不要包含任何解释。
+                """, dto.getSoupSurface(), dto.getSoupBottom());
     }
 
     /**
@@ -589,10 +590,10 @@ public class HaiGuiTangServiceImpl {
 
         // 清理响应，去除可能的引号和额外说明
         String title = aiResponse.trim()
-                               .replaceAll("^['\"]+", "")
-                               .replaceAll("['\"]+$", "")
-                               .split("\n")[0]
-                               .trim();
+                .replaceAll("^['\"]+", "")
+                .replaceAll("['\"]+$", "")
+                .split("\n")[0]
+                .trim();
 
         if (title.length() > 10) {
             title = title.substring(0, 10) + "...";
@@ -603,6 +604,7 @@ public class HaiGuiTangServiceImpl {
 
     /**
      * 备用模拟响应（当文件读取失败时使用）
+     *
      * @return 默认的模拟响应
      */
     private String getFallbackMockResponse() {
@@ -611,10 +613,34 @@ public class HaiGuiTangServiceImpl {
 
 
     public HaiGuiInfoResult generateInfo(HaiGuiInfoGenerateDTO titleGenerateDTO) {
+        UserInfo userInfo = userInfoRepository.findById(BaseContext.getCurrentId())
+                .orElseThrow(() -> new BusinessException(404, "用户不存在"));
+        boolean userRole = sysUserRoleRepository.existsById(new SysUserRole.UserRoleId(userInfo.getUserId(), UserRoleEnum.SOUP_AUDITOR.getRoleId()));
+        if (!userRole) {
+            throw new BusinessException(403, "您不是审核员,无权限");
+        }
         // 生成提示
         String prompt = haiGuiSoupInfoService.generatePrompt(titleGenerateDTO);
         // 调用AI生成信息
         return haiGuiSoupInfoService.generateInfo(prompt);
     }
 
+    public String createTurtleSoup(CreateTurtleSoupDTO createTurtleSoupDTO) {
+        UserInfo userInfo = userInfoRepository.findById(BaseContext.getCurrentId())
+                .orElseThrow(() -> new BusinessException(404, "用户不存在"));
+        boolean userRole = sysUserRoleRepository.existsById(new SysUserRole.UserRoleId(userInfo.getUserId(), UserRoleEnum.SOUP_AUDITOR.getRoleId()));
+        if (!userRole) {
+            throw new BusinessException(403, "您不是审核员,无权限");
+        }
+        HaiGuiSoup soup = createTurtleSoupDTO.fromToHaiGuiSoup(userInfo);
+        haiGuiSoupRepository.save(soup);
+        HaiGuiSoupAudit audit = haiGuiSoupAuditRepository.findById(createTurtleSoupDTO.getAuditRecordId())
+                .orElseThrow(() -> new BusinessException(404, "审核记录不存在"));
+        audit.setOriginalSoupId(soup.getSoupId());
+        audit.setAuditStatus(HaiGuiSoupAudit.AuditStatus.APPROVED);
+        audit.setAuditorId(BaseContext.getCurrentId());
+        audit.setAuditTime(LocalDateTime.now());
+        haiGuiSoupAuditRepository.save(audit);
+        return "创建成功";
+    }
 }

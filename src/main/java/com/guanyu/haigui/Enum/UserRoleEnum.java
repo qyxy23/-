@@ -5,8 +5,8 @@ import lombok.Getter;
 @Getter
 public enum UserRoleEnum {
     // 核心角色定义（ID使用Long类型）
-    USER(1L, "USER", "普通用户"),
-    ADMIN(2L, "ADMIN", "系统管理员"),
+    ADMIN(1L, "ADMIN", "系统管理员"),
+    USER(2L, "USER", "普通用户"),
     SOUP_AUDITOR(3L, "SOUP_AUDITOR", "海龟汤审核员");  // 新增审核员角色
 
     private final Long roleId;

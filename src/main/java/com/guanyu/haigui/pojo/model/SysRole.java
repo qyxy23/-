@@ -13,8 +13,9 @@ public class SysRole {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "role_id", columnDefinition = "BIGINT UNSIGNED")
     private Long roleId;
-    
+
     @Column(name = "role_name", length = 50, nullable = false, unique = true)
+    @Enumerated(EnumType.STRING)  // 明确使用字符串映射
     private UserRoleEnum roleName;
     
     @Column(name = "description", length = 100)

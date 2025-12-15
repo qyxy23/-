@@ -1,6 +1,7 @@
 package com.guanyu.haigui.pojo.dto;
 
 import com.guanyu.haigui.Enum.DifficultyLevel;
+import com.guanyu.haigui.Enum.SoupTag;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -74,7 +75,7 @@ public class SoupProjectionDTO {
     /**
      * 海龟汤标签（单个标签，JSON字符串）
      */
-    private String tag;
+    private SoupTag tag;
 
     /**
      * 海龟头像

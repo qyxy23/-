@@ -24,24 +24,6 @@ public class HaiGuiTangController {
     private final HaiGuiTangServiceImpl haiGuiTangService;
 
 
-    @Operation(summary = "调用ai生成相对应的主持人手册模块")
-    @PostMapping("/generateHostManual")
-    public Result<String> generateHostManual(@RequestBody String content) {
-        return Result.success(haiGuiTangService.generateHostManual(content));
-    }
-
-    @Operation(summary = "调用ai生成相对应的关键线索模块")
-    @PostMapping("/generateKeyClue")
-    public Result<String> generateKeyClue(@RequestBody String content) {
-        return Result.success(haiGuiTangService.generateKeyClue(content));
-    }
-
-    @Operation(summary = "调用ai生成相对应的进度设置模块")
-    @PostMapping("/generateProgressSetting")
-    public Result<String> generateProgressSetting(@RequestBody String content) {
-        return Result.success(haiGuiTangService.generateProgressSetting(content));
-    }
-
     @Operation(summary = "向量化单个消息")
     @PostMapping("/vectorSignalTurtleSoup")
     public Result<SingleEncodeResponse> vectorSignalTurtleSoup(@RequestBody TurtleSoupSignalDTO content) {
@@ -95,5 +77,11 @@ public class HaiGuiTangController {
             log.error("信息生成失败", e);
             return Result.error("信息生成失败: " + e.getMessage());
         }
+    }
+
+    @Operation(summary = "审核员创建海龟汤接口", description = "审核员导入海龟汤")
+    @PostMapping("/createTurtleSoup")
+    public Result<String> createTurtleSoup(@RequestBody CreateTurtleSoupDTO createTurtleSoupDTO) {
+        return Result.success(haiGuiTangService.createTurtleSoup(createTurtleSoupDTO));
     }
 }

@@ -178,7 +178,7 @@ public class HaiGuiRankingService {
                     .uploadTime(projection.getUploadTime())
                     .difficultyLevel(projection.getDifficultyLevel())
                     .playerCount(projection.getPlayerCount())
-                    .tag(projection.getTag())
+                    .tag(projection.getTag().getDescription())
                     .soupAvatar(projection.getSoupAvatar())
                     .estimatedDuration(projection.getEstimatedDuration());
             return builder.build();
@@ -196,7 +196,7 @@ public class HaiGuiRankingService {
                     .difficultyLevel(projection.getDifficultyLevel())
                     .estimatedDuration(estimatedDuration != null ? estimatedDuration : 30)
                     .playerCount(projection.getPlayerCount())
-                    .tag(projection.getTag()) // 使用从数据库获取的标签
+                    .tag(projection.getTag().getDescription()) // 使用从数据库获取的标签
                     .build();
         }
     }

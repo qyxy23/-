@@ -1,14 +1,11 @@
 package com.guanyu.haigui.pojo.dto;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.guanyu.haigui.Enum.DifficultyLevel;
 import com.guanyu.haigui.Enum.SoupTag;
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.model.HaiGuiSoupAudit;
 import lombok.Data;
-
-import java.util.List;
 
 @Data
 public class UploadHaiGuiSoupDTO {
@@ -30,6 +27,9 @@ public class UploadHaiGuiSoupDTO {
     // 难度等级
     private DifficultyLevel difficultyLevel = DifficultyLevel.BEGINNER;
 
+    //默认最大询问次数
+    private Integer DefaultMaxQuestions = 20;
+
     // 海龟汤标签（只能选择一个）
     private SoupTag tag;
 
@@ -44,27 +44,9 @@ public class UploadHaiGuiSoupDTO {
         audit.setEstimatedDuration(soup.getEstimatedDuration());
         audit.setPlayerCount(soup.getPlayerCount());
         audit.setDifficultyLevel(soup.getDifficultyLevel());
-        audit.setTags(soup.getTagsAsString());
+        audit.setTags(soup.getTag());
         audit.setUploaderId(BaseContext.getCurrentId());
         audit.setAuditStatus(HaiGuiSoupAudit.AuditStatus.PENDING);
         return audit;
-    }
-
-
-    /**
-     * 获取标签字符串（单个标签）
-     */
-    public String getTagsAsString() {
-        if (tag == null) {
-            return "[]";
-        }
-        try {
-            // 将单个标签转换为描述
-            String tagDescription = tag.getDescription();
-            return objectMapper.writeValueAsString(List.of(tagDescription));
-        } catch (JsonProcessingException e) {
-            // 如果序列化失败，返回标签描述
-            return "[" + tag.getDescription() + "]";
-        }
     }
 }

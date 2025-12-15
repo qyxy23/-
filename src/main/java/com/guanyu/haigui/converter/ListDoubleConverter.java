@@ -37,7 +37,8 @@ public class ListDoubleConverter implements AttributeConverter<List<Double>, Str
             return null;
         }
         try {
-            return objectMapper.readValue(dbData, new TypeReference<List<Double>>() {});
+            return objectMapper.readValue(dbData, new TypeReference<>() {
+            });
         } catch (JsonProcessingException e) {
             log.error("从JSON字符串转换List<Double>失败: {}", dbData, e);
             return null;
