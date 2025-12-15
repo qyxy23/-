@@ -9,17 +9,12 @@ import com.guanyu.haigui.Exception.AiResponseException;
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.dto.CreateHaiGuiSoupDTO;
-import com.guanyu.haigui.pojo.model.ClueFragment;
-import com.guanyu.haigui.pojo.model.HaiGuiSoup;
-import com.guanyu.haigui.pojo.model.InferenceTask;
-import com.guanyu.haigui.pojo.model.UserInfo;
+import com.guanyu.haigui.pojo.dto.UploadHaiGuiSoupDTO;
+import com.guanyu.haigui.pojo.model.*;
 import com.guanyu.haigui.pojo.result.DecompositionResult;
 import com.guanyu.haigui.pojo.vo.ClueMatchResult;
 import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
-import com.guanyu.haigui.repository.ClueFragmentRepository;
-import com.guanyu.haigui.repository.HaiGuiSoupRepository;
-import com.guanyu.haigui.repository.InferenceTaskRepository;
-import com.guanyu.haigui.repository.UserInfoRepository;
+import com.guanyu.haigui.repository.*;
 import com.guanyu.haigui.service.VectorService;
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
 import com.guanyu.haigui.utils.MinioUtil;
@@ -54,6 +49,7 @@ public class TurtleSoupService {
     private final InferenceTaskRepository inferenceTaskRepository;
     private final ClueDecompositionService clueDecompositionService;
     private final MinioUtil minioUtil;
+    private final HaiGuiSoupAuditRepository haiGuiSoupAuditRepository;
 
 
     private final ObjectMapper objectMapper = new ObjectMapper()
@@ -683,5 +679,11 @@ public class TurtleSoupService {
         haiGuiSoupRepository.save(soup);
         log.info("海龟汤头像更新成功 → 汤ID: {}, URL: {}", soup, avatarUrl);
         return avatarUrl;
+    }
+
+    public String uploadTurtleSoup(UploadHaiGuiSoupDTO soup) {
+        HaiGuiSoupAudit audit = UploadHaiGuiSoupDTO.from(soup);
+        haiGuiSoupAuditRepository.save(audit);
+        return "上传成功,请等待审核";
     }
 }

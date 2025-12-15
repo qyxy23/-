@@ -1,6 +1,7 @@
 package com.guanyu.haigui.pojo.model;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.guanyu.haigui.Enum.DifficultyLevel;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
@@ -83,12 +84,6 @@ public class HaiGuiSoupAudit {
     @Column(name = "updated_at", nullable = false, columnDefinition = "DATETIME(6)")
     private LocalDateTime updatedAt;
 
-    // 难度等级枚举
-    public enum DifficultyLevel {
-        BEGINNER,    // 入门
-        INTERMEDIATE,// 中等
-        ADVANCED     // 困难
-    }
 
     // 审核状态枚举
     public enum AuditStatus {

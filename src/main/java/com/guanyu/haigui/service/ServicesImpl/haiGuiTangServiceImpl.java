@@ -2,14 +2,15 @@ package com.guanyu.haigui.service.ServicesImpl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.guanyu.haigui.manager.AIManager;
+import com.guanyu.haigui.pojo.dto.HaiGuiInfoGenerateDTO;
 import com.guanyu.haigui.pojo.dto.TitleGenerateDTO;
 import com.guanyu.haigui.pojo.dto.TurtleSoupEnhanceDTO;
+import com.guanyu.haigui.pojo.result.HaiGuiInfoResult;
 import com.guanyu.haigui.pojo.vo.BatchEncodeResponse;
 import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
 import com.guanyu.haigui.pojo.vo.TitleGenerateResultVO;
 import com.guanyu.haigui.pojo.vo.TurtleSoupEnhanceResultVO;
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
-import com.guanyu.haigui.utils.MinioUtil;
 import com.guanyu.haigui.utils.TurtleSoupPromptUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +32,7 @@ public class HaiGuiTangServiceImpl {
     private final AIManager aiManager;
     private final ObjectMapper objectMapper;
     private final TurtleSoupPromptUtil promptUtil;
+    private final HaiGuiSoupInfoService haiGuiSoupInfoService;
 
     // 调试模式配置
     @Value("${haiqutang.ai.debug-mode:false}")
@@ -608,5 +610,11 @@ public class HaiGuiTangServiceImpl {
     }
 
 
+    public HaiGuiInfoResult generateInfo(HaiGuiInfoGenerateDTO titleGenerateDTO) {
+        // 生成提示
+        String prompt = haiGuiSoupInfoService.generatePrompt(titleGenerateDTO);
+        // 调用AI生成信息
+        return haiGuiSoupInfoService.generateInfo(prompt);
+    }
 
 }

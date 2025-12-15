@@ -1,0 +1,177 @@
+package com.guanyu.haigui.utils;
+
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.guanyu.haigui.pojo.model.ClueFragment;
+import com.guanyu.haigui.pojo.model.InferenceTask;
+import com.guanyu.haigui.pojo.result.HaiGuiInfoResult;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class HaiGuiInfoUtil {
+
+    private final ObjectMapper objectMapper;
+
+    public HaiGuiInfoResult parserHaiGuiInfo(String aiResponse) {
+        try {
+            // 1. 清理AI响应 - 简化版本
+            String cleanedResponse = cleanAiResponseSimple(aiResponse);
+            log.debug("清理后的AI响应: {}", cleanedResponse);
+
+            // 2. 配置ObjectMapper以允许控制字符
+            ObjectMapper mapper = new ObjectMapper()
+                    .configure(JsonParser.Feature.ALLOW_UNQUOTED_CONTROL_CHARS, true)
+                    .configure(JsonParser.Feature.ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER, true)
+                    .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
+                    .registerModule(new JavaTimeModule());
+
+            // 3. 解析JSON
+            JsonNode rootNode = mapper.readTree(cleanedResponse);
+
+            // 4. 提取主持人手册
+            String hostManual = extractHostManual(rootNode);
+
+            // 5. 解析线索片段
+            List<ClueFragment> fragments = parseFragments(rootNode.path("fragments"));
+
+            // 6. 解析任务
+            List<InferenceTask> tasks = parseTasks(rootNode.path("tasks"));
+
+            log.info("成功解析响应：{}个线索片段，{}个任务", fragments.size(), tasks.size());
+            return new HaiGuiInfoResult(hostManual, fragments, tasks);
+
+        } catch (Exception e) {
+            log.error("解析AI响应失败：{}", e.getMessage(), e);
+            log.debug("原始AI响应: {}", aiResponse); // 记录原始响应以便调试
+            throw new RuntimeException("AI响应解析失败: " + e.getMessage(), e);
+        }
+    }
+
+    // 清理AI响应中的Markdown代码块标记
+    private String cleanAiResponseSimple(String aiResponse) {
+        String cleaned = aiResponse.trim();
+
+        // 处理可能的代码块标记
+        if (cleaned.startsWith("```json")) {
+            cleaned = cleaned.substring(7); // 移除 ```json
+        } else if (cleaned.startsWith("```")) {
+            cleaned = cleaned.substring(3); // 移除 ```
+        }
+
+        if (cleaned.endsWith("```")) {
+            cleaned = cleaned.substring(0, cleaned.length() - 3);
+        }
+
+        return cleaned.trim();
+    }
+
+    // 提取主持人手册
+    private String extractHostManual(JsonNode rootNode) {
+        JsonNode manualNode = rootNode.path("hostManual");
+        return manualNode.isMissingNode() ? "" : manualNode.asText();
+    }
+
+    // 解析线索片段
+    private List<ClueFragment> parseFragments(JsonNode fragmentsNode) {
+        List<ClueFragment> fragments = new ArrayList<>();
+        if (fragmentsNode.isArray()) {
+            for (JsonNode node : fragmentsNode) {
+                ClueFragment fragment = new ClueFragment();
+                fragment.setFragmentContent(getText(node, "content"));
+                fragment.setFragmentType(getText(node, "fragmentType"));
+                fragment.setInferenceLevel(getInt(node, "inferenceLevel"));
+                fragment.setDifficulty(getInt(node, "difficulty"));
+                fragment.setImportance(getInt(node, "importance"));
+                fragment.setSimilarityThreshold(getDouble(node, "similarityThreshold"));
+                fragment.setIsCoreClue(getBoolean(node, "isCoreClue"));
+                fragment.setFragmentOrder(getInt(node, "fragmentOrder"));
+                fragment.setGenerationSource(getText(node, "generationSource"));
+                fragment.setTriggerKeywords(parseStringArray(node.path("triggerKeywords")));
+                fragments.add(fragment);
+            }
+        }
+        return fragments;
+    }
+
+    // 解析任务（转换为实体对象）
+    private List<InferenceTask> parseTasks(JsonNode tasksNode) {
+        List<InferenceTask> tasks = new ArrayList<>();
+        if (tasksNode.isArray()) {
+            for (JsonNode node : tasksNode) {
+                InferenceTask task = new InferenceTask();
+                task.setTaskName(getText(node, "taskName"));
+                task.setTaskDescription(getText(node, "taskDescription"));
+                task.setUnderstandingLevel(getInt(node, "understandingLevel"));
+                task.setTargetKeywords(parseStringArray(node.path("targetKeywords")));
+                task.setReasoningGoal(getText(node, "reasoningGoal"));
+                task.setProgressWeight(getDouble(node, "progressWeight"));
+                task.setIsMandatory(getBoolean(node, "isMandatory"));
+                task.setTaskOrder(getInt(node, "taskOrder"));
+
+                // 转换前置线索ID
+                List<Long> idList = parseLongArray(node.path("prerequisiteFragmentIds"));
+                task.setPrerequisiteFragmentIds(new HashSet<>(idList));
+
+                tasks.add(task);
+            }
+        }
+        return tasks;
+    }
+
+    // 安全获取文本值
+    private String getText(JsonNode node, String field) {
+        JsonNode fieldNode = node.path(field);
+        return fieldNode.isMissingNode() ? "" : fieldNode.asText();
+    }
+
+    // 安全获取整型值
+    private Integer getInt(JsonNode node, String field) {
+        JsonNode fieldNode = node.path(field);
+        return fieldNode.isMissingNode() ? 0 : fieldNode.asInt();
+    }
+
+    // 安全获取浮点值
+    private Double getDouble(JsonNode node, String field) {
+        JsonNode fieldNode = node.path(field);
+        return fieldNode.isMissingNode() ? 0.0 : fieldNode.asDouble();
+    }
+
+    // 安全获取布尔值
+    private Boolean getBoolean(JsonNode node, String field) {
+        JsonNode fieldNode = node.path(field);
+        return !fieldNode.isMissingNode() && fieldNode.asBoolean();
+    }
+
+    // 解析字符串数组
+    private List<String> parseStringArray(JsonNode node) {
+        List<String> list = new ArrayList<>();
+        if (node != null && node.isArray()) {
+            for (JsonNode item : node) {
+                list.add(item.asText());
+            }
+        }
+        return list;
+    }
+
+    // 解析长整型数组
+    private List<Long> parseLongArray(JsonNode node) {
+        List<Long> list = new ArrayList<>();
+        if (node != null && node.isArray()) {
+            for (JsonNode item : node) {
+                list.add(item.asLong());
+            }
+        }
+        return list;
+    }
+}

@@ -1,9 +1,7 @@
 package com.guanyu.haigui.controller;
 
-import com.guanyu.haigui.pojo.dto.TitleGenerateDTO;
-import com.guanyu.haigui.pojo.dto.TurtleSoupDTO;
-import com.guanyu.haigui.pojo.dto.TurtleSoupEnhanceDTO;
-import com.guanyu.haigui.pojo.dto.TurtleSoupSignalDTO;
+import com.guanyu.haigui.pojo.dto.*;
+import com.guanyu.haigui.pojo.result.HaiGuiInfoResult;
 import com.guanyu.haigui.pojo.vo.BatchEncodeResponse;
 import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
 import com.guanyu.haigui.pojo.vo.TitleGenerateResultVO;
@@ -85,5 +83,17 @@ public class HaiGuiTangController {
         }
     }
 
-
+    @Operation(summary = "海龟汤相关信息生成接口", description = "根据汤面和汤底生成主持人手册，线索，进度任务")
+    @PostMapping("/generateInfo")
+    public Result<HaiGuiInfoResult> generateInfo(@RequestBody HaiGuiInfoGenerateDTO titleGenerateDTO) {
+        log.info("接收到信息生成请求");
+        try {
+            HaiGuiInfoResult result = haiGuiTangService.generateInfo(titleGenerateDTO);
+            log.info("信息生成完成: {}", result);
+            return Result.success(result);
+        } catch (Exception e) {
+            log.error("信息生成失败", e);
+            return Result.error("信息生成失败: " + e.getMessage());
+        }
+    }
 }

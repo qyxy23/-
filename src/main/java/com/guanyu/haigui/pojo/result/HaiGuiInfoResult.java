@@ -1,19 +1,16 @@
 package com.guanyu.haigui.pojo.result;
 
 import com.guanyu.haigui.pojo.model.ClueFragment;
+import com.guanyu.haigui.pojo.model.InferenceTask;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
 import java.util.List;
-import java.util.Map;
-
-/**
- * 拆解结果类，包含线索片段和推理任务
- */
 @Data
 @AllArgsConstructor
-public class DecompositionResult {
+public class HaiGuiInfoResult {
     //主持人手册
+    private String manual;
     private List<ClueFragment> fragments;
-    private List<Map<String, Object>> inferenceTasks;
+    private List<InferenceTask> inferenceTasks;
 }

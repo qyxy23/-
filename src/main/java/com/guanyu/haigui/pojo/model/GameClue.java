@@ -51,13 +51,12 @@ public class GameClue {
      */
     public String getClueTypeDescription() {
         if (clueType == null) return "未知";
-        switch (clueType) {
-            case TIME: return "时间";
-            case PLACE: return "地点";
-            case CHARACTER: return "人物";
-            case PLOT: return "情节";
-            default: return "其他";
-        }
+        return switch (clueType) {
+            case TIME -> "时间";
+            case PLACE -> "地点";
+            case CHARACTER -> "人物";
+            case PLOT -> "情节";
+        };
     }
 
     /**
@@ -65,14 +64,13 @@ public class GameClue {
      */
     public String getDifficultyDescription() {
         if (difficulty == null) return "中等";
-        switch (difficulty) {
-            case 1: return "非常简单";
-            case 2: return "简单";
-            case 3: return "中等";
-            case 4: return "困难";
-            case 5: return "非常困难";
-            default: return "中等";
-        }
+        return switch (difficulty) {
+            case 1 -> "非常简单";
+            case 2 -> "简单";
+            case 4 -> "困难";
+            case 5 -> "非常困难";
+            default -> "中等";
+        };
     }
 
     /**
