@@ -1,6 +1,7 @@
 package com.guanyu.haigui.utils;
 
-import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.json.JsonReadFeature;
+import com.fasterxml.jackson.core.json.JsonWriteFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -21,8 +22,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class HaiGuiInfoUtil {
 
-    private final ObjectMapper objectMapper;
-
     public HaiGuiInfoResult parserHaiGuiInfo(String aiResponse) {
         try {
             // 1. 清理AI响应 - 简化版本
@@ -31,8 +30,11 @@ public class HaiGuiInfoUtil {
 
             // 2. 配置ObjectMapper以允许控制字符
             ObjectMapper mapper = new ObjectMapper()
-                    .configure(JsonParser.Feature.ALLOW_UNQUOTED_CONTROL_CHARS, true)
-                    .configure(JsonParser.Feature.ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER, true)
+                    // 替代 ALLOW_UNQUOTED_CONTROL_CHARS
+                    .configure(JsonReadFeature.ALLOW_UNESCAPED_CONTROL_CHARS.mappedFeature(), true)
+                    // 替代 ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER
+                    .configure(JsonWriteFeature.ESCAPE_NON_ASCII.mappedFeature(), true)
+                    // 其他配置保持不变
                     .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
                     .registerModule(new JavaTimeModule());
 

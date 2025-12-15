@@ -93,6 +93,7 @@ public class HaiGuiSoupInfoService {
                                     3. 避免重复关键词
                                     4. 核心线索(isCoreClue)占比30%%-50%%
                                     5. 时间类线索(TIME)占比≤20%%
+                                    6.返回标准JSON，控制字符用\\n转义
                         
                         
                                     {
