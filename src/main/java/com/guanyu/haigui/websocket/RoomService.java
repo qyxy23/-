@@ -140,6 +140,11 @@ public class RoomService {
 
     // LobbyService.java
     public PageImpl<LobbyListVO> searchLobbies(LobbyListDTO dto, int page) {
+        // 设置默认值（可选）
+        if (dto.getExcludeInvited() == null) {
+            dto.setExcludeInvited(true); // 默认排除邀请房间
+        }
+
         int validPage = Math.max(1, page);
         PageHelper.startPage(validPage, 10); // 分页（每页10条）
 

@@ -7,6 +7,8 @@ import java.time.LocalDateTime;
 
 @Data
 public class LobbyListDTO {
+    private Boolean excludeInvited = true; // 默认排除邀请房间
+
     // 聊天室名称
     private String roomName;
 
