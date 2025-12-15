@@ -2,9 +2,9 @@ package com.guanyu.haigui.pojo.dto;
 
 import com.guanyu.haigui.Enum.DifficultyLevel;
 import com.guanyu.haigui.Enum.SoupTag;
-import com.guanyu.haigui.pojo.model.ClueFragment;
+import com.guanyu.haigui.pojo.Info.ClueFragmentInfo;
+import com.guanyu.haigui.pojo.Info.InferenceTaskInfo;
 import com.guanyu.haigui.pojo.model.HaiGuiSoup;
-import com.guanyu.haigui.pojo.model.InferenceTask;
 import com.guanyu.haigui.pojo.model.UserInfo;
 import lombok.Data;
 
@@ -31,10 +31,10 @@ public class CreateTurtleSoupDTO {
     private String manual;
 
     //线索
-    private List<ClueFragment> fragments;
+    private List<ClueFragmentInfo> fragments;
 
     //推理任务
-    private List<InferenceTask> inferenceTasks;
+    private List<InferenceTaskInfo> inferenceTasks;
 
     // 预计游玩时间（分钟）
     private Integer estimatedDuration = 30;
@@ -48,6 +48,9 @@ public class CreateTurtleSoupDTO {
     // 海龟汤标签（只能选择一个）
     private SoupTag tag;
 
+    //最大问题数
+    private Integer maxRounds = 10;
+
     public HaiGuiSoup fromToHaiGuiSoup(UserInfo userInfo) {
         HaiGuiSoup haiGuiSoup = new HaiGuiSoup();
         haiGuiSoup.setSoupId(UUID.randomUUID().toString());
@@ -59,7 +62,7 @@ public class CreateTurtleSoupDTO {
         haiGuiSoup.setSoupSurface(soupSurface);
         haiGuiSoup.setSoupBottom(soupBottom);
         haiGuiSoup.setHostManual(manual);
-        haiGuiSoup.setDefaultMaxQuestions(estimatedDuration);
+        haiGuiSoup.setDefaultMaxQuestions(maxRounds);
         haiGuiSoup.setTaskGenerationStrategy("HYBRID");
         haiGuiSoup.setVectorMatchThreshold(new BigDecimal("0.7"));
         haiGuiSoup.setDifficultyLevel(difficultyLevel);

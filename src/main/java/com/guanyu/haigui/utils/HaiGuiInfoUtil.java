@@ -6,8 +6,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.guanyu.haigui.pojo.model.ClueFragment;
-import com.guanyu.haigui.pojo.model.InferenceTask;
+import com.guanyu.haigui.pojo.Info.ClueFragmentInfo;
+import com.guanyu.haigui.pojo.Info.InferenceTaskInfo;
 import com.guanyu.haigui.pojo.result.HaiGuiInfoResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,10 +45,10 @@ public class HaiGuiInfoUtil {
             String hostManual = extractHostManual(rootNode);
 
             // 5. 解析线索片段
-            List<ClueFragment> fragments = parseFragments(rootNode.path("fragments"));
+            List<ClueFragmentInfo> fragments = parseFragments(rootNode.path("fragments"));
 
             // 6. 解析任务
-            List<InferenceTask> tasks = parseTasks(rootNode.path("tasks"));
+            List<InferenceTaskInfo> tasks = parseTasks(rootNode.path("tasks"));
 
             log.info("成功解析响应：{}个线索片段，{}个任务", fragments.size(), tasks.size());
             return new HaiGuiInfoResult(hostManual, fragments, tasks);
@@ -85,11 +85,11 @@ public class HaiGuiInfoUtil {
     }
 
     // 解析线索片段
-    private List<ClueFragment> parseFragments(JsonNode fragmentsNode) {
-        List<ClueFragment> fragments = new ArrayList<>();
+    private List<ClueFragmentInfo> parseFragments(JsonNode fragmentsNode) {
+        List<ClueFragmentInfo> fragments = new ArrayList<>();
         if (fragmentsNode.isArray()) {
             for (JsonNode node : fragmentsNode) {
-                ClueFragment fragment = new ClueFragment();
+                ClueFragmentInfo fragment = new ClueFragmentInfo();
                 fragment.setFragmentContent(getText(node, "content"));
                 fragment.setFragmentType(getText(node, "fragmentType"));
                 fragment.setInferenceLevel(getInt(node, "inferenceLevel"));
@@ -107,11 +107,11 @@ public class HaiGuiInfoUtil {
     }
 
     // 解析任务（转换为实体对象）
-    private List<InferenceTask> parseTasks(JsonNode tasksNode) {
-        List<InferenceTask> tasks = new ArrayList<>();
+    private List<InferenceTaskInfo> parseTasks(JsonNode tasksNode) {
+        List<InferenceTaskInfo> tasks = new ArrayList<>();
         if (tasksNode.isArray()) {
             for (JsonNode node : tasksNode) {
-                InferenceTask task = new InferenceTask();
+                InferenceTaskInfo task = new InferenceTaskInfo();
                 task.setTaskName(getText(node, "taskName"));
                 task.setTaskDescription(getText(node, "taskDescription"));
                 task.setUnderstandingLevel(getInt(node, "understandingLevel"));

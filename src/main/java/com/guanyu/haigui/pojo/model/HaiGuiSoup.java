@@ -2,6 +2,7 @@ package com.guanyu.haigui.pojo.model;
 
 import com.guanyu.haigui.Enum.DifficultyLevel;
 import com.guanyu.haigui.Enum.SoupTag;
+import com.guanyu.haigui.converter.SoupTagConverter;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -112,7 +113,7 @@ public class HaiGuiSoup {
 
     // 海龟汤标签（JSON格式）
     @Column(name = "tags", nullable = false)
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = SoupTagConverter.class)
     private SoupTag tags;
 
     // 是否删除

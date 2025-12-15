@@ -41,6 +41,7 @@ public class ClueFragment {
     @Column(name = "fragment_type", nullable = false, columnDefinition = "VARCHAR(50)")
     private String fragmentType;
 
+    // 推理级别
     @Column(name = "inference_level", columnDefinition = "INT")
     private Integer inferenceLevel = 1;
 

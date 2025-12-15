@@ -1,19 +1,9 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.guanyu.haigui.Enum.UserRoleEnum;
-import com.guanyu.haigui.Exception.BusinessException;
-import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.manager.AIManager;
-import com.guanyu.haigui.pojo.dto.CreateTurtleSoupDTO;
-import com.guanyu.haigui.pojo.dto.HaiGuiInfoGenerateDTO;
 import com.guanyu.haigui.pojo.dto.TitleGenerateDTO;
 import com.guanyu.haigui.pojo.dto.TurtleSoupEnhanceDTO;
-import com.guanyu.haigui.pojo.model.HaiGuiSoup;
-import com.guanyu.haigui.pojo.model.HaiGuiSoupAudit;
-import com.guanyu.haigui.pojo.model.SysUserRole;
-import com.guanyu.haigui.pojo.model.UserInfo;
-import com.guanyu.haigui.pojo.result.HaiGuiInfoResult;
 import com.guanyu.haigui.pojo.vo.BatchEncodeResponse;
 import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
 import com.guanyu.haigui.pojo.vo.TitleGenerateResultVO;
@@ -33,7 +23,6 @@ import org.springframework.util.FileCopyUtils;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -41,14 +30,10 @@ import java.util.Map;
 @Slf4j
 @RequiredArgsConstructor
 public class HaiGuiTangServiceImpl {
-    private final SysUserRoleRepository sysUserRoleRepository;
-    private final UserInfoRepository userInfoRepository;
     private final AIManager aiManager;
     private final ObjectMapper objectMapper;
     private final TurtleSoupPromptUtil promptUtil;
-    private final HaiGuiSoupInfoService haiGuiSoupInfoService;
-    private final HaiGuiSoupRepository haiGuiSoupRepository;
-    private final HaiGuiSoupAuditRepository haiGuiSoupAuditRepository;
+
 
     // 调试模式配置
     @Value("${haiqutang.ai.debug-mode:false}")
@@ -612,35 +597,5 @@ public class HaiGuiTangServiceImpl {
     }
 
 
-    public HaiGuiInfoResult generateInfo(HaiGuiInfoGenerateDTO titleGenerateDTO) {
-        UserInfo userInfo = userInfoRepository.findById(BaseContext.getCurrentId())
-                .orElseThrow(() -> new BusinessException(404, "用户不存在"));
-        boolean userRole = sysUserRoleRepository.existsById(new SysUserRole.UserRoleId(userInfo.getUserId(), UserRoleEnum.SOUP_AUDITOR.getRoleId()));
-        if (!userRole) {
-            throw new BusinessException(403, "您不是审核员,无权限");
-        }
-        // 生成提示
-        String prompt = haiGuiSoupInfoService.generatePrompt(titleGenerateDTO);
-        // 调用AI生成信息
-        return haiGuiSoupInfoService.generateInfo(prompt);
-    }
 
-    public String createTurtleSoup(CreateTurtleSoupDTO createTurtleSoupDTO) {
-        UserInfo userInfo = userInfoRepository.findById(BaseContext.getCurrentId())
-                .orElseThrow(() -> new BusinessException(404, "用户不存在"));
-        boolean userRole = sysUserRoleRepository.existsById(new SysUserRole.UserRoleId(userInfo.getUserId(), UserRoleEnum.SOUP_AUDITOR.getRoleId()));
-        if (!userRole) {
-            throw new BusinessException(403, "您不是审核员,无权限");
-        }
-        HaiGuiSoup soup = createTurtleSoupDTO.fromToHaiGuiSoup(userInfo);
-        haiGuiSoupRepository.save(soup);
-        HaiGuiSoupAudit audit = haiGuiSoupAuditRepository.findById(createTurtleSoupDTO.getAuditRecordId())
-                .orElseThrow(() -> new BusinessException(404, "审核记录不存在"));
-        audit.setOriginalSoupId(soup.getSoupId());
-        audit.setAuditStatus(HaiGuiSoupAudit.AuditStatus.APPROVED);
-        audit.setAuditorId(BaseContext.getCurrentId());
-        audit.setAuditTime(LocalDateTime.now());
-        haiGuiSoupAuditRepository.save(audit);
-        return "创建成功";
-    }
 }

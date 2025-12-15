@@ -1,7 +1,7 @@
 package com.guanyu.haigui.pojo.result;
 
-import com.guanyu.haigui.pojo.model.ClueFragment;
-import com.guanyu.haigui.pojo.model.InferenceTask;
+import com.guanyu.haigui.pojo.Info.ClueFragmentInfo;
+import com.guanyu.haigui.pojo.Info.InferenceTaskInfo;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -12,7 +12,7 @@ public class HaiGuiInfoResult {
     //主持人手册
     private String manual;
     //线索
-    private List<ClueFragment> fragments;
+    private List<ClueFragmentInfo> fragments;
     //进度任务
-    private List<InferenceTask> inferenceTasks;
+    private List<InferenceTaskInfo> inferenceTasks;
 }

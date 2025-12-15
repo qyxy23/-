@@ -2,13 +2,24 @@ package com.guanyu.haigui.service.ServicesImpl;
 
 import cn.hutool.core.io.resource.ClassPathResource;
 import cn.hutool.core.io.resource.Resource;
+import com.google.gson.Gson;
 import com.guanyu.haigui.Exception.AiResponseException;
 import com.guanyu.haigui.manager.AIManager;
+import com.guanyu.haigui.pojo.Info.ClueFragmentInfo;
+import com.guanyu.haigui.pojo.Info.InferenceTaskInfo;
+import com.guanyu.haigui.pojo.dto.CreateTurtleSoupDTO;
 import com.guanyu.haigui.pojo.dto.HaiGuiInfoGenerateDTO;
+import com.guanyu.haigui.pojo.model.ClueFragment;
+import com.guanyu.haigui.pojo.model.HaiGuiSoup;
+import com.guanyu.haigui.pojo.model.InferenceTask;
 import com.guanyu.haigui.pojo.result.HaiGuiInfoResult;
+import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
 import com.guanyu.haigui.repository.ClueFragmentRepository;
+import com.guanyu.haigui.repository.HaiGuiSoupRepository;
 import com.guanyu.haigui.repository.InferenceTaskRepository;
+import com.guanyu.haigui.utils.BgeVectorClientUtil;
 import com.guanyu.haigui.utils.HaiGuiInfoUtil;
+import com.guanyu.haigui.utils.RedisStackClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,15 +30,21 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class HaiGuiSoupInfoService {
     private final AIManager aiManager;
+    private final RedisStackClient redisClient;
     private final HaiGuiInfoUtil haiGuiInfoUtil;
     private final ClueFragmentRepository clueFragmentRepository;
     private final InferenceTaskRepository inferenceTaskRepository;
+    private final HaiGuiSoupRepository haiGuiSoupRepository;
+
 
     @Value("${haiqutang.ai.debug-mode:false}")
     private boolean debugMode;
@@ -184,8 +201,126 @@ public class HaiGuiSoupInfoService {
         }
     }
 
-    public void save(HaiGuiInfoResult decompositionResult) {
-        clueFragmentRepository.saveAll(decompositionResult.getFragments());
-        inferenceTaskRepository.saveAll(decompositionResult.getInferenceTasks());
+
+    public Map<Integer, Long> convertToClueFragmentsAndSave(List<ClueFragmentInfo> fragments, HaiGuiSoup soup) {
+        Map<Integer, Long> fragmentOrderToIdMap = new HashMap<>();
+        List<String> fragmentIdList = new ArrayList<>(); // 临时收集fragmentId（字符串形式）
+        String soupFragmentsKey = String.format("hai_gui:soup:%s:fragment", soup.getSoupId()); // Redis集合键
+        List<ClueFragment> clueFragments = new ArrayList<>();
+        for (ClueFragmentInfo fragment : fragments) {
+            ClueFragment clueFragment = new ClueFragment();
+            clueFragment.setFragmentId(null);
+            clueFragment.setSoupId(soup.getSoupId());
+            clueFragment.setFragmentContent(fragment.getFragmentContent());
+            clueFragment.setFragmentType(fragment.getFragmentType());
+            clueFragment.setInferenceLevel(fragment.getInferenceLevel());
+            List<Float> FragmentVector = vectorizeFragment(fragment.getFragmentContent());
+            clueFragment.setVectorData(FragmentVector);
+
+            // 确保向量数据不为null
+            if (clueFragment.getVectorData() == null) {
+                clueFragment.setVectorData(new ArrayList<>());
+            }
+
+            clueFragment.setDifficulty(fragment.getDifficulty());
+            clueFragment.setImportance(fragment.getImportance());
+            clueFragment.setTriggerKeywords(fragment.getTriggerKeywords());
+            clueFragment.setSimilarityThreshold(fragment.getSimilarityThreshold());
+            clueFragment.setIsCoreClue(fragment.getIsCoreClue());
+            clueFragment.setFragmentOrder(fragment.getFragmentOrder());
+            clueFragment.setGenerationSource(fragment.getGenerationSource());
+            clueFragment.setIsDeleted(false);
+            clueFragment.setCreatedAt(LocalDateTime.now());
+            clueFragment.setUpdatedAt(LocalDateTime.now());
+            ClueFragment savedFragment = clueFragmentRepository.saveAndFlush(clueFragment);
+            clueFragments.add(savedFragment);
+            String soupFragmentKey = String.format("hai_gui:soup:%s:fragment:%s", soup.getSoupId(), clueFragment.getFragmentId());
+            redisClient.storeVector(soupFragmentKey, clueFragment.getVectorData());
+            fragmentIdList.add(savedFragment.getFragmentId().toString());
+            fragmentOrderToIdMap.put(savedFragment.getFragmentOrder(), savedFragment.getFragmentId());
+        }
+        if (!fragmentIdList.isEmpty()) {
+            redisClient.add(soupFragmentsKey,fragmentIdList);
+            // 使用Redis的SADD命令批量添加成员（支持多个参数）
+            log.info("批量插入Redis集合: key={}, 成员数={}", soupFragmentsKey, fragmentIdList.size());
+        }
+        updateSoupWithClueInfo(soup,clueFragments);
+        return fragmentOrderToIdMap;
     }
+
+
+    public List<Float> vectorizeFragment(String FragmentVector) {
+        try {
+            log.debug("开始向量化线索: {}", FragmentVector.substring(0, Math.min(30, FragmentVector.length())));
+
+            // 使用BGE模型向量化
+            SingleEncodeResponse response = BgeVectorClientUtil.encodeSingle(FragmentVector);
+            if (response.getEmbeddings() == null || response.getEmbeddings().isEmpty()) {
+                log.error("BGE向量化失败: {}", FragmentVector);
+                return Collections.emptyList();
+            }
+
+            List<Float> vector = response.getEmbeddings().get(0);
+            log.debug("线索向量化成功，维度: {}", vector.size());
+
+            return vector;
+
+        } catch (Exception e) {
+            log.error("向量化线索失败: {}", FragmentVector, e);
+            return Collections.emptyList();
+        }
+    }
+
+    public List<InferenceTask> convertToInferenceTasks(CreateTurtleSoupDTO createTurtleSoupDTO, HaiGuiSoup soup, Map<Integer, Long> fragmentOrderToIdMap) {
+        List<InferenceTaskInfo> inferenceTasks = createTurtleSoupDTO.getInferenceTasks();
+        List<InferenceTask> inferenceTaskList = new ArrayList<>();
+        for (InferenceTaskInfo task : inferenceTasks){
+            InferenceTask inferenceTask = new InferenceTask();
+            inferenceTask.setTaskId(null);
+            inferenceTask.setSoupId(soup.getSoupId());
+            inferenceTask.setTaskName(task.getTaskName());
+            inferenceTask.setTaskDescription(task.getTaskDescription());
+            inferenceTask.setUnderstandingLevel(task.getUnderstandingLevel());
+            inferenceTask.setTargetKeywords(task.getTargetKeywords());
+            inferenceTask.setReasoningGoal(task.getReasoningGoal());
+            inferenceTask.setProgressWeight(task.getProgressWeight());
+            inferenceTask.setIsMandatory(task.getIsMandatory());
+            inferenceTask.setTaskOrder(task.getTaskOrder());
+            // Set<Long> fragmentIds = new HashSet<>();
+            // for(Long order : task.getPrerequisiteFragmentIds()){
+            //     Long fragmentId = fragmentOrderToIdMap.get(order);
+            //     if (fragmentId != null) {
+            //         fragmentIds.add(fragmentId);
+            //     } else {
+            //         log.warn("未找到片段序号为{}的片段，跳过", order);
+            //     }
+            // }
+            // inferenceTask.setPrerequisiteFragmentIds(fragmentIds);
+            //该段代码替换为下方的stream流代码
+            inferenceTask.setPrerequisiteFragmentIds(task.getPrerequisiteFragmentIds().stream()
+                    .map(fragmentOrderToIdMap::get)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet()));
+
+            inferenceTask.setIsDeleted(false);
+            inferenceTask.setCreatedAt(LocalDateTime.now());
+            inferenceTask.setUpdatedAt(LocalDateTime.now());
+            inferenceTaskList.add(inferenceTask);
+        }
+        return inferenceTaskRepository.saveAll(inferenceTaskList);
+    }
+
+
+    // 更新海龟汤线索信息的辅助方法
+    private void updateSoupWithClueInfo(HaiGuiSoup soup, List<ClueFragment> fragments) {
+        List<Long> fragmentIds = fragments.stream()
+                .map(ClueFragment::getFragmentId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        soup.setKeyClues(new Gson().toJson(fragmentIds));
+        soup.setUpdatedAt(LocalDateTime.now());
+        haiGuiSoupRepository.saveAndFlush(soup);
+    }
+
 }
