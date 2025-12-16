@@ -56,6 +56,7 @@ public class PasswordRegisterStrategy implements RegisterStrategy {
         }
 
         // 将UserRoleEnum.USER转换为GrantedAuthority（如"ROLE_USER"）
+        //TODO:将此处的角色类型写死，只能注册为普通用户
         List<GrantedAuthority> authorities = Collections.singletonList(
                 new SimpleGrantedAuthority("ROLE_" + params.getRole())
         );
