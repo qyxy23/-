@@ -7,7 +7,10 @@ import com.guanyu.haigui.pojo.model.HaiGuiSoupAudit;
 import lombok.Data;
 
 @Data
-public class UploadHaiGuiSoupDTO {
+public class UpdateHaiGuiAuditDTO {
+    // 审核id
+    private Long auditId;
+
     // 标题
     private String soupTitle;
 
@@ -33,8 +36,8 @@ public class UploadHaiGuiSoupDTO {
     private SoupTag tag;
 
 
-    public static HaiGuiSoupAudit from(UploadHaiGuiSoupDTO soup) {
-        HaiGuiSoupAudit audit = new HaiGuiSoupAudit();
+    public static HaiGuiSoupAudit from(UpdateHaiGuiAuditDTO soup, HaiGuiSoupAudit audit) {
+        audit.setAuditId(soup.getAuditId());
         audit.setTitle(soup.getSoupTitle());
         audit.setSurface(soup.getSoupSurface());
         audit.setBottom(soup.getSoupBottom());
@@ -45,6 +48,7 @@ public class UploadHaiGuiSoupDTO {
         audit.setTags(soup.getTag());
         audit.setUploaderId(BaseContext.getCurrentId());
         audit.setAuditStatus(HaiGuiSoupAudit.AuditStatus.PENDING);
+        audit.setAuditorId(BaseContext.getCurrentId());
         return audit;
     }
 }

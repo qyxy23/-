@@ -1,9 +1,6 @@
 package com.guanyu.haigui.controller;
 
-import com.guanyu.haigui.pojo.dto.CreateTurtleSoupDTO;
-import com.guanyu.haigui.pojo.dto.HaiGuiInfoGenerateDTO;
-import com.guanyu.haigui.pojo.dto.QueryTurtleSoupListDTO;
-import com.guanyu.haigui.pojo.dto.rejectTurtleSoupDTO;
+import com.guanyu.haigui.pojo.dto.*;
 import com.guanyu.haigui.pojo.result.HaiGuiDetailResult;
 import com.guanyu.haigui.pojo.result.HaiGuiInfoResult;
 import com.guanyu.haigui.pojo.vo.AddAuditUserVO;
@@ -64,6 +61,13 @@ public class AuditController {
     public Result<HaiGuiDetailResult> queryTurtleSoupDetail(@PathVariable Long auditId) {
         return Result.success(auditService.queryTurtleSoupDetail(auditId));
     }
+
+    @Operation(summary = "暂时保存用户的海龟汤", description = "暂时保存海龟汤")
+    @PostMapping("/saveTurtleSoup")
+    public Result<String> saveTurtleSoup(@RequestBody UpdateHaiGuiAuditDTO updateHaiGuiAuditDTO) {
+        return Result.success(auditService.uploadHaiGuiAudit(updateHaiGuiAuditDTO));
+    }
+
 
     @Operation(summary = "拒绝海龟汤接口", description = "审核员拒绝海龟汤并写明原因")
     @PostMapping("/rejectTurtleSoup")

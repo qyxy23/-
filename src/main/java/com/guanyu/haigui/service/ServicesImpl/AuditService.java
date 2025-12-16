@@ -3,10 +3,7 @@ package com.guanyu.haigui.service.ServicesImpl;
 import com.guanyu.haigui.Enum.UserRoleEnum;
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.context.BaseContext;
-import com.guanyu.haigui.pojo.dto.CreateTurtleSoupDTO;
-import com.guanyu.haigui.pojo.dto.HaiGuiInfoGenerateDTO;
-import com.guanyu.haigui.pojo.dto.QueryTurtleSoupListDTO;
-import com.guanyu.haigui.pojo.dto.rejectTurtleSoupDTO;
+import com.guanyu.haigui.pojo.dto.*;
 import com.guanyu.haigui.pojo.model.*;
 import com.guanyu.haigui.pojo.result.HaiGuiDetailResult;
 import com.guanyu.haigui.pojo.result.HaiGuiInfoResult;
@@ -217,14 +214,8 @@ public class AuditService {
     }
 
     public String rejectTurtleSoup(rejectTurtleSoupDTO rejectTurtleSoupDTO) {
-        HaiGuiSoupAudit audit = haiGuiSoupAuditRepository.findById(rejectTurtleSoupDTO.getAuditId())
-                .orElseThrow(() -> new BusinessException(404, "审核记录不存在"));
-        UserInfo userInfo = userInfoRepository.findById(BaseContext.getCurrentId())
-                .orElseThrow(() -> new BusinessException(404, "用户不存在"));
-        boolean userRole = sysUserRoleRepository.existsById(new SysUserRole.UserRoleId(userInfo.getUserId(), UserRoleEnum.SOUP_AUDITOR.getRoleId()));
-        if (!userRole) {
-            throw new BusinessException(403, "您不是审核员,无权限");
-        }
+        HaiGuiSoupAudit audit = findById(rejectTurtleSoupDTO.getAuditId());
+        audit.setAuditId(BaseContext.getCurrentId());
         audit.setAuditStatus(HaiGuiSoupAudit.AuditStatus.REJECTED);
         if (rejectTurtleSoupDTO.getReason() != null) {
             audit.setAuditComment(rejectTurtleSoupDTO.getReason());
@@ -326,5 +317,27 @@ public class AuditService {
                 audit.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "");
 
         return item;
+    }
+
+    public String uploadHaiGuiAudit(UpdateHaiGuiAuditDTO dto) {
+        HaiGuiSoupAudit audit = findById(dto.getAuditId());
+        if(audit.getAuditStatus()==HaiGuiSoupAudit.AuditStatus.REJECTED){
+            throw new BusinessException(403, "已拒绝此汤,无法进行修改");
+        }
+        UpdateHaiGuiAuditDTO.from(dto, audit);
+        haiGuiSoupAuditRepository.save(audit);
+        return "修改成功,请继续审核";
+    }
+
+    private HaiGuiSoupAudit findById(Long auditId) {
+        HaiGuiSoupAudit audit = haiGuiSoupAuditRepository.findById(auditId)
+                .orElseThrow(() -> new BusinessException(404, "审核记录不存在"));
+        UserInfo userInfo = userInfoRepository.findById(BaseContext.getCurrentId())
+                .orElseThrow(() -> new BusinessException(404, "用户不存在"));
+        boolean userRole = sysUserRoleRepository.existsById(new SysUserRole.UserRoleId(userInfo.getUserId(), UserRoleEnum.SOUP_AUDITOR.getRoleId()));
+        if (!userRole) {
+            throw new BusinessException(403, "您不是审核员,无权限");
+        }
+        return audit;
     }
 }
