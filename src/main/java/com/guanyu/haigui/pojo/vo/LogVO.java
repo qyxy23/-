@@ -5,7 +5,7 @@ import lombok.Data;
 import org.springframework.security.core.GrantedAuthority;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.Collection;
 
 
 @Data
@@ -27,5 +27,5 @@ public class LogVO {
     @Schema(description = "jwt令牌")
     private String token;
     @Schema(description = "权限列表")
-    private List<GrantedAuthority> authorities; // 必须有此属性！
+    private Collection<? extends GrantedAuthority> authorities;
 }

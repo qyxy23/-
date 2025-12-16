@@ -60,7 +60,6 @@ public class HaiGuiSoupInfoService {
                                     - 预计时长：%d分钟
                                     - 难度：%s
                                     - 标签：%s
-                                    - 需生成线索数量：%d条
                         
                                     # 输出要求
                                     请严格按以下JSON格式输出，包含三个顶级字段：
@@ -70,10 +69,10 @@ public class HaiGuiSoupInfoService {
                         
                                     ## 主持人手册规范
                                     - 包含游戏简介、主持流程、控场技巧、时间管理建议
-                                    - 字数300字左右，使用Markdown格式分段
+                                    - 内容以精华凝练为主，使用Markdown格式分段
                         
                                     ## 线索(fragments)规范
-                                    - 数量严格等于%d条
+                                    - 建议数量为%d条(线索内容要求一定是要能够从汤底中找到的，不要自己拓展与猜想，如实在找不到足够数量的线索，可减少数量)
                                     - 字段说明：
                                       • content: 线索内容（50-150字）
                                       • fragmentType: 枚举值[TIME,PLACE,CHARACTER,PLOT,OBJECT]
@@ -110,7 +109,7 @@ public class HaiGuiSoupInfoService {
                                     3. 避免重复关键词
                                     4. 核心线索(isCoreClue)占比30%%-50%%
                                     5. 时间类线索(TIME)占比≤20%%
-                                    6.返回标准JSON，控制字符用\\n转义
+                                    6. 返回标准JSON，控制字符用\\n转义
                         
                         
                                     {
@@ -150,7 +149,6 @@ public class HaiGuiSoupInfoService {
                 dto.getEstimatedDuration(),   // %d
                 dto.getDifficultyLevel().name(), // %s
                 dto.getTag().name(),          // %s
-                fragmentCount,                // %d (需生成线索数量)
                 fragmentCount                 // %d (数量严格等于%d条)
         );
     }
