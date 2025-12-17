@@ -74,6 +74,7 @@ public class CreateTurtleSoupDTO {
         haiGuiSoup.setCreatorId(userInfo.getUserId());
         haiGuiSoup.setUploader(userInfo);
         haiGuiSoup.setCreator(userInfo);
+        haiGuiSoup.setIsPublished(true);
         return haiGuiSoup;
     }
 }

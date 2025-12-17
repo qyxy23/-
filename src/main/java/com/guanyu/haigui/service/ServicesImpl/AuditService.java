@@ -125,6 +125,7 @@ public class AuditService {
         }
         HaiGuiSoup soup = createTurtleSoupDTO.fromToHaiGuiSoup(userInfo);
         haiGuiSoupRepository.save(soup);
+        System.out.println("soup = " + soup);
         HaiGuiSoupAudit audit = haiGuiSoupAuditRepository.findById(createTurtleSoupDTO.getAuditRecordId())
                 .orElseThrow(() -> new BusinessException(404, "审核记录不存在"));
         audit.setOriginalSoupId(soup.getSoupId());
