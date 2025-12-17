@@ -2,9 +2,11 @@ package com.guanyu.haigui.pojo.dto;
 
 import com.guanyu.haigui.Enum.DifficultyLevel;
 import com.guanyu.haigui.Enum.SoupTag;
-import com.guanyu.haigui.context.BaseContext;
-import com.guanyu.haigui.pojo.model.HaiGuiSoupAudit;
+import com.guanyu.haigui.pojo.model.ClueFragment;
+import com.guanyu.haigui.pojo.model.InferenceTask;
 import lombok.Data;
+
+import java.util.List;
 
 @Data
 public class UpdateHaiGuiAuditDTO {
@@ -35,20 +37,12 @@ public class UpdateHaiGuiAuditDTO {
     // 海龟汤标签（只能选择一个）
     private SoupTag tag;
 
+    //主持人手册
+    private String draftManual;
 
-    public static HaiGuiSoupAudit from(UpdateHaiGuiAuditDTO soup, HaiGuiSoupAudit audit) {
-        audit.setAuditId(soup.getAuditId());
-        audit.setTitle(soup.getSoupTitle());
-        audit.setSurface(soup.getSoupSurface());
-        audit.setBottom(soup.getSoupBottom());
-        audit.setDefaultMaxQuestions(soup.getEstimatedDuration());
-        audit.setEstimatedDuration(soup.getEstimatedDuration());
-        audit.setPlayerCount(soup.getPlayerCount());
-        audit.setDifficultyLevel(soup.getDifficultyLevel());
-        audit.setTags(soup.getTag());
-        audit.setUploaderId(BaseContext.getCurrentId());
-        audit.setAuditStatus(HaiGuiSoupAudit.AuditStatus.PENDING);
-        audit.setAuditorId(BaseContext.getCurrentId());
-        return audit;
-    }
+    // 汤线索
+    private List<ClueFragment> draftFragments;
+
+    // 汤任务
+    private List<InferenceTask> draftTasks;
 }

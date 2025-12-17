@@ -1,13 +1,16 @@
 package com.guanyu.haigui.pojo.model;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.guanyu.haigui.Enum.DifficultyLevel;
 import com.guanyu.haigui.Enum.SoupTag;
 import com.guanyu.haigui.converter.SoupTagConverter;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -78,6 +81,18 @@ public class HaiGuiSoupAudit {
 
     @Column(name = "audit_comment", columnDefinition = "TEXT")
     private String auditComment;
+
+    // 拆分后的草稿字段（JSON 类型）
+    @Column(columnDefinition = "JSON")
+    private String draftManual; // 主持人手册（直接用字符串存储 Markdown，或用 JsonNode 包装）
+
+    @Column(columnDefinition = "JSON")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private JsonNode draftFragments; // 线索片段（JSON 数组，用 Jackson 的 JsonNode 接收）
+
+    @Column(columnDefinition = "JSON")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private JsonNode draftTasks; // 推理任务（JSON 数组，用 JsonNode 接收）
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "DATETIME(6)")

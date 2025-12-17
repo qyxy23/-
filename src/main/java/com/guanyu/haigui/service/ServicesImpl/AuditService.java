@@ -1,5 +1,8 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.guanyu.haigui.Enum.UserRoleEnum;
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.context.BaseContext;
@@ -39,6 +42,7 @@ public class AuditService {
     private final HaiGuiSoupInfoService haiGuiSoupInfoService;
     private final HaiGuiSoupRepository haiGuiSoupRepository;
     private final HaiGuiSoupAuditRepository haiGuiSoupAuditRepository;
+    private final ObjectMapper objectMapper;
 
 
     /*
@@ -210,7 +214,8 @@ public class AuditService {
     public HaiGuiDetailResult queryTurtleSoupDetail(Long auditId) {
         HaiGuiSoupAudit audit = haiGuiSoupAuditRepository.findById(auditId)
                 .orElseThrow(() -> new BusinessException(404, "审核记录不存在"));
-        return HaiGuiDetailResult.fromHaiGuiSoupAudit(audit);
+        HaiGuiInfoResult haiGuiInfoResult = haiGuiSoupInfoService.getFragmentsAndTasks(audit.getDraftFragments(),audit.getDraftTasks());
+        return HaiGuiDetailResult.fromHaiGuiSoupAudit(audit,haiGuiInfoResult);
     }
 
     public String rejectTurtleSoup(rejectTurtleSoupDTO rejectTurtleSoupDTO) {
@@ -319,15 +324,51 @@ public class AuditService {
         return item;
     }
 
+
     public String uploadHaiGuiAudit(UpdateHaiGuiAuditDTO dto) {
+        // 1. 获取审核记录
         HaiGuiSoupAudit audit = findById(dto.getAuditId());
-        if(audit.getAuditStatus()==HaiGuiSoupAudit.AuditStatus.REJECTED){
+
+        // 2. 检查状态
+        if (audit.getAuditStatus() == HaiGuiSoupAudit.AuditStatus.REJECTED) {
             throw new BusinessException(403, "已拒绝此汤,无法进行修改");
         }
-        UpdateHaiGuiAuditDTO.from(dto, audit);
+
+        // 3. 更新基本字段
+        audit.setTitle(dto.getSoupTitle());
+        audit.setSurface(dto.getSoupSurface());
+        audit.setBottom(dto.getSoupBottom());
+        audit.setDefaultMaxQuestions(dto.getDefaultMaxQuestions());
+        audit.setEstimatedDuration(dto.getEstimatedDuration());
+        audit.setPlayerCount(dto.getPlayerCount());
+        audit.setDifficultyLevel(dto.getDifficultyLevel());
+        audit.setTags(dto.getTag());
+        audit.setUploaderId(BaseContext.getCurrentId());
+        audit.setAuditStatus(HaiGuiSoupAudit.AuditStatus.PENDING);
+        audit.setAuditorId(BaseContext.getCurrentId());
+
+        try {
+            // 4. 序列化主持人手册（包装为 JSON 对象）
+            ObjectNode manualNode = objectMapper.createObjectNode();
+            manualNode.put("content", dto.getDraftManual() != null ? dto.getDraftManual() : "");
+            audit.setDraftManual(objectMapper.writeValueAsString(manualNode));
+
+            // 5. 序列化线索片段列表并转为 JsonNode
+            String fragmentsStr = objectMapper.writeValueAsString(dto.getDraftFragments());
+            audit.setDraftFragments(objectMapper.readTree(fragmentsStr));
+
+            // 6. 序列化推理任务列表并转为 JsonNode
+            String tasksStr = objectMapper.writeValueAsString(dto.getDraftTasks());
+            audit.setDraftTasks(objectMapper.readTree(tasksStr));
+        } catch (JsonProcessingException e) {
+            throw new BusinessException(500, "JSON序列化失败: " + e.getMessage());
+        }
+
+        // 8. 保存更新
         haiGuiSoupAuditRepository.save(audit);
         return "修改成功,请继续审核";
     }
+
 
     private HaiGuiSoupAudit findById(Long auditId) {
         HaiGuiSoupAudit audit = haiGuiSoupAuditRepository.findById(auditId)

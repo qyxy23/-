@@ -2,6 +2,7 @@ package com.guanyu.haigui.service.ServicesImpl;
 
 import cn.hutool.core.io.resource.ClassPathResource;
 import cn.hutool.core.io.resource.Resource;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.google.gson.Gson;
 import com.guanyu.haigui.Exception.AiResponseException;
 import com.guanyu.haigui.manager.AIManager;
@@ -185,6 +186,7 @@ public class HaiGuiSoupInfoService {
         }
     }
 
+
     private String readAiResponseFromFile(String fileName) throws IOException {
         Resource resource = new ClassPathResource(fileName);
         try (
@@ -321,4 +323,8 @@ public class HaiGuiSoupInfoService {
         haiGuiSoupRepository.saveAndFlush(soup);
     }
 
+
+    public HaiGuiInfoResult getFragmentsAndTasks(JsonNode draftFragments, JsonNode draftTasks) {
+        return haiGuiInfoUtil.getHaiGuiInfo(draftFragments, draftTasks);
+    }
 }
