@@ -1,5 +1,6 @@
 package com.guanyu.haigui.pojo.model;
 
+import com.guanyu.haigui.Enum.ClueType;
 import com.guanyu.haigui.converter.ListDoubleConverter;
 import com.guanyu.haigui.converter.ListStringConverter;
 import jakarta.persistence.*;
@@ -7,6 +8,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -15,14 +17,14 @@ import java.util.List;
  */
 @Entity
 @Table(name = "hai_gui_soup_clue_fragment",
-       indexes = {
-           @Index(name = "idx_soup_id", columnList = "soup_id"),
-           @Index(name = "idx_fragment_type", columnList = "fragment_type"),
-           @Index(name = "idx_inference_level", columnList = "inference_level"),
-           @Index(name = "idx_vector_hash", columnList = "vector_hash"),
-           @Index(name = "idx_core_clue", columnList = "is_core_clue"),
-           @Index(name = "idx_is_deleted", columnList = "is_deleted")
-       })
+        indexes = {
+                @Index(name = "idx_soup_id", columnList = "soup_id"),
+                @Index(name = "idx_fragment_type", columnList = "fragment_type"),
+                @Index(name = "idx_inference_level", columnList = "inference_level"),
+                @Index(name = "idx_vector_hash", columnList = "vector_hash"),
+                @Index(name = "idx_core_clue", columnList = "is_core_clue"),
+                @Index(name = "idx_is_deleted", columnList = "is_deleted")
+        })
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -38,8 +40,10 @@ public class ClueFragment {
     @Column(name = "fragment_content", nullable = false, columnDefinition = "VARCHAR(500)")
     private String fragmentContent;
 
+    // 核心修改：使用ClueType枚举类型
+    @Enumerated(EnumType.STRING) // 存储枚举名称字符串（如"TIME"）
     @Column(name = "fragment_type", nullable = false, columnDefinition = "VARCHAR(50)")
-    private String fragmentType;
+    private ClueType fragmentType; // 类型改为ClueType枚举
 
     // 推理级别
     @Column(name = "inference_level", columnDefinition = "INT")
@@ -60,7 +64,7 @@ public class ClueFragment {
     private List<String> triggerKeywords;
 
     @Column(name = "similarity_threshold", columnDefinition = "DECIMAL(3,2)")
-    private Double similarityThreshold = 0.7;
+    private BigDecimal similarityThreshold = BigDecimal.valueOf(0.7); // 使用BigDecimal更精确
 
     @Column(name = "is_core_clue", columnDefinition = "TINYINT(1)")
     private Boolean isCoreClue = false;
@@ -70,7 +74,6 @@ public class ClueFragment {
 
     @Column(name = "generation_source", columnDefinition = "VARCHAR(20)")
     private String generationSource = "AI";
-
 
     @Column(name = "is_deleted", nullable = false, columnDefinition = "TINYINT(1)")
     private Boolean isDeleted = false;
@@ -93,14 +96,20 @@ public class ClueFragment {
         updatedAt = LocalDateTime.now();
     }
 
-    // 便利构造函数
-    public ClueFragment(String soupId, String fragmentContent, String fragmentType, Integer inferenceLevel) {
+    // 修改后的便利构造函数（使用ClueType枚举）
+    public ClueFragment(String soupId, String fragmentContent, ClueType fragmentType, Integer inferenceLevel) {
         this.soupId = soupId;
         this.fragmentContent = fragmentContent;
-        this.fragmentType = fragmentType;
+        this.fragmentType = fragmentType; // 使用枚举类型
         this.inferenceLevel = inferenceLevel;
         this.isDeleted = false;
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
+    }
+
+    // 新增：兼容旧代码的构造函数（接受String类型）
+    @Deprecated
+    public ClueFragment(String soupId, String fragmentContent, String fragmentType, Integer inferenceLevel) {
+        this(soupId, fragmentContent, ClueType.valueOf(fragmentType), inferenceLevel);
     }
 }

@@ -41,65 +41,7 @@ public class GameClue {
         this.clueType = clueType;
     }
 
-    public GameClue(String content, ClueType clueType, Boolean isKey) {
-        this(content, clueType);
-        this.isKey = isKey;
-    }
 
-    /**
-     * 获取线索类型的中文描述
-     */
-    public String getClueTypeDescription() {
-        if (clueType == null) return "未知";
-        return switch (clueType) {
-            case TIME -> "时间";
-            case PLACE -> "地点";
-            case CHARACTER -> "人物";
-            case PLOT -> "情节";
-        };
-    }
-
-    /**
-     * 获取难度描述
-     */
-    public String getDifficultyDescription() {
-        if (difficulty == null) return "中等";
-        return switch (difficulty) {
-            case 1 -> "非常简单";
-            case 2 -> "简单";
-            case 4 -> "困难";
-            case 5 -> "非常困难";
-            default -> "中等";
-        };
-    }
-
-    /**
-     * 判断是否为高难度线索
-     */
-    public boolean isHighDifficulty() {
-        return difficulty != null && difficulty >= 4;
-    }
-
-    /**
-     * 判断是否为关键线索
-     */
-    public boolean isKeyClue() {
-        return Boolean.TRUE.equals(isKey);
-    }
-
-    /**
-     * 获取创建时间的LocalDateTime格式
-     */
-    public LocalDateTime getCreatedAtAsLocalDateTime() {
-        if (createdAt == null || createdAt.isEmpty()) {
-            return LocalDateTime.now();
-        }
-        try {
-            return LocalDateTime.parse(createdAt, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-        } catch (Exception e) {
-            return LocalDateTime.now();
-        }
-    }
 
     /**
      * 设置创建时间（从LocalDateTime）

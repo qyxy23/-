@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.guanyu.haigui.Enum.ClueType;
 import com.guanyu.haigui.pojo.Info.ClueFragmentInfo;
 import com.guanyu.haigui.pojo.Info.InferenceTaskInfo;
 import com.guanyu.haigui.pojo.result.HaiGuiInfoResult;
@@ -13,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -91,11 +93,20 @@ public class HaiGuiInfoUtil {
             for (JsonNode node : fragmentsNode) {
                 ClueFragmentInfo fragment = new ClueFragmentInfo();
                 fragment.setFragmentContent(getText(node, "content"));
-                fragment.setFragmentType(getText(node, "fragmentType"));
+
+                // 修复1: 将字符串转换为ClueType枚举
+                String typeStr = getText(node, "fragmentType");
+                ClueType fragmentType = convertToClueType(typeStr); // 新增转换方法
+                fragment.setFragmentType(fragmentType);
+
                 fragment.setInferenceLevel(getInt(node, "inferenceLevel"));
                 fragment.setDifficulty(getInt(node, "difficulty"));
                 fragment.setImportance(getInt(node, "importance"));
-                fragment.setSimilarityThreshold(getDouble(node, "similarityThreshold"));
+
+                // 修复2: 将Double转换为BigDecimal
+                double threshold = getDouble(node, "similarityThreshold");
+                fragment.setSimilarityThreshold(BigDecimal.valueOf(threshold));
+
                 fragment.setIsCoreClue(getBoolean(node, "isCoreClue"));
                 fragment.setFragmentOrder(getInt(node, "fragmentOrder"));
                 fragment.setGenerationSource(getText(node, "generationSource"));
@@ -104,6 +115,29 @@ public class HaiGuiInfoUtil {
             }
         }
         return fragments;
+    }
+
+    private ClueType convertToClueType(String typeStr) {
+        if (typeStr == null || typeStr.isEmpty()) {
+            return ClueType.OTHER; // 默认类型
+        }
+
+        // 尝试直接匹配枚举名称（如"TIME"）
+        try {
+            return ClueType.valueOf(typeStr.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            // 处理中文描述的情况
+            return switch (typeStr) {
+                case "时间" -> ClueType.TIME;
+                case "地点" -> ClueType.PLACE;
+                case "人物" -> ClueType.CHARACTER;
+                case "角色" -> ClueType.CHARACTER; // 兼容旧数据
+                case "情节" -> ClueType.PLOT;
+                case "物品" -> ClueType.OBJECT;
+                case "其他" -> ClueType.OTHER;
+                default -> ClueType.OTHER; // 未知类型默认归为其他
+            };
+        }
     }
 
     // 解析任务（转换为实体对象）

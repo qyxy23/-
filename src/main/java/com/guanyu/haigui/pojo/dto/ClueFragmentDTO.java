@@ -1,9 +1,11 @@
 package com.guanyu.haigui.pojo.dto;
 
+import com.guanyu.haigui.Enum.ClueType;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -32,7 +34,7 @@ public class ClueFragmentDTO {
     /**
      * 线索片段类型
      */
-    private String fragmentType;
+    private ClueType fragmentType;
 
     /**
      * 推理层次
@@ -62,7 +64,7 @@ public class ClueFragmentDTO {
     /**
      * 相似度阈值
      */
-    private Double similarityThreshold;
+    private BigDecimal similarityThreshold;
 
     /**
      * 关联的任务ID列表

@@ -73,25 +73,6 @@ public class HaiGuiSoupController {
 
 
 
-    /**
-     * 删除海龟汤（包含向量清理）
-     */
-    @DeleteMapping("/delete/{soupId}")
-    @Operation(summary = "删除海龟汤", description = "删除海龟汤及其向量数据")
-    public Result<String> deleteSoup(@PathVariable String soupId) {
-        try {
-            boolean success = turtleSoupService.deleteTurtleSoup(soupId);
-            if (success) {
-                return Result.success("海龟汤删除成功", soupId);
-            } else {
-                return Result.error("海龟汤删除失败");
-            }
-
-        } catch (Exception e) {
-            log.error("删除海龟汤失败", e);
-            return Result.error("删除失败: " + e.getMessage());
-        }
-    }
 
 
 

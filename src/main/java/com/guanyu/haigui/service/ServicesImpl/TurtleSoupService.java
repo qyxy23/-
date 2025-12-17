@@ -13,7 +13,6 @@ import com.guanyu.haigui.pojo.result.DecompositionResult;
 import com.guanyu.haigui.pojo.vo.ClueMatchResult;
 import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
 import com.guanyu.haigui.repository.*;
-import com.guanyu.haigui.service.VectorService;
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
 import com.guanyu.haigui.utils.MinioUtil;
 import com.guanyu.haigui.utils.RedisStackClient;
@@ -39,7 +38,6 @@ import java.util.stream.Collectors;
 @Transactional
 public class TurtleSoupService {
 
-    private final VectorService vectorService;
     private final RedisStackClient redisClient;
     private final UserInfoRepository userInfoRepository;
     private final SoupJsonParser soupJsonParser;
@@ -491,32 +489,6 @@ public class TurtleSoupService {
     }
 
 
-    /**
-     * 删除海龟汤（包含向量数据清理）
-     *
-     * @param soupId 海龟汤ID
-     * @return 是否成功
-     */
-    public boolean deleteTurtleSoup(String soupId) {
-        try {
-            log.info("开始删除海龟汤: soupId={}", soupId);
-
-            // 使用新的向量服务删除向量数据
-            boolean deleteSuccess = vectorService.deleteSoupVectors(soupId);
-            if (!deleteSuccess) {
-                log.error("删除海龟汤向量数据失败: soupId={}", soupId);
-                // 向量删除失败不影响整体删除流程
-                log.warn("海龟汤删除成功但向量清理失败: soupId={}", soupId);
-            }
-
-            log.info("海龟汤删除成功: soupId={}", soupId);
-            return true;
-
-        } catch (Exception e) {
-            log.error("删除海龟汤失败: soupId={}", soupId, e);
-            return false;
-        }
-    }
 
 
 

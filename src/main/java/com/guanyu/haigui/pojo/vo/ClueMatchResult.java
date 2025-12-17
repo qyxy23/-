@@ -1,5 +1,6 @@
 package com.guanyu.haigui.pojo.vo;
 
+import com.guanyu.haigui.Enum.ClueType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -26,7 +27,7 @@ public class ClueMatchResult {
     /**
      * 片段类型
      */
-    private String fragmentType;
+    private ClueType fragmentType;
 
     /**
      * 是否为核心线索
@@ -59,21 +60,7 @@ public class ClueMatchResult {
     private Double aiAnalysisConfidence;
 
 
-    /**
-     * 获取片段类型描述
-     */
-    public String getFragmentTypeDescription() {
-        if (fragmentType == null) return "未知";
-        return switch (fragmentType) {
-            case "TIME" -> "时间";
-            case "PLACE" -> "地点";
-            case "CHARACTER" -> "人物";
-            case "PLOT" -> "情节";
-            case "OBJECT" -> "物品";
-            case "TRUTH" -> "真相";
-            default -> fragmentType;
-        };
-    }
+
 
     /**
      * 获取推理层级描述
