@@ -8,6 +8,7 @@ import com.guanyu.haigui.pojo.model.HaiGuiSoup;
 import com.guanyu.haigui.pojo.model.UserInfo;
 import lombok.Data;
 
+import javax.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -46,6 +47,7 @@ public class CreateTurtleSoupDTO {
     private DifficultyLevel difficultyLevel = DifficultyLevel.BEGINNER;
 
     // 海龟汤标签（只能选择一个）
+    @NotNull
     private SoupTag tag;
 
     //最大问题数

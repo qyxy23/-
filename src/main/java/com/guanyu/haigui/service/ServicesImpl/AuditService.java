@@ -123,11 +123,12 @@ public class AuditService {
         if (!userRole) {
             throw new BusinessException(403, "您不是审核员,无权限");
         }
+        HaiGuiSoupAudit audit = haiGuiSoupAuditRepository.findById(createTurtleSoupDTO.getAuditRecordId())
+                .orElseThrow(() -> new BusinessException(404, "审核记录不存在"));
         HaiGuiSoup soup = createTurtleSoupDTO.fromToHaiGuiSoup(userInfo);
         haiGuiSoupRepository.save(soup);
         System.out.println("soup = " + soup);
-        HaiGuiSoupAudit audit = haiGuiSoupAuditRepository.findById(createTurtleSoupDTO.getAuditRecordId())
-                .orElseThrow(() -> new BusinessException(404, "审核记录不存在"));
+
         audit.setOriginalSoupId(soup.getSoupId());
         audit.setAuditStatus(HaiGuiSoupAudit.AuditStatus.APPROVED);
         audit.setAuditorId(BaseContext.getCurrentId());
@@ -221,7 +222,7 @@ public class AuditService {
 
     public String rejectTurtleSoup(rejectTurtleSoupDTO rejectTurtleSoupDTO) {
         HaiGuiSoupAudit audit = findById(rejectTurtleSoupDTO.getAuditId());
-        audit.setAuditId(BaseContext.getCurrentId());
+        audit.setAuditorId(BaseContext.getCurrentId());
         audit.setAuditStatus(HaiGuiSoupAudit.AuditStatus.REJECTED);
         if (rejectTurtleSoupDTO.getReason() != null) {
             audit.setAuditComment(rejectTurtleSoupDTO.getReason());

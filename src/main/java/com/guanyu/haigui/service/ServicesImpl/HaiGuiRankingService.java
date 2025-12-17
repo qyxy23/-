@@ -124,7 +124,7 @@ public class HaiGuiRankingService {
                     .uploadTime(projection.getUploadTime())
                     .difficultyLevel(projection.getDifficultyLevel())
                     .playerCount(projection.getPlayerCount())
-                    .tag(projection.getTag().getDescription()) // 使用中文描述
+                    .tag(projection.getTag() != null ? projection.getTag().getDescription() : "未知标签")
                     .soupAvatar(projection.getSoupAvatar())
                     .estimatedDuration(projection.getEstimatedDuration())
                     .build();
