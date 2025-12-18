@@ -12,6 +12,7 @@ import com.guanyu.haigui.pojo.dto.CreateTurtleSoupDTO;
 import com.guanyu.haigui.pojo.dto.HaiGuiInfoGenerateDTO;
 import com.guanyu.haigui.pojo.model.ClueFragment;
 import com.guanyu.haigui.pojo.model.HaiGuiSoup;
+import com.guanyu.haigui.pojo.model.HaiGuiSoupAudit;
 import com.guanyu.haigui.pojo.model.InferenceTask;
 import com.guanyu.haigui.pojo.result.HaiGuiInfoResult;
 import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
@@ -202,7 +203,7 @@ public class HaiGuiSoupInfoService {
     }
 
 
-    public Map<Integer, Long> convertToClueFragmentsAndSave(List<ClueFragmentInfo> fragments, HaiGuiSoup soup) {
+    public Map<Integer, Long> convertToClueFragmentsAndSave(HaiGuiSoupAudit audit,List<ClueFragmentInfo> fragments, HaiGuiSoup soup) {
         Map<Integer, Long> fragmentOrderToIdMap = new HashMap<>();
         List<String> fragmentIdList = new ArrayList<>(); // 临时收集fragmentId（字符串形式）
         String soupFragmentsKey = String.format("hai_gui:soup:%s:fragment", soup.getSoupId()); // Redis集合键
@@ -325,6 +326,6 @@ public class HaiGuiSoupInfoService {
 
 
     public HaiGuiInfoResult getFragmentsAndTasks(JsonNode draftFragments, JsonNode draftTasks) {
-        return haiGuiInfoUtil.getHaiGuiInfo(draftFragments, draftTasks);
+        return HaiGuiInfoUtil.getHaiGuiInfo(draftFragments, draftTasks);
     }
 }

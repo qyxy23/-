@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.guanyu.haigui.Enum.UserRoleEnum;
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.context.BaseContext;
+import com.guanyu.haigui.pojo.Info.ClueFragmentInfo;
+import com.guanyu.haigui.pojo.Info.InferenceTaskInfo;
 import com.guanyu.haigui.pojo.dto.*;
 import com.guanyu.haigui.pojo.model.*;
 import com.guanyu.haigui.pojo.result.HaiGuiDetailResult;
@@ -16,6 +18,8 @@ import com.guanyu.haigui.pojo.vo.QueryTurtleSoupListVO;
 import com.guanyu.haigui.repository.*;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -43,6 +47,7 @@ public class AuditService {
     private final HaiGuiSoupRepository haiGuiSoupRepository;
     private final HaiGuiSoupAuditRepository haiGuiSoupAuditRepository;
     private final ObjectMapper objectMapper;
+    private final RedissonClient redissonClient;
 
 
     /*
@@ -116,31 +121,53 @@ public class AuditService {
         return haiGuiSoupInfoService.generateInfo(prompt);
     }
 
-    public String createTurtleSoup(CreateTurtleSoupDTO createTurtleSoupDTO) {
-        UserInfo userInfo = userInfoRepository.findById(BaseContext.getCurrentId())
-                .orElseThrow(() -> new BusinessException(404, "用户不存在"));
-        boolean userRole = sysUserRoleRepository.existsById(new SysUserRole.UserRoleId(userInfo.getUserId(), UserRoleEnum.SOUP_AUDITOR.getRoleId()));
-        if (!userRole) {
-            throw new BusinessException(403, "您不是审核员,无权限");
-        }
-        HaiGuiSoupAudit audit = haiGuiSoupAuditRepository.findById(createTurtleSoupDTO.getAuditRecordId())
-                .orElseThrow(() -> new BusinessException(404, "审核记录不存在"));
-        HaiGuiSoup soup = createTurtleSoupDTO.fromToHaiGuiSoup(userInfo);
-        haiGuiSoupRepository.save(soup);
-        System.out.println("soup = " + soup);
+    public String createTurtleSoup(CreateTurtleSoupDTO dto) {
+        RLock lock = redissonClient.getLock("turtle_soup_create_lock");
 
-        audit.setOriginalSoupId(soup.getSoupId());
-        audit.setAuditStatus(HaiGuiSoupAudit.AuditStatus.APPROVED);
-        audit.setAuditorId(BaseContext.getCurrentId());
-        audit.setAuditTime(LocalDateTime.now());
-        haiGuiSoupAuditRepository.save(audit);
-        // 向量化线索并进行存储
-        Map<Integer, Long> fragments = haiGuiSoupInfoService.convertToClueFragmentsAndSave(createTurtleSoupDTO.getFragments(), soup);
-        List<InferenceTask> tasks = haiGuiSoupInfoService.convertToInferenceTasks(createTurtleSoupDTO, soup, fragments);
-        if (fragments.isEmpty() || tasks.isEmpty()) {
-            throw new BusinessException(500, "请检查线索和推理任务是否填写正确");
+        try {
+            // 尝试立即获取锁（不等待）
+            if (!lock.tryLock()) {
+                throw new BusinessException(429, "请稍等，当前有人正在操作");
+            }
+
+            try {
+                UserInfo userInfo = userInfoRepository.findById(BaseContext.getCurrentId())
+                        .orElseThrow(() -> new BusinessException(404, "用户不存在"));
+                boolean userRole = sysUserRoleRepository.existsById(new SysUserRole.UserRoleId(userInfo.getUserId(), UserRoleEnum.SOUP_AUDITOR.getRoleId()));
+                if (!userRole) {
+                    throw new BusinessException(403, "您不是审核员,无权限");
+                }
+                HaiGuiSoupAudit audit = haiGuiSoupAuditRepository.findById(dto.getAuditRecordId())
+                        .orElseThrow(() -> new BusinessException(404, "审核记录不存在"));
+                HaiGuiSoup soup = dto.fromToHaiGuiSoup(userInfo);
+                haiGuiSoupRepository.save(soup);
+                System.out.println("soup = " + soup);
+                audit.setOriginalSoupId(soup.getSoupId());
+                audit.setAuditStatus(HaiGuiSoupAudit.AuditStatus.APPROVED);
+                audit.setAuditorId(BaseContext.getCurrentId());
+                audit.setAuditTime(LocalDateTime.now());
+                ToJson(audit,dto.getManual(),dto.getFragments(),dto.getInferenceTasks());
+                haiGuiSoupAuditRepository.save(audit);
+                // 向量化线索并进行存储
+                Map<Integer, Long> fragments = haiGuiSoupInfoService.convertToClueFragmentsAndSave(audit,dto.getFragments(), soup);
+                List<InferenceTask> tasks = haiGuiSoupInfoService.convertToInferenceTasks(dto, soup, fragments);
+                if (fragments.isEmpty() || tasks.isEmpty()) {
+                    throw new BusinessException(500, "请检查线索和推理任务是否填写正确");
+                }
+                return "创建成功";
+            } finally {
+                // 安全解锁：检查当前线程是否持有锁
+                if (lock.isHeldByCurrentThread()) {
+                    lock.unlock();
+                }
+            }
+        } catch (BusinessException e) {
+            if (e.getMessage().contains("当前有人正在操作")) {
+                // 提示用户稍后重试
+                return "error: 请稍后重试";
+            }
+            throw e;
         }
-        return "创建成功";
     }
 
     public QueryTurtleSoupListVO queryTurtleSoupList(QueryTurtleSoupListDTO dto) {
@@ -349,26 +376,29 @@ public class AuditService {
         audit.setAuditStatus(HaiGuiSoupAudit.AuditStatus.PENDING);
         audit.setAuditorId(BaseContext.getCurrentId());
 
-        try {
-            // 4. 序列化主持人手册（包装为 JSON 对象）
-            ObjectNode manualNode = objectMapper.createObjectNode();
-            manualNode.put("content", dto.getDraftManual() != null ? dto.getDraftManual() : "");
-            audit.setDraftManual(objectMapper.writeValueAsString(manualNode));
-
-            // 5. 序列化线索片段列表并转为 JsonNode
-            String fragmentsStr = objectMapper.writeValueAsString(dto.getDraftFragments());
-            audit.setDraftFragments(objectMapper.readTree(fragmentsStr));
-
-            // 6. 序列化推理任务列表并转为 JsonNode
-            String tasksStr = objectMapper.writeValueAsString(dto.getDraftTasks());
-            audit.setDraftTasks(objectMapper.readTree(tasksStr));
-        } catch (JsonProcessingException e) {
-            throw new BusinessException(500, "JSON序列化失败: " + e.getMessage());
-        }
+        ToJson(audit,dto.getDraftManual(),dto.getDraftFragments(),dto.getDraftTasks());
 
         // 8. 保存更新
         haiGuiSoupAuditRepository.save(audit);
         return "修改成功,请继续审核";
+    }
+    private void ToJson(HaiGuiSoupAudit audit, String manual, List<ClueFragmentInfo> clue, List<InferenceTaskInfo> task) {
+        try {
+            // 4. 序列化主持人手册（包装为 JSON 对象）
+            ObjectNode manualNode = objectMapper.createObjectNode();
+            manualNode.put("content", manual != null ? manual : "");
+            audit.setDraftManual(objectMapper.writeValueAsString(manualNode));
+
+            // 5. 序列化线索片段列表并转为 JsonNode
+            String fragmentsStr = objectMapper.writeValueAsString(clue);
+            audit.setDraftFragments(objectMapper.readTree(fragmentsStr));
+
+            // 6. 序列化推理任务列表并转为 JsonNode
+            String tasksStr = objectMapper.writeValueAsString(task);
+            audit.setDraftTasks(objectMapper.readTree(tasksStr));
+        } catch (JsonProcessingException e) {
+            throw new BusinessException(500, "JSON序列化失败: " + e.getMessage());
+        }
     }
 
 

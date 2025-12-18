@@ -2,8 +2,8 @@ package com.guanyu.haigui.pojo.dto;
 
 import com.guanyu.haigui.Enum.DifficultyLevel;
 import com.guanyu.haigui.Enum.SoupTag;
-import com.guanyu.haigui.pojo.model.ClueFragment;
-import com.guanyu.haigui.pojo.model.InferenceTask;
+import com.guanyu.haigui.pojo.Info.ClueFragmentInfo;
+import com.guanyu.haigui.pojo.Info.InferenceTaskInfo;
 import lombok.Data;
 
 import java.util.List;
@@ -41,8 +41,8 @@ public class UpdateHaiGuiAuditDTO {
     private String draftManual;
 
     // 汤线索
-    private List<ClueFragment> draftFragments;
+    private List<ClueFragmentInfo> draftFragments;
 
     // 汤任务
-    private List<InferenceTask> draftTasks;
+    private List<InferenceTaskInfo> draftTasks;
 }
