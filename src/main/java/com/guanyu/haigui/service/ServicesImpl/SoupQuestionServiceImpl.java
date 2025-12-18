@@ -12,10 +12,7 @@ import com.guanyu.haigui.pojo.result.ChatWithAIRoomRequest;
 import com.guanyu.haigui.pojo.result.CompletedTasksResult;
 import com.guanyu.haigui.pojo.result.ContextMatchResult;
 import com.guanyu.haigui.pojo.result.UncompletedTasksResult;
-import com.guanyu.haigui.pojo.vo.EndGameVO;
-import com.guanyu.haigui.pojo.vo.RoomGetClueVO;
-import com.guanyu.haigui.pojo.vo.RoomSoupQuestionVO;
-import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
+import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.repository.*;
 import com.guanyu.haigui.service.SoupQuestionService;
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
@@ -60,6 +57,8 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
     private final UserInfoRepository userRepository;
     private final HaiGuiChatMessageRepository haiGuiChatMessageRepository;
     private final HaiGuiRoomProgressRepository haiGuiRoomProgressRepository;
+    private final HaiGuiVoteSessionRepository haiGuiVoteSessionRepository;
+
 
 
     @Value("${haiqutang.ai.debug-mode:false}")
@@ -76,6 +75,9 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         ChatGame game = chatGameRepository.findById(request.getRoomId()).orElse(null);
         if(game == null){
             return RoomSoupQuestionVO.error("房间不存在：ID=" + request.getRoomId());
+        }
+        if(!(game.getStatus() == RoomStatus.ACTIVE|| game.getStatus() == RoomStatus.VOTING)){
+            return RoomSoupQuestionVO.error("游戏未开始或已结束：ID=" + request.getRoomId());
         }
         GameSession session = gameSessionRepository.findById(game.getSessionId()).orElse(null);
         if(session == null|| session.getStatus() != GameSession.GameSessionStatus.ONGOING){
@@ -195,6 +197,39 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
     public RoomGetClueVO getClue(String roomId) {
         List<HaiGuiChatMessageWithFragments> messages = haiGuiChatMessageRepository.findAllByRoomId(roomId);
 
+        ChatGame game = chatGameRepository.findById(roomId)
+                .orElseThrow(() -> new BusinessException(404, "房间不存在"));
+        if(game.getSessionId()== null){
+            return RoomGetClueVO.error("游戏未开始",game.getStatus());
+        }
+        GameSession session = gameSessionRepository.findById(game.getSessionId()).orElse(null);
+        if (session == null) {
+            return RoomGetClueVO.error("游戏会话不存在",game.getStatus());
+        }
+        HaiGuiSoup soup = haiGuiSoupRepository.findById(session.getSoupId()).orElse(null);
+        if (soup == null) {
+            return RoomGetClueVO.error("海龟汤不存在",game.getStatus());
+        }
+        RoomGetClueVO roomGetClueVO = new RoomGetClueVO();
+        roomGetClueVO.setSoupSurface(soup.getSoupSurface());
+        if(game.getStatus()==RoomStatus.FINISHED){
+            roomGetClueVO.setMessage("游戏已结束");
+            roomGetClueVO.setSoupBottom(soup.getSoupBottom());
+        }else if(game.getStatus()==RoomStatus.VOTING){
+            List<HaiGuiVoteSession> sessions = haiGuiVoteSessionRepository.findBySessionIdAndStatusOrderByCreatedAtDesc(
+                    game.getSessionId(), HaiGuiVoteSession.VoteStatus.ONGOING);
+            HaiGuiVoteSession currentSession = sessions.get(0); // 最新创建的会话
+
+            // 3. 检查投票是否超时
+            if (LocalDateTime.now().isAfter(currentSession.getEndTime())) {
+                // 投票已超时，自动处理
+                handleVoteTimeout(game,currentSession);
+            }
+        }
+        roomGetClueVO.setRoomStatus(game.getStatus());
+        roomGetClueVO.setProgress(session.getCurrentProgress().doubleValue());
+        roomGetClueVO.setRemainingQuestions(session.getRemainingQuestions());
+
         List<RoomGetClueVO.QuestionClass> questions = messages.stream()
                 .map(message -> {
                     RoomGetClueVO.QuestionClass questionClass = new RoomGetClueVO.QuestionClass();
@@ -204,8 +239,19 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
                     return questionClass;
                 })
                 .collect(Collectors.toList());
+        roomGetClueVO.setQuestion(questions);
 
-        return RoomGetClueVO.success(questions);
+        return roomGetClueVO;
+    }
+
+    private void handleVoteTimeout(ChatGame chatGame,HaiGuiVoteSession session) {
+        // 标记为超时结束
+        chatGame.setStatus(RoomStatus.ACTIVE);
+        chatGame.setUpdateTime(LocalDateTime.now());
+        chatGameRepository.save(chatGame);
+        session.setStatus(HaiGuiVoteSession.VoteStatus.FAILED);
+        session.setUpdatedAt(LocalDateTime.now());
+        haiGuiVoteSessionRepository.save(session);
     }
 
 

@@ -20,6 +20,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.*;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -125,14 +126,25 @@ public class RoomService {
      * 获取当前用户加入的大厅列表
      */
     public List<ChatGameDTO> getMineLobbies() {
-        // 1. 根据sessionId获取当前用户（你的原有逻辑）
         Long userId = BaseContext.getCurrentId();
         if (userId == null) {
-            throw new RuntimeException("用户不存在"); // 用户不存在，返回空列表
+            throw new RuntimeException("用户不存在");
         }
-        // 2. 直接查询用户加入的所有聊天室
-        List<ChatGame> membersMemberUserId = chatGameRepository.findByMembers_Member_UserId(userId);
-        return membersMemberUserId.stream()
+
+        // 定义需要查询的状态集合
+        List<RoomStatus> targetStatuses = Arrays.asList(
+                RoomStatus.WAITING,
+                RoomStatus.ACTIVE,
+                RoomStatus.VOTING
+        );
+
+        // 查询用户参与的、状态在目标范围内的房间
+        List<ChatGame> userGames = chatGameRepository.findByMembers_Member_UserIdAndStatusIn(
+                userId,
+                targetStatuses
+        );
+
+        return userGames.stream()
                 .map(ChatGameDTO::from)
                 .peek(dto -> log.info("DTO 转换结果：{}", dto))
                 .collect(Collectors.toList());
@@ -224,10 +236,9 @@ public class RoomService {
             if(!chatGameInvitationRepository.existsByChatGameRoomIdAndInviteeUserIdAndStatus(roomId, BaseContext.getCurrentId(), InvitationStatus.PENDING)){
                 throw new BusinessException(405,"当前房间为私人房间,请等待邀请");
             }
-
         }
-        if (room.getStatus() != RoomStatus.WAITING) {
-            throw new RuntimeException("房间已开始或已结束：ID=" + roomId);
+        if(!(room.getStatus()==RoomStatus.WAITING||room.getStatus()==RoomStatus.ACTIVE||room.getStatus()==RoomStatus.VOTING)){
+            throw new BusinessException(403, "房间已结束或取消，无法操作");
         }
         if (room.getCurrentMembers() >= room.getRequiredMembers()) {
             throw new RoomFullException("房间已满（需" + room.getRequiredMembers() + "人）：ID=" + roomId);
@@ -374,6 +385,10 @@ public class RoomService {
         // 3. 获取目标房间（验证存在性）
         ChatGame room = chatGameRepository.findById(roomId)
                 .orElseThrow(() -> new RoomNotFoundException("房间不存在：ID=" + roomId));
+
+        if(!(room.getStatus()==RoomStatus.WAITING||room.getStatus()==RoomStatus.ACTIVE||room.getStatus()==RoomStatus.VOTING)){
+            throw new BusinessException(403, "房间已结束或取消，无法操作");
+        }
 
         // 4. 查找用户的成员记录（验证是否在房间内）
         ChatGameMemberId memberId = new ChatGameMemberId(user.getUserId(), roomId);
@@ -763,6 +778,8 @@ public class RoomService {
 
 
                 privateMessageRepository.save(privateMessage);
+                // 异步更改缓存中最后消息的信息
+                asyncAfterSendMessage(privateMessage.getContent(),currentUserId, inviteeId);
 
                 // 创建并添加到返回列表
                 InvitationVO vo = InvitationVO.fromEntity(invitation);
@@ -788,6 +805,16 @@ public class RoomService {
         }
 
         return invitationVOs;
+    }
+
+    @Async("taskExecutor") // 指定使用配置的"taskExecutor"线程池
+    public void asyncAfterSendMessage(String message, Long userId,Long receiverId) {
+        // 更新最后一条消息缓存
+        redisService.updateLastMsg(message, userId, receiverId);
+        // 如果是发送给好友的消息，更新好友的未读计数
+        if (!userId.equals(receiverId)) {
+            redisService.updateUnreadMsgCount(receiverId, userId);
+        }
     }
 
 

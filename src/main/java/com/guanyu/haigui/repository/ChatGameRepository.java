@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,4 +24,12 @@ public interface ChatGameRepository extends JpaRepository<ChatGame, String> {
     Optional<ChatGame> findByRoomId(@Param("roomId") String roomId);
 
     List<ChatGame> findByMembers_Member_UserId(Long userId);
+
+    // 新增方法：查询用户参与的、状态在指定集合中的房间
+    @Query("SELECT cg FROM ChatGame cg JOIN cg.members m " +
+            "WHERE m.member.userId = :userId AND cg.status IN :statuses")
+    List<ChatGame> findByMembers_Member_UserIdAndStatusIn(
+            @Param("userId") Long userId,
+            @Param("statuses") Collection<RoomStatus> statuses
+    );
 }

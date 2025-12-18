@@ -1,14 +1,14 @@
 package com.guanyu.haigui.utils;
 
-import com.guanyu.haigui.pojo.dto.PrivateMessageDTO;
 import com.guanyu.haigui.pojo.dto.MsgDTO;
+import com.guanyu.haigui.pojo.dto.PrivateMessageDTO;
 import com.guanyu.haigui.pojo.model.PrivateMessage;
+import jakarta.annotation.Resource;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
-import jakarta.annotation.Resource;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
@@ -165,6 +165,13 @@ public class RedisServiceUtil {
         redisTemplate.opsForValue().set(CHAT_LAST_MSG_KEY + ":"+ userId +":"+message.getReceiverId(), message.getContent());
         redisTemplate.opsForValue().set(CHAT_LAST_TIME_KEY + ":"+ message.getReceiverId() +":"+userId,  LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         redisTemplate.opsForValue().set(CHAT_LAST_MSG_KEY + ":"+ message.getReceiverId() +":"+userId, message.getContent());
+    }
+
+    public void updateLastMsg(String message,Long userId,Long receiverId) {
+        redisTemplate.opsForValue().set(CHAT_LAST_TIME_KEY + ":"+ userId +":"+receiverId, LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        redisTemplate.opsForValue().set(CHAT_LAST_MSG_KEY + ":"+ userId +":"+receiverId, message);
+        redisTemplate.opsForValue().set(CHAT_LAST_TIME_KEY + ":"+ receiverId +":"+userId,  LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        redisTemplate.opsForValue().set(CHAT_LAST_MSG_KEY + ":"+ receiverId +":"+userId, message);
     }
 
     public void updateUnreadMsgCount(Long receiverId,Long userId) {
