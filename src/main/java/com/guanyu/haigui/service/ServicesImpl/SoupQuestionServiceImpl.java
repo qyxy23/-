@@ -58,6 +58,8 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
     private final HaiGuiChatMessageRepository haiGuiChatMessageRepository;
     private final HaiGuiRoomProgressRepository haiGuiRoomProgressRepository;
     private final HaiGuiVoteSessionRepository haiGuiVoteSessionRepository;
+    private final HaiGuiVoteRecordRepository haiGuiVoteRecordRepository;
+
 
 
 
@@ -177,10 +179,10 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         haiGuiChatMessage.setUserId(userId);
         haiGuiChatMessage.setIsDeleted(false);
         haiGuiChatMessage.setTriggeredFragmentIds(new HashSet<>(parsedResponse.getNewTriggeredFragments()));
-        haiGuiChatMessageRepository.saveAndFlush(haiGuiChatMessage);
+        haiGuiChatMessageRepository.save(haiGuiChatMessage);
         RoomSoupQuestionVO roomSoupQuestionVO = RoomSoupQuestionVO.success(
                 request.getRoomId(),
-                haiGuiChatMessage.getId(),
+                // haiGuiChatMessage.getId(),
                 request.getQuestion(),
                 parsedResponse.getAnswer(),
                 progress.doubleValue(),
@@ -224,6 +226,12 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
             if (LocalDateTime.now().isAfter(currentSession.getEndTime())) {
                 // 投票已超时，自动处理
                 handleVoteTimeout(game,currentSession);
+            }else{
+                roomGetClueVO.setAgreedVotes(currentSession.getAgreedVotes());
+                roomGetClueVO.setTotalVoters(currentSession.getTotalVoters());
+                roomGetClueVO.setHasVoted(haiGuiVoteRecordRepository.existsByVoteSessionIdAndUserId(
+                        currentSession.getVoteSessionId(), BaseContext.getCurrentId()));
+                roomGetClueVO.setEndTime(currentSession.getEndTime());
             }
         }
         roomGetClueVO.setRoomStatus(game.getStatus());

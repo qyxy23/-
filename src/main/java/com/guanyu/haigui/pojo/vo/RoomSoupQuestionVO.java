@@ -1,15 +1,18 @@
 package com.guanyu.haigui.pojo.vo;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.guanyu.haigui.Enum.MessageChatType;
 import lombok.Data;
 
+import java.time.LocalDateTime;
+@JsonInclude(JsonInclude.Include.NON_NULL)
 @Data
 public class RoomSoupQuestionVO {
     //房间id
     private String roomId;
 
     //问题id
-    private String questionId;
+    // private String questionId;
 
     //问题
     private String question;
@@ -32,17 +35,22 @@ public class RoomSoupQuestionVO {
     //消息类型
     private MessageChatType type;
 
+    //发送时间
+    private LocalDateTime sendTime;
 
-    public static RoomSoupQuestionVO success(String roomId, Long questionId,String question,String answer,Double currentProgress,int remainingQuestions){
+
+    // public static RoomSoupQuestionVO success(String roomId, Long questionId,String question,String answer,Double currentProgress,int remainingQuestions){
+    public static RoomSoupQuestionVO success(String roomId,String question,String answer,Double currentProgress,int remainingQuestions){
         RoomSoupQuestionVO roomSoupQuestionVO = new RoomSoupQuestionVO();
         roomSoupQuestionVO.setRoomId(roomId);
-        roomSoupQuestionVO.setQuestionId(questionId.toString());
+        // roomSoupQuestionVO.setQuestionId(questionId.toString());
         roomSoupQuestionVO.setQuestion(question);
         roomSoupQuestionVO.setAnswer(answer);
         roomSoupQuestionVO.setStatus("success");
         roomSoupQuestionVO.setCurrentProgress(currentProgress);
         roomSoupQuestionVO.setRemainingQuestions(remainingQuestions);
         roomSoupQuestionVO.setType(MessageChatType.SOUP_QUESTION);
+        roomSoupQuestionVO.setSendTime(LocalDateTime.now());
         return roomSoupQuestionVO;
     }
 

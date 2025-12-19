@@ -779,7 +779,7 @@ public class RoomService {
 
                 privateMessageRepository.save(privateMessage);
                 // 异步更改缓存中最后消息的信息
-                asyncAfterSendMessage(privateMessage.getContent(),currentUserId, inviteeId);
+                asyncAfterSendMessage(currentUserId, inviteeId);
 
                 // 创建并添加到返回列表
                 InvitationVO vo = InvitationVO.fromEntity(invitation);
@@ -808,9 +808,9 @@ public class RoomService {
     }
 
     @Async("taskExecutor") // 指定使用配置的"taskExecutor"线程池
-    public void asyncAfterSendMessage(String message, Long userId,Long receiverId) {
+    public void asyncAfterSendMessage(Long userId,Long receiverId) {
         // 更新最后一条消息缓存
-        redisService.updateLastMsg(message, userId, receiverId);
+        redisService.updateLastMsg("邀请你一起玩海龟汤", userId, receiverId);
         // 如果是发送给好友的消息，更新好友的未读计数
         if (!userId.equals(receiverId)) {
             redisService.updateUnreadMsgCount(receiverId, userId);

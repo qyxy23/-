@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.guanyu.haigui.Enum.RoomStatus;
 import lombok.Data;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -23,6 +24,14 @@ public class RoomGetClueVO {
     private List<QuestionClass> question;
     //错误信息
     private String message;
+    //投票总人数
+    private Integer totalVoters;
+    //同意人数
+    private Integer agreedVotes;
+    //自己是否投过票
+    private Boolean hasVoted;
+    //结束时间
+    private LocalDateTime endTime;
 
 
     @Data
