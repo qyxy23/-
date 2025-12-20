@@ -46,4 +46,5 @@ public interface AiChatSessionRepository extends JpaRepository<AiChatSession, St
         WHERE session_id = ?1
     """, nativeQuery = true)
     AiChatSession selectSessionBySessionId(String sessionId);
+
 }

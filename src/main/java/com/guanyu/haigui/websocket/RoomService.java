@@ -268,7 +268,7 @@ public class RoomService {
         vo.setUserId(user.getUserId());
         vo.setUserName(user.getUsername());
         vo.setUserAvatar(user.getAvatar());
-        vo.setStatus(LobbyMemberStatus.JOIN);
+        vo.setChatType(MessageChatType.GAME_JOIN);
         // 7. 更新Redis在线房间缓存（可选）
         redisService.updateOnlineRoomsAndNumbers(roomId, num);
         simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId, vo);
@@ -450,7 +450,7 @@ public class RoomService {
         lobbyVO.setUserId(user.getUserId());
         lobbyVO.setUserName(user.getName());
         lobbyVO.setUserAvatar(user.getAvatar());
-        lobbyVO.setStatus(LobbyMemberStatus.QUIT);
+        lobbyVO.setChatType(MessageChatType.GAME_QUIT);
         // 8. 更新Redis在线房间缓存（可选）
         simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId,lobbyVO);
         log.info("用户[{}]离开房间[{}]成功", user.getName(), roomId);
@@ -521,7 +521,7 @@ public class RoomService {
         ChatGameMemberId memberId = new ChatGameMemberId(userId, roomId);
         ChatGameMember member = chatGameMemberRepository.findById(memberId)
                 .orElseThrow(() -> new UserNotInRoomException("用户未在房间中：ID=" + userId));
-        if(!(room.getStatus() == RoomStatus.WAITING || room.getStatus() == RoomStatus.ACTIVE)){
+        if(room.getStatus() == RoomStatus.FINISHED || room.getStatus() == RoomStatus.CANCELLED){
             throw new RuntimeException("房间已结束，无法挂起");
         }
         member.setStatus(MemberStatus.SUSPENDED);
@@ -529,8 +529,7 @@ public class RoomService {
         suspendRoomVO suspendRoomVO = new suspendRoomVO();
         suspendRoomVO.setUserId(userId);
         suspendRoomVO.setRoomId(roomId);
-        suspendRoomVO.setStatus(LobbyMemberStatus.SUSPEND);
-        suspendRoomVO.setType(MessageChatType.SUSPEND_ROOM);
+        suspendRoomVO.setChatType(MessageChatType.SUSPEND_ROOM);
         simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId,suspendRoomVO);
         return suspendRoomVO;
     }
@@ -550,8 +549,7 @@ public class RoomService {
         resumeRoomVO resumeRoomVO = new resumeRoomVO();
         resumeRoomVO.setUserId(userId);
         resumeRoomVO.setRoomId(roomId);
-        resumeRoomVO.setStatus(LobbyMemberStatus.ONLINE);
-        resumeRoomVO.setType(MessageChatType.RETURN_ROOM);
+        resumeRoomVO.setChatType(MessageChatType.RETURN_ROOM);
         simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId,resumeRoomVO);
         return resumeRoomVO;
     }
@@ -571,8 +569,7 @@ public class RoomService {
         readyVO readyVO = new readyVO();
         readyVO.setUserId(userId);
         readyVO.setRoomId(roomId);
-        readyVO.setStatus(LobbyMemberStatus.READY);
-        readyVO.setType(MessageChatType.READY_ROOM);
+        readyVO.setChatType(MessageChatType.READY_ROOM);
         simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId,readyVO);
         return readyVO;
     }
@@ -595,8 +592,7 @@ public class RoomService {
         cancelReadyVO cancelReadyVO = new cancelReadyVO();
         cancelReadyVO.setUserId(userId);
         cancelReadyVO.setRoomId(roomId);
-        cancelReadyVO.setStatus(LobbyMemberStatus.ONLINE);
-        cancelReadyVO.setType(MessageChatType.CANCEL_READY_ROOM);
+        cancelReadyVO.setChatType(MessageChatType.CANCEL_READY_ROOM);
         simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId,cancelReadyVO);
         return cancelReadyVO;
     }
@@ -874,7 +870,8 @@ public class RoomService {
         // voteMQProducer.sendDelayedCheck(delayedMsg, 9); // 延迟级别9 = 5分钟
 
 
-        VoteEndGameVO voteEndGameVO = VoteEndGameVO.success(1,endTime,1);
+        VoteEndGameVO voteEndGameVO = VoteEndGameVO.success(voteSession.getTotalVoters(),endTime,1);
+        voteEndGameVO.setChatType(MessageChatType.START_VOTING);
         simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId, voteEndGameVO);
         return voteEndGameVO;
     }
@@ -939,6 +936,7 @@ public class RoomService {
 
         // 返回最新统计信息
         VoteEndGameVO voteEndGameVO = VoteEndGameVO.success(currentSession.getTotalVoters(),currentSession.getEndTime(),currentSession.getAgreedVotes());
+        voteEndGameVO.setChatType(MessageChatType.CONTINUE_VOTING);
         simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId, voteEndGameVO);
 
         checkVoteResult(currentSession);
@@ -994,12 +992,8 @@ public class RoomService {
         // 获取投票记录
         int agreeCount = session.getAgreedVotes();
 
-
-        // 获取房间人数（应从房间成员服务获取）
-        int playerCount = session.getTotalVoters();
-
         // 计算所需票数
-        int requiredVotes = calculateRequiredVotes(playerCount);
+        int requiredVotes = calculateRequiredVotes(totalMembers);
         // 判断是否达到结束条件
         // 检查是否达到要求
         // 如果同意比例达到要求，则结束游戏

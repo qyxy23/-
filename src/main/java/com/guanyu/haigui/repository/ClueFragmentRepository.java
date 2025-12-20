@@ -94,4 +94,6 @@ public interface ClueFragmentRepository extends JpaRepository<ClueFragment, Long
      */
     @Query("SELECT DISTINCT f.soupId FROM ClueFragment f WHERE f.isDeleted = false")
     List<String> findAllDistinctSoupIds();
+
+    List<ClueFragment> findBySoupId(String soupId);
 }

@@ -33,7 +33,7 @@ public class RoomSoupQuestionVO {
     private String status;
 
     //消息类型
-    private MessageChatType type;
+    private MessageChatType chatType;
 
     //发送时间
     private LocalDateTime sendTime;
@@ -49,7 +49,7 @@ public class RoomSoupQuestionVO {
         roomSoupQuestionVO.setStatus("success");
         roomSoupQuestionVO.setCurrentProgress(currentProgress);
         roomSoupQuestionVO.setRemainingQuestions(remainingQuestions);
-        roomSoupQuestionVO.setType(MessageChatType.SOUP_QUESTION);
+        roomSoupQuestionVO.setChatType(MessageChatType.SOUP_QUESTION);
         roomSoupQuestionVO.setSendTime(LocalDateTime.now());
         return roomSoupQuestionVO;
     }
@@ -58,7 +58,7 @@ public class RoomSoupQuestionVO {
         RoomSoupQuestionVO roomSoupQuestionVO = new RoomSoupQuestionVO();
         roomSoupQuestionVO.setMessage(message);
         roomSoupQuestionVO.setStatus("error");
-        roomSoupQuestionVO.setType(MessageChatType.SOUP_QUESTION);
+        roomSoupQuestionVO.setChatType(MessageChatType.SOUP_QUESTION);
         return roomSoupQuestionVO;
     }
 }

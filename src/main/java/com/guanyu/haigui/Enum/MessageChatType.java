@@ -26,7 +26,10 @@ public enum MessageChatType {
     START_ROOM_ERROR("开始游戏失败"),
     START_VOTING("发起投票"),
     CONTINUE_VOTING("普通(跟风)投票"),
-    SOUP_QUESTION("海龟汤问答"), GAME_END("结束游戏");
+    SOUP_QUESTION("海龟汤问答"), 
+    GAME_END("结束游戏"), 
+    GAME_JOIN("加入游戏"),
+    GAME_QUIT("退出游戏");
 
     private final String description;
 

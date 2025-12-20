@@ -17,7 +17,7 @@ public class CheckRoomStatusVO { // 类名建议大写开头（规范）
     private String roomId;
     private RoomStatus status;
     private String soupSurface;
-    private MessageChatType type;
+    private MessageChatType chatType;
 
     // ------------------------------
     // 2. 错误信息内部类（静态，独立于VO实例）
@@ -29,13 +29,13 @@ public class CheckRoomStatusVO { // 类名建议大写开头（规范）
         /** 错误提示信息（给前端/调用方的友好描述） */
         private String message;
         /** 聊天类型 */
-        private MessageChatType type;
+        private MessageChatType chatType;
 
         // 构造方法：快速创建错误信息
         public ErrorInfo(int code, String message) {
             this.code = code;
             this.message = message;
-            this.type = MessageChatType.START_ROOM_ERROR;
+            this.chatType = MessageChatType.START_ROOM_ERROR;
         }
     }
 
@@ -43,7 +43,7 @@ public class CheckRoomStatusVO { // 类名建议大写开头（规范）
     // 3. VO自身的状态字段
     // ------------------------------
     /** 是否是错误响应（前端可据此判断） */
-    private boolean boolError;
+    private Boolean boolError;
     /** 错误详情（ErrorInfo实例） */
     private ErrorInfo error;
 
@@ -62,9 +62,9 @@ public class CheckRoomStatusVO { // 类名建议大写开头（规范）
         vo.setRoomId(roomId);
         vo.setStatus(status);
         vo.setSoupSurface(soupSurface);
-        vo.setBoolError(false);
+        vo.setBoolError(null);
         vo.setError(null); // 清空错误信息
-        vo.setType(MessageChatType.START_ROOM);
+        vo.setChatType(MessageChatType.START_ROOM);
         return vo;
     }
 

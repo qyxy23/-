@@ -28,4 +28,19 @@ public interface ChatGameMemberRepository extends JpaRepository<ChatGameMember, 
 
 
     List<ChatGameMember> findByIdRoomIdAndStatusInOrderByJoinTimeAsc(String roomId, List<MemberStatus> list);
+
+
+    @Query(value = "SELECT " +
+            "  g.room_id AS roomId, " +
+            "  g.room_name AS title, " +
+            "  soup.soup_surface AS soupContent, " +
+            "  g.create_time AS createTime " +
+            "FROM chat_game_members m " +
+            "JOIN chat_games g ON m.room_id = g.room_id " +
+            "JOIN hai_gui_soup soup ON g.soup_id = soup.soup_id " +
+            "WHERE m.member_id = :userId " +
+            "  AND g.status = 'FINISHED' " +  // 新增：过滤状态为FINISHED的房间
+            "ORDER BY g.create_time DESC",
+            nativeQuery = true)
+    List<Object[]> findUserGameRooms(@Param("userId") Long userId);
 }

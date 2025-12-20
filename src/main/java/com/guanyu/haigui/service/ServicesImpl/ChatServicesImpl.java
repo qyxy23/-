@@ -3,19 +3,21 @@ package com.guanyu.haigui.service.ServicesImpl;
 import cn.hutool.core.lang.UUID;
 import com.guanyu.haigui.Enum.ChatContextType;
 import com.guanyu.haigui.Enum.ChatMessageRole;
+import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.Exception.NoBeginRequest;
 import com.guanyu.haigui.constant.StatusConstant;
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.manager.AIManager;
 import com.guanyu.haigui.mapper.AiChatSessionMapper;
-import com.guanyu.haigui.pojo.model.AiChatMessage;
-import com.guanyu.haigui.pojo.model.AiChatSession;
-import com.guanyu.haigui.pojo.vo.AiChatMessageDetailVo;
-import com.guanyu.haigui.pojo.vo.ChatRoomListDetailVO;
-import com.guanyu.haigui.pojo.vo.ChatRoomListVO;
+import com.guanyu.haigui.pojo.model.*;
+import com.guanyu.haigui.pojo.result.CompletedCluesResult;
+import com.guanyu.haigui.pojo.result.CompletedTasksResult;
+import com.guanyu.haigui.pojo.result.UncompletedTasksResult;
+import com.guanyu.haigui.pojo.vo.ChatListVO;
 import com.guanyu.haigui.pojo.vo.FirstChatVo;
-import com.guanyu.haigui.repository.AiChatMessageRepository;
-import com.guanyu.haigui.repository.AiChatSessionRepository;
+import com.guanyu.haigui.pojo.vo.RoomGetClueVO;
+import com.guanyu.haigui.pojo.vo.getAIChatListDetailVO;
+import com.guanyu.haigui.repository.*;
 import com.guanyu.haigui.service.ChatService;
 import com.guanyu.haigui.utils.RedisServiceUtil;
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessage;
@@ -25,12 +27,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -45,6 +46,17 @@ public class ChatServicesImpl implements ChatService {
     private AiChatSessionMapper aiChatMapper;
     private AIManager aiManager;
     private RedisServiceUtil redisServiceUtil;
+    private final ChatGameMemberRepository chatGameMemberRepository;
+    private final ChatGameRepository chatGameRepository;
+    private final HaiGuiSoupRepository haiGuiSoupRepository;
+    private final GameSessionRepository gameSessionRepository;
+    private final HaiGuiRoomProgressRepository haiGuiRoomProgressRepository;
+    private final HaiGuiChatMessageRepository haiGuiChatMessageRepository;
+    private final InferenceTaskRepository inferenceTaskRepository;
+    private final ClueFragmentRepository clueFragmentRepository;
+
+
+
 
     /**
      * 检测标题是否带书名号（《》），若未带则自动补全
@@ -64,15 +76,6 @@ public class ChatServicesImpl implements ChatService {
         }
         // 未带书名号：补全《和》
         return "《" + trimmedTitle + "》";
-    }
-
-    // 模拟AI生成模块（实际需调用第三方AI服务，如OpenAI）
-    private static Map<String, String> generateAiModules(String soupSurface, String soupBottom) {
-        Map<String, String> modules = new HashMap<>();
-        modules.put("hostManual", "## 主持人手册 推理时长1~2小时…");
-        modules.put("keyClues", "村子里的女人被限制出门、深渊的白骨、妻子的时空穿越短信、双鱼玉佩的唯一性");
-        modules.put("progressSettings", "妈妈身份+15%…妻子是复制体+20%…双鱼玉佩功能+25%…完整还原+25%");
-        return modules;
     }
 
     @Override
@@ -239,21 +242,162 @@ public class ChatServicesImpl implements ChatService {
         return aiChatMapper.selectValidSessionsByUserId(userId);
     }
 
-    /**
-     * 获取当前用户的AI聊天室列表（含最后一条消息）
-     *
-     * @param userId 当前用户ID
-     * @return 聊天室列表（带最后一条消息）
-     */
-    public List<ChatRoomListVO> getAIChatRoomListWithLastMessage(Long userId) {
-        return aiChatMapper.selectChatRoomListWithLastMessage(userId);
+
+
+    @Override
+    public List<ChatListVO> getAIChatList(Long userId) {
+        // 执行原生SQL查询
+        List<Object[]> results = chatGameMemberRepository.findUserGameRooms(userId);
+
+        // 转换结果为VO列表
+        List<ChatListVO> vos = new ArrayList<>();
+        for (Object[] row : results) {
+            ChatListVO vo = new ChatListVO();
+
+            // 设置房间ID
+            vo.setRoomId((String) row[0]);
+
+            // 设置房间标题
+            vo.setTitle((String) row[1]);
+
+            // 设置汤面内容
+            vo.setSoupContent((String) row[2]);
+
+            // 设置创建时间（处理不同类型的时间格式）
+            if (row[3] != null) {
+                if (row[3] instanceof LocalDateTime) {
+                    vo.setCreateTime((LocalDateTime) row[3]);
+                } else if (row[3] instanceof Timestamp) {
+                    vo.setCreateTime(((Timestamp) row[3]).toLocalDateTime());
+                } else {
+                    // 尝试解析字符串格式的时间
+                    try {
+                        vo.setCreateTime(LocalDateTime.parse(row[3].toString()));
+                    } catch (Exception e) {
+                        // 如果解析失败，使用当前时间
+                        vo.setCreateTime(LocalDateTime.now());
+                    }
+                }
+            }
+
+            vos.add(vo);
+        }
+
+        return vos;
     }
 
     @Override
-    public ChatRoomListDetailVO getAIChatRoomListDetail(String sessionId) {
-        List<AiChatMessageDetailVo> messages = aiChatMapper.selectChatAIMessageDetail(sessionId);
-        ChatRoomListDetailVO detailVO = new ChatRoomListDetailVO();
-        detailVO.setChatMessageList(messages);
-        return detailVO;
+    public getAIChatListDetailVO getAIChatListDetail(String roomId) {
+        // 1. 获取房间基本信息
+        ChatGame chatGame = chatGameRepository.findById(roomId)
+                .orElseThrow(() -> new BusinessException(404, "房间不存在"));
+        HaiGuiSoup soup = haiGuiSoupRepository.findById(chatGame.getHaiGuiSoup().getSoupId())
+                .orElseThrow(() -> new BusinessException(404, "该海龟汤不存在"));
+        GameSession gameSession = gameSessionRepository.findById(chatGame.getSessionId())
+                .orElseThrow(() -> new BusinessException(404, "游戏会话不存在"));
+
+        // 2. 获取房间进度和所有任务
+        List<HaiGuiRoomProgress> progressList = haiGuiRoomProgressRepository.findByRoomId(roomId);
+        Map<Long, HaiGuiRoomProgress> progressMap = progressList.stream()
+                .collect(Collectors.toMap(HaiGuiRoomProgress::getTaskId, Function.identity()));
+
+        List<InferenceTask> allTasks = inferenceTaskRepository.findBySoupId(soup.getSoupId());
+
+        // 3. 获取所有线索片段
+        List<ClueFragment> allClues = clueFragmentRepository.findBySoupId(soup.getSoupId());
+
+        // 4. 收集所有已触发的线索ID（全局）
+        Set<Long> allTriggeredFragmentIds = new HashSet<>();
+        for (HaiGuiRoomProgress progress : progressList) {
+            if (progress.getTriggeredFragmentIds() != null) {
+                allTriggeredFragmentIds.addAll(progress.getTriggeredFragmentIds());
+            }
+        }
+
+        // 5. 构建全局已触发/未触发线索列表（单层循环）
+        List<CompletedCluesResult> completedClues = new ArrayList<>();
+        List<CompletedCluesResult> uncompletedClues = new ArrayList<>();
+
+        for (ClueFragment clue : allClues) {
+            CompletedCluesResult clueResult = convertToClueResult(clue);
+
+            if (allTriggeredFragmentIds.contains(clue.getFragmentId())) {
+                completedClues.add(clueResult);
+            } else {
+                uncompletedClues.add(clueResult);
+            }
+        }
+
+        // 6. 处理任务完成情况（不含线索）
+        List<CompletedTasksResult> completedTasks = new ArrayList<>();
+        List<UncompletedTasksResult> uncompletedTasks = new ArrayList<>();
+
+        for (InferenceTask task : allTasks) {
+            HaiGuiRoomProgress progress = progressMap.get(task.getTaskId());
+            boolean isCompleted = progress != null && progress.getCompleted();
+
+            if (isCompleted) {
+                CompletedTasksResult result = new CompletedTasksResult();
+                result.setTaskId(task.getTaskId());
+                result.setTaskName(task.getTaskName());
+                result.setDescription(task.getTaskDescription());
+                result.setCompletionTime(progress.getCompletionTime());
+                completedTasks.add(result);
+            } else {
+                UncompletedTasksResult result = new UncompletedTasksResult();
+                result.setTaskId(task.getTaskId());
+                result.setTaskName(task.getTaskName());
+                result.setDescription(task.getTaskDescription());
+                uncompletedTasks.add(result);
+            }
+        }
+
+        // 7. 获取聊天消息和问题
+        List<HaiGuiChatMessageWithFragments> messages = haiGuiChatMessageRepository.findAllByRoomId(roomId);
+        List<RoomGetClueVO.QuestionClass> questions = getQuestions(messages);
+
+        // 8. 构建返回对象
+        getAIChatListDetailVO endGameVO = new getAIChatListDetailVO();
+        endGameVO.setRoomId(roomId);
+        endGameVO.setSoupTitle(soup.getSoupTitle());
+        endGameVO.setSoupSurface(soup.getSoupSurface());
+        endGameVO.setSoupBottom(soup.getSoupBottom());
+        endGameVO.setCurrentProgress(gameSession.getCurrentProgress().doubleValue());
+        endGameVO.setFinalScore(gameSession.getScore().intValue());
+        endGameVO.setCompletedTasks(completedTasks);
+        endGameVO.setUncompletedTasks(uncompletedTasks);
+        endGameVO.setTotalTasks(allTasks.size());
+        endGameVO.setCompletedClues(completedClues); // 全局已触发线索
+        endGameVO.setUncompletedClues(uncompletedClues); // 全局未触发线索
+        endGameVO.setQuestion(questions);
+        return endGameVO;
     }
+
+    // 辅助方法：将ClueFragment转换为CompletedCluesResult
+    private CompletedCluesResult convertToClueResult(ClueFragment clue) {
+        CompletedCluesResult result = new CompletedCluesResult();
+        result.setFragmentId(clue.getFragmentId());
+        result.setFragmentContent(clue.getFragmentContent());
+        result.setFragmentType(clue.getFragmentType());
+        result.setDifficulty(clue.getDifficulty());
+        result.setImportance(clue.getImportance());
+        result.setTriggerKeywords(clue.getTriggerKeywords());
+        result.setIsCoreClue(clue.getIsCoreClue());
+        result.setFragmentOrder(clue.getFragmentOrder());
+        return result;
+    }
+
+    // 辅助方法：从消息中提取问题
+    public static List<RoomGetClueVO.QuestionClass> getQuestions(List<HaiGuiChatMessageWithFragments> messages) {
+        return messages.stream()
+                .map(message -> {
+                    RoomGetClueVO.QuestionClass questionClass = new RoomGetClueVO.QuestionClass();
+                    questionClass.setQuestion(message.getQuestionContent());
+                    questionClass.setAnswer(message.getAiAnswer() != null ? message.getAiAnswer().getDescription() : "");
+                    questionClass.setSendTime(message.getCreatedAt() != null ? message.getCreatedAt().toString() : "");
+                    return questionClass;
+                })
+                .collect(Collectors.toList());
+    }
+
 }

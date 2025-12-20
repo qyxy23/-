@@ -4,9 +4,9 @@ import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.dto.AfterFirstChatDto;
 import com.guanyu.haigui.pojo.dto.ChatRoomListDetailDto;
 import com.guanyu.haigui.pojo.dto.FirstChatDto;
-import com.guanyu.haigui.pojo.vo.ChatRoomListDetailVO;
-import com.guanyu.haigui.pojo.vo.ChatRoomListVO;
+import com.guanyu.haigui.pojo.vo.ChatListVO;
 import com.guanyu.haigui.pojo.vo.FirstChatVo;
+import com.guanyu.haigui.pojo.vo.getAIChatListDetailVO;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.service.ChatService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -47,20 +47,17 @@ public class ChatWithAiController {
     }
 
     /**
-     * 获取聊天室列表，包含最后一条消息
-     */
-    @Operation(summary = "获取聊天室列表内容")
-    @GetMapping()
-    public List<ChatRoomListVO> getChatRoomList() {
-        return chatService.getAIChatRoomListWithLastMessage(BaseContext.getCurrentId());
-    }
-
-    /**
      * 获取某个聊天室内容
      */
     @Operation(summary = "获取某个聊天室内容")
     @PostMapping("/ChatRoomListDetail")
-    public Result<ChatRoomListDetailVO> getChatRoomListDetail(@RequestBody ChatRoomListDetailDto chatRoomListDetailDto) {
-        return Result.success(chatService.getAIChatRoomListDetail(chatRoomListDetailDto.getSessionId()));
+    public Result<getAIChatListDetailVO> getChatRoomListDetail(@RequestBody ChatRoomListDetailDto chatRoomListDetailDto) {
+        return Result.success(chatService.getAIChatListDetail(chatRoomListDetailDto.getRoomId()));
+    }
+
+    @Operation(summary = "获取海龟汤游玩列表接口")
+    @GetMapping("/getChatRoomList")
+    public List<ChatListVO> getChatRoomListWithLastMessage() {
+        return chatService.getAIChatList(BaseContext.getCurrentId());
     }
 }

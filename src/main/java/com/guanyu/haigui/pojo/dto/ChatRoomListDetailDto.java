@@ -4,5 +4,5 @@ import lombok.Data;
 
 @Data
 public class ChatRoomListDetailDto {
-    private String sessionId;
+    private String roomId;
 }

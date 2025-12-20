@@ -87,22 +87,7 @@ public class ChatRoomController {
         return Result.success(roomService.invite(request));
     }
 
-    // 处理用户加入大厅的请求（前端发送到/app/chat.joinLobby）
-    @Operation(summary = "加入大厅")
-    @PostMapping("/joinRoom")
-    @ResponseBody
-    public Result<joinChatRoomVO> joinRoom(@RequestBody JoinChatRoomRequest request) {
-        // 加入大厅
-        return Result.success(roomService.joinChatRoom(request.getChatRoomId()));
-    }
 
-    @Operation(summary = "离开大厅")
-    @PostMapping("/leaveLobby/{roomId}")
-    @ResponseBody
-    public Result<leaveLobbyVO> leaveLobby(@PathVariable String roomId) {
-        // 离开大厅
-        return Result.success(roomService.leaveLobby(roomId));
-    }
 
     @Operation(summary = "获取指定房间的最新N条消息")
     @MessageMapping("/chat.recent/{roomId}/{limit}") // 接收请求：包含roomId和limit
@@ -145,6 +130,23 @@ public class ChatRoomController {
         }
     }
 
+
+    // 处理用户加入大厅的请求（前端发送到/app/chat.joinLobby）
+    @Operation(summary = "加入大厅")
+    @PostMapping("/joinRoom")
+    @ResponseBody
+    public Result<joinChatRoomVO> joinRoom(@RequestBody JoinChatRoomRequest request) {
+        // 加入大厅
+        return Result.success(roomService.joinChatRoom(request.getChatRoomId()));
+    }
+
+    @Operation(summary = "离开大厅")
+    @PostMapping("/leaveLobby/{roomId}")
+    @ResponseBody
+    public Result<leaveLobbyVO> leaveLobby(@PathVariable String roomId) {
+        // 离开大厅
+        return Result.success(roomService.leaveLobby(roomId));
+    }
 
 
     @Operation(summary = "挂起房间")

@@ -12,7 +12,10 @@ import com.guanyu.haigui.pojo.result.ChatWithAIRoomRequest;
 import com.guanyu.haigui.pojo.result.CompletedTasksResult;
 import com.guanyu.haigui.pojo.result.ContextMatchResult;
 import com.guanyu.haigui.pojo.result.UncompletedTasksResult;
-import com.guanyu.haigui.pojo.vo.*;
+import com.guanyu.haigui.pojo.vo.EndGameVO;
+import com.guanyu.haigui.pojo.vo.RoomGetClueVO;
+import com.guanyu.haigui.pojo.vo.RoomSoupQuestionVO;
+import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
 import com.guanyu.haigui.repository.*;
 import com.guanyu.haigui.service.SoupQuestionService;
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
@@ -188,7 +191,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
                 progress.doubleValue(),
                 session.getRemainingQuestions()
         );
-        simpMessagingTemplate.convertAndSend("/topic/chat/" + request.getRoomId(), roomSoupQuestionVO);
+        simpMessagingTemplate.convertAndSend("/topic/memberChange" + request.getRoomId(), roomSoupQuestionVO);
         if(session.getRemainingQuestions()==0){
             endGame(request.getRoomId());
         }
@@ -229,25 +232,20 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
             }else{
                 roomGetClueVO.setAgreedVotes(currentSession.getAgreedVotes());
                 roomGetClueVO.setTotalVoters(currentSession.getTotalVoters());
-                roomGetClueVO.setHasVoted(haiGuiVoteRecordRepository.existsByVoteSessionIdAndUserId(
-                        currentSession.getVoteSessionId(), BaseContext.getCurrentId()));
                 roomGetClueVO.setEndTime(currentSession.getEndTime());
+                HaiGuiVoteRecord voteRecord = haiGuiVoteRecordRepository.findByVoteSessionIdAndUserId(
+                        currentSession.getVoteSessionId(), BaseContext.getCurrentId());
+                roomGetClueVO.setHasVoted(voteRecord != null);
+                roomGetClueVO.setAgreed(voteRecord != null && voteRecord.getVoteOption() == HaiGuiVoteRecord.VoteOption.AGREE);
             }
         }
         roomGetClueVO.setRoomStatus(game.getStatus());
+        if(game.getStatus()==RoomStatus.WAITING){
+            return roomGetClueVO;
+        }
         roomGetClueVO.setProgress(session.getCurrentProgress().doubleValue());
         roomGetClueVO.setRemainingQuestions(session.getRemainingQuestions());
-
-        List<RoomGetClueVO.QuestionClass> questions = messages.stream()
-                .map(message -> {
-                    RoomGetClueVO.QuestionClass questionClass = new RoomGetClueVO.QuestionClass();
-                    questionClass.setQuestion(message.getQuestionContent());
-                    questionClass.setAnswer(message.getAiAnswer() != null ? message.getAiAnswer().getDescription() : "");
-                    questionClass.setSendTime(message.getCreatedAt() != null ? message.getCreatedAt().toString() : "");
-                    return questionClass;
-                })
-                .collect(Collectors.toList());
-        roomGetClueVO.setQuestion(questions);
+        roomGetClueVO.setQuestion(ChatServicesImpl.getQuestions(messages));
 
         return roomGetClueVO;
     }
@@ -351,7 +349,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         endGameVO.setRoomId(roomId);
         endGameVO.setSoupBottom(soup.getSoupBottom());
         endGameVO.setStatus(RoomStatus.FINISHED);
-        endGameVO.setType(MessageChatType.GAME_END);
+        endGameVO.setChatType(MessageChatType.GAME_END);
         endGameVO.setCurrentProgress(completionPercentage.doubleValue()); // BigDecimal 转 double
         endGameVO.setFinalScore(finalScore); // 已经是 int
         endGameVO.setCompletedTasks(completedTasks);
@@ -359,7 +357,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         endGameVO.setTotalTasks(allTasks.size());
 
         // 9. 发送结果给客户端
-        simpMessagingTemplate.convertAndSend("/topic/memberChange/" + roomId, endGameVO);
+        simpMessagingTemplate.convertAndSend("/topic/memberChange" + roomId, endGameVO);
 
         return endGameVO;
     }

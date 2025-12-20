@@ -72,34 +72,7 @@
     </select>
 
 
-    <select id="selectChatRoomListWithLastMessage" resultType="com.guanyu.haigui.pojo.vo.ChatRoomListVO">
-        SELECT
-        s.session_id AS sessionId,
-        s.title,
-        m.content AS lastMessageContent,
-        m.sender_type AS senderType,  <!-- 返回原始sender_type -->
-        m.send_time AS lastUpdateTime,
-        (SELECT is_read FROM ai_chat_messages
-        WHERE session_id = s.session_id
-        ORDER BY send_time DESC LIMIT 1) AS isRead
-        FROM
-        ai_chat_sessions s
-        LEFT JOIN (
-        SELECT
-        session_id,
-        content,
-        sender_type,
-        send_time,
-        ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY send_time DESC) AS rn
-        FROM
-        ai_chat_messages
-        ) m ON s.session_id = m.session_id AND m.rn = 1
-        WHERE
-        s.user_id = #{userId}
-        AND s.is_deleted = 0
-        ORDER BY
-        s.update_time DESC;
-    </select>
+
 
 
 
@@ -120,20 +93,7 @@
         send_time ASC;
     </select>
 
-    <select id="selectChatAIMessageDetail" resultType="com.guanyu.haigui.pojo.vo.AiChatMessageDetailVo">
-        SELECT
-        sender_id,
-        sender_type,
-        content,
-        send_time,
-        is_read
-        FROM
-        ai_chat_messages
-        WHERE
-        session_id = #{roomId}
-        ORDER BY
-        send_time ASC;
-    </select>
+
 
     <!-- 查询语句引用resultMap -->
     <select id="selectOfficialChatAIMessage" resultType="com.volcengine.ark.runtime.model.completion.chat.ChatMessage">

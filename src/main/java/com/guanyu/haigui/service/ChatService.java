@@ -23,13 +23,9 @@ public interface ChatService {
     String chatWithAI(String roomId,String message);
 
 
-    /**
-     * 获取当前用户的聊天室列表（含最后一条消息）
-     * @param userId 当前用户ID
-     * @return 聊天室列表（带最后一条消息）
-     */
-    List<ChatRoomListVO> getAIChatRoomListWithLastMessage(Long userId);
+    List<ChatListVO> getAIChatList(Long currentId);
 
-    ChatRoomListDetailVO getAIChatRoomListDetail(String sessionId);
+    getAIChatListDetailVO getAIChatListDetail(String roomId);
 
+    // ChatRoomListDetailVO getAIChatRoomListDetail(String sessionId);
 }

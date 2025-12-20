@@ -32,6 +32,8 @@ public class RoomGetClueVO {
     private Boolean hasVoted;
     //结束时间
     private LocalDateTime endTime;
+    //是否同意
+    private Boolean agreed;
 
 
     @Data

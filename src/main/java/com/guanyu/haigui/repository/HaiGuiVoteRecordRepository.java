@@ -11,4 +11,6 @@ public interface HaiGuiVoteRecordRepository extends JpaRepository<HaiGuiVoteReco
     boolean existsByVoteSessionIdAndUserId(String voteSessionId, Long currentUserId);
 
     List<HaiGuiVoteRecord> findByVoteSessionId(String voteSessionId);
+
+    HaiGuiVoteRecord findByVoteSessionIdAndUserId(String voteSessionId, Long currentId);
 }
