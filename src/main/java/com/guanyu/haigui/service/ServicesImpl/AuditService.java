@@ -60,7 +60,7 @@ public class AuditService {
         Long currentAdminId = BaseContext.getCurrentId();
 
         userInfoRepository.findById(currentAdminId)
-                .orElseThrow(() -> new BusinessException(404, "管理员不存在"));
+                .orElseThrow(() -> new BusinessException(404, "当前用户不存在"));
 
         // 检查当前用户是否具有管理员角色
         boolean isAdmin = sysUserRoleRepository.existsById(

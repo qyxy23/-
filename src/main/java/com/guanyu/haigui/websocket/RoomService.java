@@ -386,7 +386,7 @@ public class RoomService {
         ChatGame room = chatGameRepository.findById(roomId)
                 .orElseThrow(() -> new RoomNotFoundException("房间不存在：ID=" + roomId));
 
-        if(!(room.getStatus()==RoomStatus.WAITING||room.getStatus()==RoomStatus.ACTIVE||room.getStatus()==RoomStatus.VOTING)){
+        if(room.getStatus()==RoomStatus.FINISHED||room.getStatus()==RoomStatus.CANCELLED){
             throw new BusinessException(403, "房间已结束或取消，无法操作");
         }
 
