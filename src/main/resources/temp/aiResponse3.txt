@@ -1,293 +1,327 @@
 {
-    "hostManual": "### 游戏简介：
-《墓碑上的文字》是一款充满创意与科幻色彩的海龟汤游戏。玩家需根据汤面提供的信息，通过提问和推理，逐渐揭开隐藏在背后的惊人真相。
-
-### 主持流程：
-1. 向玩家讲述汤面内容。
-2. 玩家通过向主持人提问来获取线索，主持人只能回答“是”“不是”或“没有关系”。
-3. 玩家根据线索进行推理，尝试猜出汤底真相。
-
-### 控场技巧：
-1. 引导玩家提问，避免提问过于发散或偏离主题。
-2. 对于一些关键线索，可以适当给予提示，帮助玩家推进推理。
-
-### 时间管理建议：
-由于预计时长较短，主持人可根据玩家的推理进度灵活控制游戏时间，确保游戏节奏紧凑。",
-    "fragments": [
-        {
-            "content": "我和父母是去外太空旅行。",
-            "fragmentType": "PLACE",
-            "inferenceLevel": 1,
-            "difficulty": 2,
-            "importance": 6,
-            "similarityThreshold": 0.6,
-            "isCoreClue": true,
-            "fragmentOrder": 1,
-            "generationSource": "AI",
-            "triggerKeywords": ["外太空", "旅行"]
-        },
-        {
-            "content": "回来时遇到的意外是虫洞。",
-            "fragmentType": "OBJECT",
-            "inferenceLevel": 2,
-            "difficulty": 3,
-            "importance": 7,
-            "similarityThreshold": 0.5,
-            "isCoreClue": true,
-            "fragmentOrder": 2,
-            "generationSource": "AI",
-            "triggerKeywords": ["意外", "虫洞"]
-        },
-        {
-            "content": "回到地球后发现没有人类生活的痕迹。",
-            "fragmentType": "PLACE",
-            "inferenceLevel": 1,
-            "difficulty": 2,
-            "importance": 6,
-            "similarityThreshold": 0.6,
-            "isCoreClue": true,
-            "fragmentOrder": 3,
-            "generationSource": "AI",
-            "triggerKeywords": ["地球", "人类痕迹"]
-        },
-        {
-            "content": "父母打算要二胎是为了延续人类文明。",
-            "fragmentType": "PLOT",
-            "inferenceLevel": 2,
-            "difficulty": 3,
-            "importance": 8,
-            "similarityThreshold": 0.4,
-            "isCoreClue": true,
-            "fragmentOrder": 4,
-            "generationSource": "AI",
-            "triggerKeywords": ["二胎", "延续文明"]
-        },
-        {
-            "content": "五十年后我们有了自己的部落。",
-            "fragmentType": "PLACE",
-            "inferenceLevel": 1,
-            "difficulty": 2,
-            "importance": 5,
-            "similarityThreshold": 0.7,
-            "isCoreClue": false,
-            "fragmentOrder": 5,
-            "generationSource": "AI",
-            "triggerKeywords": ["五十年", "部落"]
-        },
-        {
-            "content": "孙子在墓碑上尊称父母为“亚当”和“夏娃”。",
-            "fragmentType": "CHARACTER",
-            "inferenceLevel": 1,
-            "difficulty": 2,
-            "importance": 9,
-            "similarityThreshold": 0.3,
-            "isCoreClue": true,
-            "fragmentOrder": 6,
-            "generationSource": "AI",
-            "triggerKeywords": ["孙子", "亚当夏娃"]
-        },
-        {
-            "content": "我们穿越到了几十万年前的地球。",
-            "fragmentType": "TIME",
-            "inferenceLevel": 3,
-            "difficulty": 4,
-            "importance": 10,
-            "similarityThreshold": 0.2,
-            "isCoreClue": true,
-            "fragmentOrder": 7,
-            "generationSource": "AI",
-            "triggerKeywords": ["穿越", "几十万年前"]
-        },
-        {
-            "content": "当时的科技可以让人类在宇宙中旅行。",
-            "fragmentType": "OBJECT",
-            "inferenceLevel": 1,
-            "difficulty": 2,
-            "importance": 5,
-            "similarityThreshold": 0.7,
-            "isCoreClue": false,
-            "fragmentOrder": 8,
-            "generationSource": "AI",
-            "triggerKeywords": ["科技", "宇宙旅行"]
-        },
-        {
-            "content": "虫洞会导致时空扭曲。",
-            "fragmentType": "OBJECT",
-            "inferenceLevel": 2,
-            "difficulty": 3,
-            "importance": 6,
-            "similarityThreshold": 0.5,
-            "isCoreClue": false,
-            "fragmentOrder": 9,
-            "generationSource": "AI",
-            "triggerKeywords": ["虫洞", "时空扭曲"]
-        },
-        {
-            "content": "部落里的人都不知道“亚当”和“夏娃”的含义。",
-            "fragmentType": "CHARACTER",
-            "inferenceLevel": 1,
-            "difficulty": 2,
-            "importance": 4,
-            "similarityThreshold": 0.8,
-            "isCoreClue": false,
-            "fragmentOrder": 10,
-            "generationSource": "AI",
-            "triggerKeywords": ["部落", "含义"]
-        },
-        {
-            "content": "我对父母的墓碑上出现“亚当”和“夏娃”感到惊讶。",
-            "fragmentType": "CHARACTER",
-            "inferenceLevel": 1,
-            "difficulty": 2,
-            "importance": 5,
-            "similarityThreshold": 0.7,
-            "isCoreClue": false,
-            "fragmentOrder": 11,
-            "generationSource": "AI",
-            "triggerKeywords": ["我", "惊讶"]
-        },
-        {
-            "content": "父母的墓碑是由孙子精心操办的。",
-            "fragmentType": "OBJECT",
-            "inferenceLevel": 1,
-            "difficulty": 2,
-            "importance": 4,
-            "similarityThreshold": 0.8,
-            "isCoreClue": false,
-            "fragmentOrder": 12,
-            "generationSource": "AI",
-            "triggerKeywords": ["墓碑", "孙子"]
-        },
-        {
-            "content": "我开始怀疑我们是否真的穿越到了未来。",
-            "fragmentType": "CHARACTER",
-            "inferenceLevel": 2,
-            "difficulty": 3,
-            "importance": 5,
-            "similarityThreshold": 0.6,
-            "isCoreClue": false,
-            "fragmentOrder": 13,
-            "generationSource": "AI",
-            "triggerKeywords": ["我", "怀疑"]
-        },
-        {
-            "content": "我们在部落里生活了很长时间。",
-            "fragmentType": "TIME",
-            "inferenceLevel": 1,
-            "difficulty": 2,
-            "importance": 4,
-            "similarityThreshold": 0.8,
-            "isCoreClue": false,
-            "fragmentOrder": 14,
-            "generationSource": "AI",
-            "triggerKeywords": ["部落", "长时间"]
-        },
-        {
-            "content": "孙子是部落里最聪明的人。",
-            "fragmentType": "CHARACTER",
-            "inferenceLevel": 1,
-            "difficulty": 2,
-            "importance": 3,
-            "similarityThreshold": 0.9,
-            "isCoreClue": false,
-            "fragmentOrder": 15,
-            "generationSource": "AI",
-            "triggerKeywords": ["孙子", "聪明"]
-        },
-        {
-            "content": "墓碑上的文字是用一种古老的语言刻写的。",
-            "fragmentType": "OBJECT",
-            "inferenceLevel": 2,
-            "difficulty": 3,
-            "importance": 5,
-            "similarityThreshold": 0.6,
-            "isCoreClue": false,
-            "fragmentOrder": 16,
-            "generationSource": "AI",
-            "triggerKeywords": ["墓碑", "古老语言"]
-        },
-        {
-            "content": "我试图寻找其他证据来证明我们的穿越。",
-            "fragmentType": "CHARACTER",
-            "inferenceLevel": 2,
-            "difficulty": 3,
-            "importance": 5,
-            "similarityThreshold": 0.6,
-            "isCoreClue": false,
-            "fragmentOrder": 17,
-            "generationSource": "AI",
-            "triggerKeywords": ["我", "证据"]
-        },
-        {
-            "content": "部落周围的环境与现代地球有很大不同。",
-            "fragmentType": "PLACE",
-            "inferenceLevel": 1,
-            "difficulty": 2,
-            "importance": 4,
-            "similarityThreshold": 0.8,
-            "isCoreClue": false,
-            "fragmentOrder": 18,
-            "generationSource": "AI",
-            "triggerKeywords": ["部落", "环境"]
-        },
-        {
-            "content": "我发现了一些古老的遗迹。",
-            "fragmentType": "OBJECT",
-            "inferenceLevel": 2,
-            "difficulty": 3,
-            "importance": 5,
-            "similarityThreshold": 0.6,
-            "isCoreClue": false,
-            "fragmentOrder": 19,
-            "generationSource": "AI",
-            "triggerKeywords": ["我", "遗迹"]
-        },
-        {
-            "content": "遗迹中的一些物品与现代科技有关。",
-            "fragmentType": "OBJECT",
-            "inferenceLevel": 3,
-            "difficulty": 4,
-            "importance": 6,
-            "similarityThreshold": 0.5,
-            "isCoreClue": false,
-            "fragmentOrder": 20,
-            "generationSource": "AI",
-            "triggerKeywords": ["遗迹", "现代科技"]
-        }
-    ],
-    "tasks": [
-        {
-            "taskName": "查明意外真相",
-            "taskDescription": "找出旅行回来时遇到的意外究竟是什么",
-            "understandingLevel": 2,
-            "targetKeywords": ["意外", "虫洞"],
-            "reasoningGoal": "明确导致穿越的原因",
-            "progressWeight": 30.0,
-            "isMandatory": true,
-            "taskOrder": 1,
-            "prerequisiteFragmentIds": [1, 2]
-        },
-        {
-            "taskName": "探究时空穿越",
-            "taskDescription": "确定我们到底穿越到了何时何地",
-            "understandingLevel": 3,
-            "targetKeywords": ["穿越", "时间", "地点"],
-            "reasoningGoal": "知晓穿越后的具体时空信息",
-            "progressWeight": 30.0,
-            "isMandatory": true,
-            "taskOrder": 2,
-            "prerequisiteFragmentIds": [3, 7]
-        },
-        {
-            "taskName": "解开墓碑谜团",
-            "taskDescription": "弄清楚墓碑上文字的含义及由来",
-            "understandingLevel": 2,
-            "targetKeywords": ["墓碑", "亚当夏娃"],
-            "reasoningGoal": "明白“亚当”“夏娃”称呼的缘由",
-            "progressWeight": 40.0,
-            "isMandatory": true,
-            "taskOrder": 3,
-            "prerequisiteFragmentIds": [6, 10]
-        }
-    ]
+  "hostManual": "### 游戏简介\n《猜名字》是围绕“闹诡”与身份伪装的恐怖海龟汤，玩家需还原误杀、双胞胎假扮及怨念无法化解的真相。\n\n### 主持流程\n1. **准备（5分钟）**：介绍规则，发放线索记录纸；\n2. **开局（3分钟）**：宣读汤面，回答“是/否/无关”类问题；\n3. **互动（15分钟）**：根据提问发放线索，引导聚焦身份、死因、怨念关键；\n4. **复盘（7分钟）**：公布汤底，解答疑问，点评推理亮点。\n\n### 控场技巧\n- 提问偏离时，用“是否与XX（如身份、名字）相关？”引导；\n- 核心线索发放后，暂停提问让玩家整合信息；\n- 避免直接透露“双胞胎”等核心词，需玩家推导。\n\n### 时间管理\n- 10分钟未触及双胞胎/误杀，发放线索6/7；\n- 15分钟未发现孩子无名字，发放线索18；\n- 最后5分钟提示“名字是否存在”方向。",
+  "fragments": [
+    {
+      "content": "我和妻子因家里出现灵异现象，找大师寻求解决办法。",
+      "fragmentType": "PLACE",
+      "inferenceLevel": 1,
+      "difficulty": 1,
+      "importance": 5,
+      "similarityThreshold": 0.7,
+      "isCoreClue": false,
+      "fragmentOrder": 1,
+      "triggerKeywords": ["灵异现象", "大师"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "大师告知，需在屋内摆满白烛，午夜时喊出‘他’的名字，可消散其怨气。",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 2,
+      "difficulty": 2,
+      "importance": 6,
+      "isCoreClue": false,
+      "fragmentOrder": 2,
+      "triggerKeywords": ["白烛", "喊名字"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "午夜时分，突然刮起阴风，屋内所有蜡烛瞬间被吹灭。",
+      "fragmentType": "TIME",
+      "inferenceLevel": 1,
+      "difficulty": 1,
+      "importance": 4,
+      "isCoreClue": false,
+      "fragmentOrder": 3,
+      "triggerKeywords": ["午夜", "蜡烛灭"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "我身边的‘爱人’见状，急忙大声喊出了‘他’的具体姓名。",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 2,
+      "difficulty": 2,
+      "importance": 7,
+      "isCoreClue": false,
+      "fragmentOrder": 4,
+      "triggerKeywords": ["爱人", "喊名字"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "我看到爱人的举动后，露出不可置信的表情，意识到我们俩死定了。",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 3,
+      "difficulty": 3,
+      "importance": 8,
+      "isCoreClue": false,
+      "fragmentOrder": 5,
+      "triggerKeywords": ["不可置信", "死定"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "我的情人并非妻子本人，而是妻子的双胞胎妹妹，两人长相几乎完全一样。",
+      "fragmentType": "CHARACTER",
+      "inferenceLevel": 3,
+      "difficulty": 3,
+      "importance": 9,
+      "isCoreClue": true,
+      "fragmentOrder": 6,
+      "triggerKeywords": ["情人", "双胞胎妹妹"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "情人已经怀了我的孩子，我们两人曾计划一起杀死我的妻子。",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 3,
+      "difficulty": 3,
+      "importance": 9,
+      "isCoreClue": true,
+      "fragmentOrder": 7,
+      "triggerKeywords": ["怀孕", "杀妻子"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "妻子意外听到了我和情人的杀人计划，知道了我们的阴谋。",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 2,
+      "difficulty": 2,
+      "importance": 7,
+      "isCoreClue": false,
+      "fragmentOrder": 8,
+      "triggerKeywords": ["听到阴谋", "妻子"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "妻子将情人迷晕后，伪装成自己的样子，躺在了家里的床上。",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 4,
+      "difficulty": 4,
+      "importance": 10,
+      "isCoreClue": true,
+      "fragmentOrder": 9,
+      "triggerKeywords": ["迷晕", "伪装"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "我误以为床上的人是妻子，动手杀死了她——其实是怀孕的情人。",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 4,
+      "difficulty": 4,
+      "importance": 10,
+      "isCoreClue": true,
+      "fragmentOrder": 10,
+      "triggerKeywords": ["误杀", "怀孕情人"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "杀死情人后，家里开始频繁出现无法解释的灵异事件。",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 2,
+      "difficulty": 2,
+      "importance": 6,
+      "isCoreClue": false,
+      "fragmentOrder": 11,
+      "triggerKeywords": ["灵异事件", "杀死后"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "大师再次说明，‘他’的怨气未散，必须喊出名字才能化解。",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 3,
+      "difficulty": 3,
+      "importance": 8,
+      "isCoreClue": false,
+      "fragmentOrder": 12,
+      "triggerKeywords": ["怨气未散", "化解"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "年夜时分，阴风再次出现，吹灭了屋内所有的白烛。",
+      "fragmentType": "TIME",
+      "inferenceLevel": 1,
+      "difficulty": 1,
+      "importance": 4,
+      "isCoreClue": false,
+      "fragmentOrder": 13,
+      "triggerKeywords": ["年夜", "蜡烛灭"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "蜡烛被吹灭后，我下意识喊出了妻子的名字，想确认身边人的身份。",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 3,
+      "difficulty": 3,
+      "importance": 9,
+      "isCoreClue": true,
+      "fragmentOrder": 14,
+      "triggerKeywords": ["喊妻子名", "下意识"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "身边的‘情人’却喊出了自己的本名——并非我妻子的名字。",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 4,
+      "difficulty": 4,
+      "importance": 10,
+      "isCoreClue": true,
+      "fragmentOrder": 15,
+      "triggerKeywords": ["喊本名", "情人"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "此刻我才发现，眼前的‘情人’根本不是她，而是妻子假扮的。",
+      "fragmentType": "CHARACTER",
+      "inferenceLevel": 4,
+      "difficulty": 4,
+      "importance": 10,
+      "isCoreClue": true,
+      "fragmentOrder": 16,
+      "triggerKeywords": ["妻子假扮", "眼前人"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "真正的情人（妻子的双胞胎妹妹）早已被我误杀，已经死去。",
+      "fragmentType": "CHARACTER",
+      "inferenceLevel": 3,
+      "difficulty": 3,
+      "importance": 9,
+      "isCoreClue": true,
+      "fragmentOrder": 17,
+      "triggerKeywords": ["情人已死", "双胞胎"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "情人肚子里的孩子还未出生，所以根本没有属于自己的名字。",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 4,
+      "difficulty": 4,
+      "importance": 10,
+      "isCoreClue": true,
+      "fragmentOrder": 18,
+      "triggerKeywords": ["孩子未出生", "无名字"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "因为孩子没有名字，我们无法喊出‘他’的名字来化解怨念。",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 4,
+      "difficulty": 4,
+      "importance": 10,
+      "isCoreClue": true,
+      "fragmentOrder": 19,
+      "triggerKeywords": ["无法化解", "无名字"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "妻子的复仇计划已经成功，她的目的达到了。",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 3,
+      "difficulty": 3,
+      "importance": 9,
+      "isCoreClue": true,
+      "fragmentOrder": 20,
+      "triggerKeywords": ["妻子计划", "复仇成功"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "我不仅误杀了情人，还让她的怨气（包括未出生孩子的）永远无法消散。",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 4,
+      "difficulty": 4,
+      "importance": 10,
+      "isCoreClue": true,
+      "fragmentOrder": 21,
+      "triggerKeywords": ["误杀", "怨气不散"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "妻子和她的双胞胎妹妹长得几乎一模一样，难以分辨。",
+      "fragmentType": "CHARACTER",
+      "inferenceLevel": 2,
+      "difficulty": 2,
+      "importance": 7,
+      "isCoreClue": false,
+      "fragmentOrder": 22,
+      "triggerKeywords": ["双胞胎", "一模一样"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "大师明确要求，必须喊出‘他’的具体名字才能消散怨气。",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 2,
+      "difficulty": 2,
+      "importance": 6,
+      "isCoreClue": false,
+      "fragmentOrder": 23,
+      "triggerKeywords": ["大师要求", "名字"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "我们按照大师的要求，在屋内摆满了白色的蜡烛。",
+      "fragmentType": "OBJECT",
+      "inferenceLevel": 1,
+      "difficulty": 1,
+      "importance": 5,
+      "isCoreClue": false,
+      "fragmentOrder": 24,
+      "triggerKeywords": ["摆满白烛", "大师要求"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "午夜和年夜这两个时间点，都发生了蜡烛被吹灭的事情。",
+      "fragmentType": "TIME",
+      "inferenceLevel": 2,
+      "difficulty": 2,
+      "importance": 6,
+      "isCoreClue": false,
+      "fragmentOrder": 25,
+      "triggerKeywords": ["午夜", "年夜"],
+      "generationSource": "AI"
+    },
+    {
+      "content": "我最终意识到，我们两人都无法逃脱死亡的命运。",
+      "fragmentType": "PLOT",
+      "inferenceLevel": 3,
+      "difficulty": 3,
+      "importance": 8,
+      "isCoreClue": false,
+      "fragmentOrder": 26,
+      "triggerKeywords": ["死定", "无法逃脱"],
+      "generationSource": "AI"
+    }
+  ],
+  "tasks": [
+    {
+      "taskName": "身份之谜",
+      "taskDescription": "找出身边‘爱人’的真实身份，确认是否为双胞胎假扮。",
+      "understandingLevel": 3,
+      "targetKeywords": ["双胞胎", "假扮"],
+      "reasoningGoal": "确定身边人的真实身份",
+      "progressWeight": 30.0,
+      "isMandatory": true,
+      "taskOrder": 1,
+      "prerequisiteFragmentIds": [6, 9, 16]
+    },
+    {
+      "taskName": "误杀真相",
+      "taskDescription": "还原灵异事件的起因，找出被杀死的人的真实身份。",
+      "understandingLevel": 4,
+      "targetKeywords": ["误杀", "情人"],
+      "reasoningGoal": "找出灵异事件的根源",
+      "progressWeight": 30.0,
+      "isMandatory": true,
+      "taskOrder": 2,
+      "prerequisiteFragmentIds": [7, 10, 17]
+    },
+    {
+      "taskName": "怨念无解",
+      "taskDescription": "分析为何喊出名字也无法消散怨气，找出核心原因。",
+      "understandingLevel": 4,
+      "targetKeywords": ["孩子", "无名字"],
+      "reasoningGoal": "发现怨念无法消散的关键",
+      "progressWeight": 40.0,
+      "isMandatory": true,
+      "taskOrder": 3,
+      "prerequisiteFragmentIds": [18, 23]
+    }
+  ]
 }

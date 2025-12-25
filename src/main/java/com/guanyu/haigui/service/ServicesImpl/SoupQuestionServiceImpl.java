@@ -615,7 +615,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
 
         // 1. 海龟汤背景信息
         prompt.append("=== 海龟汤背景 ===\n");
-        prompt.append(String.format("标题：%s\n", soupInfo.getSoupTitle()));
+        // prompt.append(String.format("标题：%s\n", soupInfo.getSoupTitle()));
         prompt.append(String.format("汤面：%s\n", soupInfo.getSoupSurface()));
         prompt.append(String.format("汤底：%s\n", soupInfo.getSoupBottom()));
         prompt.append(String.format("主持人手册：%s\n\n", soupInfo.getHostManual()));

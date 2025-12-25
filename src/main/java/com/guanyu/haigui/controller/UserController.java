@@ -13,15 +13,14 @@ import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import jakarta.annotation.Resource;
 import javax.security.sasl.AuthenticationException;
 import java.util.Collections;
 import java.util.Map;
@@ -29,7 +28,6 @@ import java.util.Map;
 @Slf4j
 @RestController
 @Tag(name = "登录接口", description = "用户登录注册相关接口")
-@Component
 @RequiredArgsConstructor
 @RequestMapping("/user")
 public class UserController {

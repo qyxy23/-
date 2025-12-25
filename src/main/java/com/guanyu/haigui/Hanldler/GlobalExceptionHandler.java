@@ -2,6 +2,7 @@ package com.guanyu.haigui.Hanldler;
 
 import com.guanyu.haigui.Exception.*;
 import com.guanyu.haigui.result.Result;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -146,5 +147,9 @@ public class GlobalExceptionHandler {
         return Result.error(e.getMessage());
     }
 
+    @ExceptionHandler(EntityNotFoundException.class)
+    public Result<String> handleAiInferenceException(EntityNotFoundException e) {
+        return Result.error(e.getMessage());
+    }
 
 }

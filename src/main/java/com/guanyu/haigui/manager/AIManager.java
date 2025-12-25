@@ -1,12 +1,15 @@
 package com.guanyu.haigui.manager;
 
 import cn.hutool.core.collection.CollUtil;
+import com.guanyu.haigui.pojo.model.AiInferenceEndpoint;
+import com.guanyu.haigui.repository.AiInferenceEndpointRepository;
+import com.guanyu.haigui.utils.RedisServiceUtil;
 import com.volcengine.ark.runtime.model.completion.chat.*;
 import com.volcengine.ark.runtime.service.ArkService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -14,15 +17,16 @@ import java.util.List;
 AI调用
  */
 @Service("aiManager")
+@Slf4j
+@RequiredArgsConstructor
 public class AIManager {
-    @Autowired(required = false)
-    @Nullable
-    private ArkService arkService;
+    private final ArkService arkService;
+    private final RedisServiceUtil redisServiceUtil;
+    private final AiInferenceEndpointRepository modelRepository;
+
 
     // 只允许用户传入一个系统上下文和用户输入
     public String doChat(String systemPrompt, String userPrompt) {
-        // return "ai已生成";
-        // 检查AI服务是否可用
         if (arkService == null) {
             return "AI服务未配置或不可用";
         }
@@ -44,35 +48,76 @@ public class AIManager {
             return "AI服务未配置或不可用";
         }
 
+        // 1. 尝试从Redis获取模型
+        String model = redisServiceUtil.selectChatModel();
+
+        // 2. 如果Redis中没有，从数据库获取启用的模型
+        if (model == null || model.isEmpty()) {
+            log.warn("Redis中未找到模型配置，尝试从数据库获取");
+            model = getActiveModelFromDatabase();
+
+            if (model == null || model.isEmpty()) {
+                log.error("数据库中没有启用的模型配置");
+                return "系统错误：未配置可用的AI模型";
+            }
+
+            // 3. 将找到的模型缓存到Redis（可选）
+            try {
+                redisServiceUtil.updateChatModel(model);
+                log.info("已将模型 {} 缓存到Redis", model);
+            } catch (Exception e) {
+                log.warn("模型缓存到Redis失败: {}", e.getMessage());
+            }
+        }
+
+        log.debug("使用模型: {}", model);
         ChatCompletionRequest chatCompletionRequest = ChatCompletionRequest.builder()
-                // 指定您创建的方舟推理接入点 ID，此处已帮您修改为您的推理接入点 ID
-                .model("ep-20250913203623-2bv46")
+                .model(model)
                 .messages(chatMessageList)
                 .build();
 
-
         try {
-            // 1. 调用同步API获取完整响应（替换原流式调用）
-            ChatCompletionResult result = arkService.createChatCompletion(
-                    chatCompletionRequest
-            );
-
-            // 2. 提取响应中的choices列表（匹配你原有的逻辑）
+            // 调用同步API获取完整响应
+            ChatCompletionResult result = arkService.createChatCompletion(chatCompletionRequest);
             List<ChatCompletionChoice> choices = result.getChoices();
 
-            // 3. 判断choices是否为空（原逻辑保留）
             if (CollUtil.isEmpty(choices)) {
+                log.warn("AI返回空响应");
                 return "对AI请求失败";
             }
 
-            // 4. 提取第一个choice的内容（原逻辑保留）
             String content = (String) choices.get(0).getMessage().getContent();
-            System.out.println("AI返回内容 " + content);
+            log.info("AI返回内容: {}", content);
             return content;
         } catch (Exception e) {
-            // 5. 异常处理（可选，增强鲁棒性）
-            e.printStackTrace();
+            log.error("AI请求失败：{}", e.getMessage(), e);
             return "AI请求失败：" + e.getMessage();
+        }
+    }
+
+    /**
+     * 从数据库获取启用的模型
+     * @return 模型ID（endpointId），如果没有启用的模型则返回null
+     */
+    private String getActiveModelFromDatabase() {
+        try {
+            // 查询所有启用的模型，按ID排序取第一个
+            List<AiInferenceEndpoint> activeModels = modelRepository.findByIsActiveTrueOrderByIdAsc();
+
+            if (CollUtil.isEmpty(activeModels)) {
+                log.warn("数据库中没有启用的模型配置");
+                return null;
+            }
+
+            // 取第一个启用的模型
+            AiInferenceEndpoint activeModel = activeModels.get(0);
+            log.info("从数据库获取到启用的模型: ID={}, Name={}, EndpointId={}",
+                    activeModel.getId(), activeModel.getModelName(), activeModel.getEndpointId());
+
+            return activeModel.getEndpointId();
+        } catch (Exception e) {
+            log.error("查询数据库模型配置失败: {}", e.getMessage(), e);
+            return null;
         }
     }
 }

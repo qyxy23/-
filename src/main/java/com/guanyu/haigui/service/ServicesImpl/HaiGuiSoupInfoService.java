@@ -9,7 +9,6 @@ import com.guanyu.haigui.manager.AIManager;
 import com.guanyu.haigui.pojo.Info.ClueFragmentInfo;
 import com.guanyu.haigui.pojo.Info.InferenceTaskInfo;
 import com.guanyu.haigui.pojo.dto.CreateTurtleSoupDTO;
-import com.guanyu.haigui.pojo.dto.HaiGuiInfoGenerateDTO;
 import com.guanyu.haigui.pojo.model.ClueFragment;
 import com.guanyu.haigui.pojo.model.HaiGuiSoup;
 import com.guanyu.haigui.pojo.model.HaiGuiSoupAudit;
@@ -52,7 +51,7 @@ public class HaiGuiSoupInfoService {
     private boolean debugMode;
 
 
-    public String generatePrompt(HaiGuiInfoGenerateDTO dto) {
+    public String generatePrompt(HaiGuiSoupAudit dto) {
         int fragmentCount = generateFragmentCount(dto);
         return String.format("""
                                     # 输入参数
@@ -145,20 +144,20 @@ public class HaiGuiSoupInfoService {
                                       ]
                                     }
                         """,
-                dto.getSoupTitle(),          // %s
-                dto.getSoupSurface(),         // %s
-                dto.getSoupBottom(),          // %s
+                dto.getTitle(),          // %s
+                dto.getSurface(),         // %s
+                dto.getBottom(),          // %s
                 dto.getEstimatedDuration(),   // %d
                 dto.getDifficultyLevel().name(), // %s
-                dto.getTag().name(),          // %s
-                fragmentCount                 // %d (数量严格等于%d条)
+                dto.getTags(),          // %s
+                fragmentCount                 // %d (数量大概等于%d条)
         );
     }
 
 
-    public int generateFragmentCount(HaiGuiInfoGenerateDTO soup) {
-        int soupLength = soup.getSoupBottom().length();
-        int difficultyLevel = soup.getDifficultyLevel().ordinal();
+    public int generateFragmentCount(HaiGuiSoupAudit audit) {
+        int soupLength = audit.getBottom().length();
+        int difficultyLevel = audit.getDifficultyLevel().ordinal();
         // 基础片段数
         double baseFragmentCount = 8.0;
         double lengthFactor = 0.05;

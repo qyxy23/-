@@ -21,6 +21,7 @@ public class RedisServiceUtil {
     private RedisTemplate<String, String> redisTemplate;
     @Resource
     private JwtTokenUtil jwtUtil;
+    private static final String CHAT_MODEL="current_chat_model";
     private static final String CHAT_LAST_TIME_KEY = "chat:lastTime";
     private static final String USER_ONLINE_KEY_PREFIX = "user:online"; // Redis 在线状态键前缀
     private static final String ROOM_ONLINE_KEY_PREFIX = "room:online"; // Redis 在线状态键前缀
@@ -32,6 +33,15 @@ public class RedisServiceUtil {
     private static final String GROUP_LAST_TIME_KEY = "chat:grpLastTime";
     private static final String GROUP_UNREAD_KEY = "chat:grpUnread";
     private static final String GROUP_LAST_SENDER_ID_KEY = "chat:grpLastSenderId";
+
+
+    public void updateChatModel(String id) {
+        redisTemplate.opsForValue().set(CHAT_MODEL, id);
+    }
+
+    public String selectChatModel() {
+        return redisTemplate.opsForValue().get(CHAT_MODEL);
+    }
 
 
 
@@ -124,18 +134,10 @@ public class RedisServiceUtil {
         redisTemplate.delete(USER_ONLINE_KEY_PREFIX + id);
     }
 
-    public boolean selectOnlineRooms(String roomId) {
-        String value =  redisTemplate.opsForValue().get(ROOM_ONLINE_KEY_PREFIX + roomId);
-        return "1".equals(value);
-    }
 
     public void updateOnlineRooms(String roomId) {
 
         redisTemplate.opsForValue().set(ROOM_ONLINE_KEY_PREFIX + roomId, "1", 300000000, TimeUnit.MINUTES);
-    }
-
-    public void deleteOnlineRooms(Long roomId) {
-        redisTemplate.delete(ROOM_ONLINE_KEY_PREFIX + roomId);
     }
 
 
@@ -154,7 +156,7 @@ public class RedisServiceUtil {
         redisTemplate.opsForValue().set(ROOM_ONLINE_KEY_PREFIX + roomId + ":num", String.valueOf(num), 300000000, TimeUnit.MINUTES);
     }
 
-    public void deleteOnlineRoomsAndNumbers(String roomId, int currentMembers) {
+    public void deleteOnlineRoomsAndNumbers(String roomId) {
         redisTemplate.delete(ROOM_ONLINE_KEY_PREFIX + roomId + ":survive");
         redisTemplate.delete(ROOM_ONLINE_KEY_PREFIX + roomId + ":num");
     }

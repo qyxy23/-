@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -102,6 +103,7 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/user/login").permitAll()
                         .requestMatchers("/user/register").permitAll()
                         .requestMatchers("/webjars/**").permitAll()
@@ -120,7 +122,7 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
 
         // 2. 允许的前端域名（替换为你的前端地址，如 http://localhost:5173、https://your-frontend.com）
-        config.setAllowedOrigins(Arrays.asList("http://localhost:5173", "https://your-frontend-domain.com"));
+        config.setAllowedOrigins(Arrays.asList("http://localhost:5173", "http://124.220.226.16:5173","https://qingyou.icu"));
 
         // 3. 允许的请求方法（GET/POST/PUT/DELETE/OPTIONS）
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
@@ -129,7 +131,7 @@ public class SecurityConfig {
         config.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept"));
 
         // 5. 允许前端访问的响应头（如 Authorization）
-        config.setExposedHeaders(Arrays.asList("Authorization"));
+        config.setExposedHeaders(List.of("Authorization"));
 
         // 6. 是否允许携带 Cookie（根据需求，JWT 无状态可设为 false）
         config.setAllowCredentials(true);

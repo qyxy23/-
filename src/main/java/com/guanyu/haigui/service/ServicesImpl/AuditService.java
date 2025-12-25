@@ -108,17 +108,15 @@ public class AuditService {
         }
     }
 
-    public HaiGuiInfoResult generateInfo(HaiGuiInfoGenerateDTO titleGenerateDTO) {
-        UserInfo userInfo = userInfoRepository.findById(BaseContext.getCurrentId())
-                .orElseThrow(() -> new BusinessException(404, "用户不存在"));
-        boolean userRole = sysUserRoleRepository.existsById(new SysUserRole.UserRoleId(userInfo.getUserId(), UserRoleEnum.SOUP_AUDITOR.getRoleId()));
-        if (!userRole) {
-            throw new BusinessException(403, "您不是审核员,无权限");
-        }
+    public HaiGuiInfoResult generateInfo(Long auditId) {
+        HaiGuiSoupAudit audit = findById(auditId);
         // 生成提示
-        String prompt = haiGuiSoupInfoService.generatePrompt(titleGenerateDTO);
+        String prompt = haiGuiSoupInfoService.generatePrompt(audit);
         // 调用AI生成信息
-        return haiGuiSoupInfoService.generateInfo(prompt);
+        HaiGuiInfoResult result = haiGuiSoupInfoService.generateInfo(prompt);
+        ToJson(audit, result.getManual(), result.getFragments(), result.getInferenceTasks());
+        haiGuiSoupAuditRepository.save(audit);
+        return result;
     }
 
     public String createTurtleSoup(CreateTurtleSoupDTO dto) {
@@ -358,6 +356,12 @@ public class AuditService {
         // 1. 获取审核记录
         HaiGuiSoupAudit audit = findById(dto.getAuditId());
 
+        updateAuditRecord(dto, audit);
+
+        return "修改成功,请继续审核";
+    }
+
+    private void updateAuditRecord(UpdateHaiGuiAuditDTO dto, HaiGuiSoupAudit audit) {
         // 2. 检查状态
         if (audit.getAuditStatus() == HaiGuiSoupAudit.AuditStatus.REJECTED) {
             throw new BusinessException(403, "已拒绝此汤,无法进行修改");
@@ -376,12 +380,14 @@ public class AuditService {
         audit.setAuditStatus(HaiGuiSoupAudit.AuditStatus.PENDING);
         audit.setAuditorId(BaseContext.getCurrentId());
 
-        ToJson(audit,dto.getDraftManual(),dto.getDraftFragments(),dto.getDraftTasks());
+        ToJson(audit, dto.getDraftManual(), dto.getDraftFragments(), dto.getDraftTasks());
 
         // 8. 保存更新
         haiGuiSoupAuditRepository.save(audit);
-        return "修改成功,请继续审核";
     }
+
+
+
     private void ToJson(HaiGuiSoupAudit audit, String manual, List<ClueFragmentInfo> clue, List<InferenceTaskInfo> task) {
         try {
             // 4. 序列化主持人手册（包装为 JSON 对象）

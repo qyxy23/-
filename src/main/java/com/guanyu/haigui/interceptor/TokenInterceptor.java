@@ -25,6 +25,9 @@ public class TokenInterceptor implements HandlerInterceptor {
             //当前拦截到的不是动态方法，直接放行
             return true;
         }
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
         System.out.println("当前请求的资源：" + handler);
 
         //1、从请求头中获取令牌

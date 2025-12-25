@@ -1,8 +1,8 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
 import cn.hutool.core.lang.UUID;
-import com.guanyu.haigui.Enum.MessageChatType;
 import com.guanyu.haigui.Enum.FriendStatus;
+import com.guanyu.haigui.Enum.MessageChatType;
 import com.guanyu.haigui.Enum.MessageStatus;
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.Exception.FriendsException;
@@ -22,7 +22,7 @@ import com.guanyu.haigui.repository.UserInfoRepository;
 import com.guanyu.haigui.service.MessageService;
 import com.guanyu.haigui.utils.RedisServiceUtil;
 import com.guanyu.haigui.utils.SessionMapUtil;
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -39,7 +39,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
-@AllArgsConstructor
+@RequiredArgsConstructor
 @Service
 @Slf4j
 public class MessageServiceImpl implements MessageService {

@@ -442,7 +442,7 @@ public class RoomService {
         // 7. 可选：若房间无人，更新状态为“已取消”
         if (currentMembers == 0) {
             log.info("房间[{}]因无成员自动取消", roomId);
-            redisService.deleteOnlineRoomsAndNumbers(roomId, currentMembers);
+            redisService.deleteOnlineRoomsAndNumbers(roomId);
         } else {
             redisService.updateOnlineRoomsAndNumbers(roomId, currentMembers);
         }

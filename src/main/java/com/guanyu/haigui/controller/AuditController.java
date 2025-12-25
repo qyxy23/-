@@ -31,11 +31,11 @@ public class AuditController {
     }
 
     @Operation(summary = "海龟汤相关信息生成接口", description = "根据汤面和汤底生成主持人手册，线索，进度任务")
-    @PostMapping("/generateInfo")
-    public Result<HaiGuiInfoResult> generateInfo(@RequestBody HaiGuiInfoGenerateDTO titleGenerateDTO) {
+    @PostMapping("/generateInfo/{auditId}")
+    public Result<HaiGuiInfoResult> generateInfo(@PathVariable Long  auditId) {
         log.info("接收到信息生成请求");
         try {
-            HaiGuiInfoResult result = auditService.generateInfo(titleGenerateDTO);
+            HaiGuiInfoResult result = auditService.generateInfo(auditId);
             log.info("信息生成完成: {}", result);
             return Result.success(result);
         } catch (Exception e) {
