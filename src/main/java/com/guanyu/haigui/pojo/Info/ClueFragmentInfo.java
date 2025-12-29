@@ -29,5 +29,4 @@ public class ClueFragmentInfo {
     private Integer fragmentOrder = 0;
 
     private String generationSource = "AI";
-
 }

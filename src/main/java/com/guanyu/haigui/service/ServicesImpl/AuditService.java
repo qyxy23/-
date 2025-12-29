@@ -8,7 +8,10 @@ import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.Info.ClueFragmentInfo;
 import com.guanyu.haigui.pojo.Info.InferenceTaskInfo;
-import com.guanyu.haigui.pojo.dto.*;
+import com.guanyu.haigui.pojo.dto.CreateTurtleSoupDTO;
+import com.guanyu.haigui.pojo.dto.QueryTurtleSoupListDTO;
+import com.guanyu.haigui.pojo.dto.UpdateHaiGuiAuditDTO;
+import com.guanyu.haigui.pojo.dto.rejectTurtleSoupDTO;
 import com.guanyu.haigui.pojo.model.*;
 import com.guanyu.haigui.pojo.result.HaiGuiDetailResult;
 import com.guanyu.haigui.pojo.result.HaiGuiInfoResult;
@@ -121,7 +124,6 @@ public class AuditService {
 
     public String createTurtleSoup(CreateTurtleSoupDTO dto) {
         RLock lock = redissonClient.getLock("turtle_soup_create_lock");
-
         try {
             // 尝试立即获取锁（不等待）
             if (!lock.tryLock()) {
@@ -139,12 +141,14 @@ public class AuditService {
                         .orElseThrow(() -> new BusinessException(404, "审核记录不存在"));
                 HaiGuiSoup soup = dto.fromToHaiGuiSoup(userInfo);
                 haiGuiSoupRepository.save(soup);
-                System.out.println("soup = " + soup);
+                // System.out.println("soup = " + soup);
                 audit.setOriginalSoupId(soup.getSoupId());
                 audit.setAuditStatus(HaiGuiSoupAudit.AuditStatus.APPROVED);
                 audit.setAuditorId(BaseContext.getCurrentId());
                 audit.setAuditTime(LocalDateTime.now());
+                System.out.println("audit = " + dto.getFragments());
                 ToJson(audit,dto.getManual(),dto.getFragments(),dto.getInferenceTasks());
+                System.out.println("audit = " + audit.getDraftFragments());
                 haiGuiSoupAuditRepository.save(audit);
                 // 向量化线索并进行存储
                 Map<Integer, Long> fragments = haiGuiSoupInfoService.convertToClueFragmentsAndSave(audit,dto.getFragments(), soup);

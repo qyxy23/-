@@ -90,6 +90,7 @@ minio:
   endpoint: ${qingyou.minio.endpoint}
   accesskey: ${qingyou.minio.accesskey}
   secretKey: ${qingyou.minio.secretKey}
+  realEndpoint: ${qingyou.minio.real-endpoint}
   bucket:
     avatars: user-avatars
 

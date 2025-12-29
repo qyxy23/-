@@ -18,7 +18,6 @@ import javax.annotation.PostConstruct;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -65,6 +64,9 @@ public class MinioUtil {
 
     @Value("${minio.endpoint}") // 注入MinIO地址
     private String minioEndpoint;
+
+    @Value("${minio.realEndpoint}") // 注入MinIO地址
+    private String minioRealEndpoint;
 
     /**
      * 确保存储桶存在（不存在则创建）
@@ -131,9 +133,7 @@ public class MinioUtil {
         // 方式1：预签名URL（推荐，有效期1小时，安全）
         // String avatarUrl = MinioUtil.generatePresignedUrl(avatarsBucket, objectName, 3600, Method.GET);
         // 方式2：公开访问（需配置桶公开或CORS，适合长期访问）
-        String avatarUrl = String.format("%s/%s/%s", minioEndpoint, avatarsBucket, objectName);
-
-        return avatarUrl;
+        return minioEndpoint + "/" + avatarsBucket + "/" + objectName;
      }
 
     /**
@@ -160,11 +160,25 @@ public class MinioUtil {
     /**
      * 从URL解析MinIO对象名（根据你的URL格式调整）
      */
-    private String parseObjectNameFromUrl(String url, String endpoint, String bucket) throws MalformedURLException {
-        URL fullUrl = new URL(url.startsWith("http") ? url : "http://" + url);
-        String path = fullUrl.getPath(); // 如 /user-avatars/avatars/123/xxx.jpg
-        // 去掉桶名前缀（假设URL路径是 /bucket/对象名）
-        return path.replaceFirst("^/" + bucket + "/", ""); // 如 avatars/123/xxx.jpg
+    private String parseObjectNameFromUrl(String url, String endpoint, String bucket) {
+        try {
+            // 提取路径部分（如：/minio/user-avatars/avatars/3/xxx.jpg）
+            String path = new URL(url).getPath();
+
+            // 构造预期的前缀（如：/minio/user-avatars/）
+            String expectedPrefix = endpoint.replaceFirst("^https?://[^/]+", "") + "/" + bucket + "/";
+
+            // 移除前缀获取对象名
+            if (path.startsWith(expectedPrefix)) {
+                return path.substring(expectedPrefix.length());
+            }
+
+            // 降级处理：尝试通用解析
+            return path.replaceFirst("^.*?/" + bucket + "/", "");
+        } catch (Exception e) {
+            log.error("URL解析失败: {}", url, e);
+            return null;
+        }
     }
 
     /**
@@ -173,30 +187,24 @@ public class MinioUtil {
     @PostConstruct
     public void initMinioClient() {
         try {
-            // 校验配置非空
-            if (StringUtils.isAnyBlank(ENDPOINT, ACCESS_KEY, SECRET_KEY)) {
-                throw new RuntimeException("MinIO 配置错误：请检查 endpoint/access-key/secret-key！");
-            }
-
-            // 确保 ENDPOINT 格式正确（包含协议）
-            String normalizedEndpoint = ENDPOINT.startsWith("http") ? ENDPOINT : "http://" + ENDPOINT;
+            // 使用真实地址（不含路径）进行连接
+            String realEndpoint = minioRealEndpoint; // 或从配置读取
 
             OkHttpClient okHttpClient = new OkHttpClient.Builder()
                     .connectTimeout(30, TimeUnit.SECONDS)
                     .readTimeout(30, TimeUnit.SECONDS)
-                    .writeTimeout(30, TimeUnit.SECONDS)
-                    .retryOnConnectionFailure(true)
                     .build();
 
             MINIO_CLIENT = MinioClient.builder()
-                    .endpoint(normalizedEndpoint)
+                    .endpoint(realEndpoint) // 使用真实地址
                     .credentials(ACCESS_KEY, SECRET_KEY)
                     .httpClient(okHttpClient)
                     .build();
-            log.info("MinIO 客户端初始化成功 → Endpoint: {}", normalizedEndpoint);
+
+            log.info("MinIO 客户端初始化成功 → 真实地址: {}", realEndpoint);
         } catch (Exception e) {
             log.error("MinIO 客户端初始化失败！", e);
-            throw new RuntimeException("MinIO 客户端初始化失败，请检查配置！", e);
+            throw new RuntimeException("MinIO 客户端初始化失败", e);
         }
     }
 

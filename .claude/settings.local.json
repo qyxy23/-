@@ -14,7 +14,9 @@
       "Bash(java:*)",
       "Bash(mvn exec:java:*)",
       "Bash(mvn clean package:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(tree:*)",
+      "Bash(nul)"
     ],
     "deny": [],
     "ask": []
