@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.guanyu.haigui.Enum.ClueType;
 import com.guanyu.haigui.pojo.Info.ClueFragmentInfo;
 import com.guanyu.haigui.pojo.Info.InferenceTaskInfo;
 import com.guanyu.haigui.pojo.result.HaiGuiInfoResult;
@@ -14,10 +13,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -36,7 +34,7 @@ public class HaiGuiInfoUtil {
         return new HaiGuiInfoResult(null, fragments, tasks);
     }
 
-    // 解析线索片段
+    // 解析线索片段（简化版）
     private static List<ClueFragmentInfo> parseFragments(JsonNode fragmentsNode) {
         List<ClueFragmentInfo> fragments = new ArrayList<>();
 
@@ -47,25 +45,11 @@ public class HaiGuiInfoUtil {
 
         for (JsonNode node : fragmentsNode) {
             ClueFragmentInfo fragment = new ClueFragmentInfo();
+
+            // 只保留需要的字段
             fragment.setFragmentContent(getText(node, "content"));
-
-            // 修复1: 将字符串转换为ClueType枚举
-            String typeStr = getText(node, "fragmentType");
-            ClueType fragmentType = convertToClueType(typeStr); // 新增转换方法
-            fragment.setFragmentType(fragmentType);
-
-            fragment.setInferenceLevel(getInt(node, "inferenceLevel"));
-            fragment.setDifficulty(getInt(node, "difficulty"));
-            fragment.setImportance(getInt(node, "importance"));
-
-            // 修复2: 将Double转换为BigDecimal
-            double threshold = getDouble(node, "similarityThreshold");
-            fragment.setSimilarityThreshold(BigDecimal.valueOf(threshold));
-
-            fragment.setIsCoreClue(getBoolean(node, "isCoreClue"));
-            fragment.setFragmentOrder(getInt(node, "fragmentOrder"));
-            fragment.setGenerationSource(getText(node, "generationSource"));
             fragment.setTriggerKeywords(parseStringArray(node.path("triggerKeywords")));
+
             fragments.add(fragment);
         }
 
@@ -134,56 +118,58 @@ public class HaiGuiInfoUtil {
         return manualNode.isMissingNode() ? "" : manualNode.asText();
     }
 
-    private static ClueType convertToClueType(String typeStr) {
-        if (typeStr == null || typeStr.isEmpty()) {
-            return ClueType.OTHER; // 默认类型
-        }
-
-        // 尝试直接匹配枚举名称（如"TIME"）
-        try {
-            return ClueType.valueOf(typeStr.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            // 处理中文描述的情况
-            return switch (typeStr) {
-                case "时间" -> ClueType.TIME;
-                case "地点" -> ClueType.PLACE;
-                case "人物" -> ClueType.CHARACTER;
-                case "角色" -> ClueType.CHARACTER; // 兼容旧数据
-                case "情节" -> ClueType.PLOT;
-                case "物品" -> ClueType.OBJECT;
-                case "其他" -> ClueType.OTHER;
-                default -> ClueType.OTHER; // 未知类型默认归为其他
-            };
-        }
-    }
 
     // 解析任务（转换为实体对象）
     private static List<InferenceTaskInfo> parseTasks(JsonNode tasksNode) {
         List<InferenceTaskInfo> tasks = new ArrayList<>();
 
         if (tasksNode == null || !tasksNode.isArray()) {
-            return tasks; // 返回空列表
+            return tasks;
         }
-
 
         for (JsonNode node : tasksNode) {
             InferenceTaskInfo task = new InferenceTaskInfo();
+
+            // 只保留需要的字段
             task.setTaskName(getText(node, "taskName"));
             task.setTaskDescription(getText(node, "taskDescription"));
-            task.setUnderstandingLevel(getInt(node, "understandingLevel"));
             task.setTargetKeywords(parseStringArray(node.path("targetKeywords")));
             task.setReasoningGoal(getText(node, "reasoningGoal"));
             task.setProgressWeight(getDouble(node, "progressWeight"));
-            task.setIsMandatory(getBoolean(node, "isMandatory"));
             task.setTaskOrder(getInt(node, "taskOrder"));
 
-            // 转换前置线索ID
-            List<Long> idList = parseLongArray(node.path("prerequisiteFragmentIds"));
-            task.setPrerequisiteFragmentIds(new HashSet<>(idList));
+            // 修复1：解析为整数列表
+            List<Integer> idList = parseIntArray(node.path("prerequisiteFragmentIds"));
+
+            // 修复2：转换为Long列表（满足InferenceTaskInfo的要求）
+            List<Long> longList = idList.stream()
+                    .map(Integer::longValue)
+                    .collect(Collectors.toList());
+
+            task.setPrerequisiteFragmentIds(longList);
 
             tasks.add(task);
         }
         return tasks;
+    }
+
+    // 新增：解析整数数组的方法
+    private static List<Integer> parseIntArray(JsonNode node) {
+        List<Integer> result = new ArrayList<>();
+        if (node != null && node.isArray()) {
+            for (JsonNode item : node) {
+                if (item.isNumber()) {
+                    result.add(item.asInt());
+                } else if (item.isTextual()) {
+                    try {
+                        result.add(Integer.parseInt(item.asText()));
+                    } catch (NumberFormatException e) {
+                        log.warn("无法解析整数字符串: {}", item.asText());
+                    }
+                }
+            }
+        }
+        return result;
     }
 
     // 安全获取文本值
@@ -204,11 +190,6 @@ public class HaiGuiInfoUtil {
         return fieldNode.isMissingNode() ? 0.0 : fieldNode.asDouble();
     }
 
-    // 安全获取布尔值
-    private static Boolean getBoolean(JsonNode node, String field) {
-        JsonNode fieldNode = node.path(field);
-        return !fieldNode.isMissingNode() && fieldNode.asBoolean();
-    }
 
     // 解析字符串数组
     private static List<String> parseStringArray(JsonNode node) {
@@ -220,17 +201,4 @@ public class HaiGuiInfoUtil {
         }
         return list;
     }
-
-    // 解析长整型数组
-    private static List<Long> parseLongArray(JsonNode node) {
-        List<Long> list = new ArrayList<>();
-        if (node != null && node.isArray()) {
-            for (JsonNode item : node) {
-                list.add(item.asLong());
-            }
-        }
-        return list;
-    }
-
-
 }

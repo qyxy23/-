@@ -1,33 +1,30 @@
 package com.guanyu.haigui.pojo.Info;
 
+import com.guanyu.haigui.converter.ListLongConverter;
 import com.guanyu.haigui.converter.ListStringConverter;
-import com.guanyu.haigui.converter.LongSetConverter;
 import jakarta.persistence.Convert;
 import lombok.Data;
 
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
+
 @Data
 public class InferenceTaskInfo {
+    // 只保留表中存在的字段
     private String taskName;
-
     private String taskDescription;
 
-    private Integer understandingLevel;
-
     @Convert(converter = ListStringConverter.class)
-    private List<String> targetKeywords; // 移除初始化
+    private List<String> targetKeywords;
 
     private String reasoningGoal;
 
+    // 使用Double或BigDecimal都可以，根据实体类决定
     private Double progressWeight;
-
-    private Boolean isMandatory = true;
 
     private Integer taskOrder = 0;
 
-    // 关键修复：允许为null，在@PrePersist中初始化
-    @Convert(converter = LongSetConverter.class) // 复用Long集合转换器
-    private Set<Long> prerequisiteFragmentIds = new HashSet<>(); // 初始化空集合
+    // 注意：这里使用List<Long>表示前置线索ID列表
+    @Convert(converter = ListLongConverter.class)
+    private List<Long> prerequisiteFragmentIds = new ArrayList<>();
 }

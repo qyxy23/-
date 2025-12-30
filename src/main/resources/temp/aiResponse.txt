@@ -1,158 +1,125 @@
 {
+  "hostManual": "### 游戏简介\n汤面围绕“墓碑文字引发惊悚”展开，核心悬念是爸妈二胎动机与墓碑秘密，汤底涉及未来星际旅行、虫洞穿越、原始地球人类起源，需推理时空错位真相。\n\n### 主持流程\n1. **开场（5分钟）**：介绍汤面规则（仅封闭问题，答是/否/无关），发放初始线索1。\n2. **线索发放（15分钟）**：玩家提问触发关键词则发线索，满足前置则解锁任务。\n3. **任务推理（8分钟）**：结合线索完成任务，聚焦目标关键词。\n4. **复盘（2分钟）**：公布汤底，解释线索关联。\n\n### 控场技巧\n- 转化开放问题为封闭问题（如“你问是否遇虫洞？”）。\n- 平衡玩家参与，避免单玩家主导。\n- 关键词提示（如“想想旅行工具”）辅助卡壳玩家。\n\n### 时间管理建议\n- 5分钟内明确规则，启动提问。\n- 10-20分钟重点发放虫洞、地球无痕迹、亚当夏娃等核心线索。\n- 25分钟后聚焦墓碑秘密与时空错位，准备复盘。",
   "fragments": [
     {
-      "content": "博物馆近期经历了管理层的重大变动",
-      "fragmentType": "CHARACTER",
-      "inferenceLevel": 2,
-      "difficulty": 3,
-      "importance": 6,
-      "similarityThreshold": 0.7,
-      "isCoreClue": false,
-      "fragmentOrder": 1,
-      "generationSource": "AI",
-      "triggerKeywords": ["博物馆", "管理层变动"]
+      "content": "我们的旅行工具是跨星系飞行器，出发前爸妈检查了星际导航系统，不是普通汽车。",
+      "triggerKeywords": ["星际旅行", "飞行器", "导航"]
     },
     {
-      "content": "展览期间，博物馆的安保系统曾出现短暂故障",
-      "fragmentType": "PLACE",
-      "inferenceLevel": 2,
-      "difficulty": 3,
-      "importance": 6,
-      "similarityThreshold": 0.7,
-      "isCoreClue": false,
-      "fragmentOrder": 2,
-      "generationSource": "AI",
-      "triggerKeywords": ["展览期间", "安保系统故障"]
+      "content": "回到地球时，城市、建筑全消失，连一点人类生活的垃圾痕迹都找不到，地面只剩原始植被。",
+      "triggerKeywords": ["地球无痕迹", "城市消失", "人类垃圾"]
     },
     {
-      "content": "古董画的消失时间是在深夜闭馆后",
-      "fragmentType": "TIME",
-      "inferenceLevel": 1,
-      "difficulty": 2,
-      "importance": 5,
-      "similarityThreshold": 0.7,
-      "isCoreClue": false,
-      "fragmentOrder": 3,
-      "generationSource": "AI",
-      "triggerKeywords": ["深夜", "闭馆后"]
+      "content": "爸妈看到地球空无一人后，立刻说“我们得延续下去，不能让人类断了”，当天就开始准备繁衍。",
+      "triggerKeywords": ["延续人类", "断代危机", "繁衍准备"]
     },
     {
-      "content": "负责安保的人员有部分是新来的",
-      "fragmentType": "CHARACTER",
-      "inferenceLevel": 2,
-      "difficulty": 3,
-      "importance": 6,
-      "similarityThreshold": 0.7,
-      "isCoreClue": false,
-      "fragmentOrder": 4,
-      "generationSource": "AI",
-      "triggerKeywords": ["安保人员", "新来"]
+      "content": "五十年里，我们从3人增至几十人，形成小部落，有自己的生存规矩，没人再提“未来”。",
+      "triggerKeywords": ["部落形成", "人数增加", "生存规矩"]
     },
     {
-      "content": "展览当天，有几位神秘的参观者在画前停留时间较长",
-      "fragmentType": "CHARACTER",
-      "inferenceLevel": 2,
-      "difficulty": 3,
-      "importance": 6,
-      "similarityThreshold": 0.7,
-      "isCoreClue": false,
-      "fragmentOrder": 5,
-      "generationSource": "AI",
-      "triggerKeywords": ["展览当天", "神秘参观者"]
+      "content": "孙子是部落历史记录者，负责打磨墓碑，但之前部落里从未有人说过“亚当夏娃”的称呼。",
+      "triggerKeywords": ["部落历史", "孙子记录", "亚当夏娃"]
     },
     {
-      "content": "博物馆的监控录像在古董画消失的时间段内有部分缺失",
-      "fragmentType": "OBJECT",
-      "inferenceLevel": 2,
-      "difficulty": 3,
-      "importance": 6,
-      "similarityThreshold": 0.7,
-      "isCoreClue": false,
-      "fragmentOrder": 6,
-      "generationSource": "AI",
-      "triggerKeywords": ["监控录像", "缺失"]
+      "content": "爸妈墓碑上除了名字，还有“人类始祖”小字，孙子却刻了“亚当与夏娃之墓”，字体是原始打磨。",
+      "triggerKeywords": ["墓碑文字", "始祖称呼", "原始打磨"]
     },
     {
-      "content": "盗窃团伙中有成员擅长制作赝品",
-      "fragmentType": "CHARACTER",
-      "inferenceLevel": 3,
-      "difficulty": 4,
-      "importance": 7,
-      "similarityThreshold": 0.7,
-      "isCoreClue": true,
-      "fragmentOrder": 7,
-      "generationSource": "AI",
-      "triggerKeywords": ["盗窃团伙", "制作赝品"]
+      "content": "我们带的未来基因检测仪后来坏了，无法确定当前时间，设备显示的日期停留在出发日。",
+      "triggerKeywords": ["未来设备", "基因检测", "时间停滞"]
     },
     {
-      "content": "古董画的保险金额极高",
-      "fragmentType": "PLOT",
-      "inferenceLevel": 3,
-      "difficulty": 4,
-      "importance": 7,
-      "similarityThreshold": 0.7,
-      "isCoreClue": true,
-      "fragmentOrder": 8,
-      "generationSource": "AI",
-      "triggerKeywords": ["古董画", "保险金额"]
+      "content": "旅行前新闻报道过“星际空间异常虫洞波动”，爸妈当时还提醒过要避开该区域。",
+      "triggerKeywords": ["虫洞波动", "星际空间", "新闻报道"]
     },
     {
-      "content": "博物馆在古董画消失后收到了一封匿名信，要求支付赎金",
-      "fragmentType": "PLOT",
-      "inferenceLevel": 3,
-      "difficulty": 4,
-      "importance": 7,
-      "similarityThreshold": 0.7,
-      "isCoreClue": true,
-      "fragmentOrder": 9,
-      "generationSource": "AI",
-      "triggerKeywords": ["匿名信", "赎金"]
+      "content": "爸妈繁衍时特意用了不同基因库样本，担心近亲繁殖影响后代健康，样本是出发前准备的。",
+      "triggerKeywords": ["基因库样本", "近亲避免", "繁衍健康"]
+    },
+    {
+      "content": "地球植被和出发前完全不同，更原始，没有现代农作物，只有野生果树和草原。",
+      "triggerKeywords": ["原始植被", "地球生态", "现代作物"]
+    },
+    {
+      "content": "部落里的人后来都用石器工具，因为找不到金属、塑料等现代材料，连打火机都没有。",
+      "triggerKeywords": ["石器工具", "现代材料", "部落生存"]
+    },
+    {
+      "content": "我小时候听爸妈说“人类起源于非洲”，但我们着陆的地方是亚洲东部，和传说不符。",
+      "triggerKeywords": ["人类起源", "非洲传说", "亚洲着陆"]
+    },
+    {
+      "content": "墓碑是用河边的鹅卵石打磨，没有任何现代切割痕迹，孙子刻字用的是石刀。",
+      "triggerKeywords": ["鹅卵石墓碑", "石刀刻字", "现代加工"]
+    },
+    {
+      "content": "孙子说“亚当夏娃”是部落老人传的祖先称呼，但我从未听过任何老人提过这个词。",
+      "triggerKeywords": ["部落老人", "祖先称呼", "未提过"]
+    },
+    {
+      "content": "我们出发时是2199年，回来后手机无法联网，因为没有卫星信号，日历也无法更新。",
+      "triggerKeywords": ["2199年", "卫星信号", "日历更新"]
+    },
+    {
+      "content": "爸妈繁衍时曾说“我们是新的人类开端”，当时我以为是“重新开始生活”，没在意。",
+      "triggerKeywords": ["新人类开端", "繁衍原因", "未在意"]
+    },
+    {
+      "content": "地球大气含氧量比出发前高3%，呼吸时感觉更顺畅，没有现代空气污染。",
+      "triggerKeywords": ["大气含氧量", "空气污染", "地球大气"]
+    },
+    {
+      "content": "部落孩子从来没见过汽车、手机，他们认为“铁盒子”是石头，“发光物”是萤火虫。",
+      "triggerKeywords": ["现代物品", "部落孩子", "未知物品"]
+    },
+    {
+      "content": "孙子刻墓碑前问我“最早的人类是怎么来的”，我当时回答“不知道，爸妈没说过”。",
+      "triggerKeywords": ["最早人类", "孙子提问", "未回答"]
+    },
+    {
+      "content": "我们着陆的山谷没有任何人类遗迹，只有原始森林和恐龙化石（后来发现的）。",
+      "triggerKeywords": ["着陆山谷", "原始森林", "恐龙化石"]
     }
   ],
   "tasks": [
     {
-      "taskName": "调查博物馆管理层变动的原因",
-      "taskDescription": "了解博物馆近期管理层变动的具体情况和原因，分析是否与古董画失踪有关",
-      "understandingLevel": 2,
-      "targetKeywords": ["管理层变动", "关联分析"],
-      "reasoningGoal": "找出管理层变动与古董画失踪之间可能存在的联系",
-      "progressWeight": 20.0,
-      "isMandatory": true,
+      "taskName": "旅行意外？",
+      "taskDescription": "找出旅行中导致时空变化的关键意外事件。",
+      "targetKeywords": ["虫洞", "星际旅行", "地球异常"],
+      "reasoningGoal": "确定旅行中的核心意外",
+      "progressWeight": 25.0,
       "taskOrder": 1,
-      "prerequisiteFragmentIds": [1]
+      "prerequisiteFragmentIds": [1, 8, 2]
     },
     {
-      "taskName": "调查安保系统故障的情况",
-      "taskDescription": "深入调查安保系统故障的原因、时间和影响范围，判断是否为古董画失踪提供了便利",
-      "understandingLevel": 2,
-      "targetKeywords": ["安保系统故障", "便利条件"],
-      "reasoningGoal": "确定安保系统故障与古董画失踪之间的关联",
-      "progressWeight": 20.0,
-      "isMandatory": true,
+      "taskName": "二胎动机？",
+      "taskDescription": "找出爸妈立刻要二胎的真实核心原因。",
+      "targetKeywords": ["人类延续", "地球无人类", "断代危机"],
+      "reasoningGoal": "爸妈繁衍的真实目的",
+      "progressWeight": 25.0,
       "taskOrder": 2,
-      "prerequisiteFragmentIds": [2]
+      "prerequisiteFragmentIds": [3, 2, 9]
     },
     {
-      "taskName": "分析神秘参观者的身份和行为",
-      "taskDescription": "对展览当天在古董画前停留时间较长的神秘参观者进行身份调查和行为分析，判断他们是否与古董画失踪有关",
-      "understandingLevel": 2,
-      "targetKeywords": ["神秘参观者", "身份调查", "行为分析"],
-      "reasoningGoal": "找出神秘参观者与古董画失踪之间的潜在联系",
-      "progressWeight": 20.0,
-      "isMandatory": true,
+      "taskName": "墓碑秘密？",
+      "taskDescription": "找出墓碑文字让我头皮发麻的隐藏含义。",
+      "targetKeywords": ["亚当夏娃", "始祖称呼", "时间穿越"],
+      "reasoningGoal": "墓碑文字的惊悚点",
+      "progressWeight": 30.0,
       "taskOrder": 3,
-      "prerequisiteFragmentIds": [5]
+      "prerequisiteFragmentIds": [6, 14, 17]
     },
     {
-      "taskName": "破解匿名信的来源和意图",
-      "taskDescription": "对博物馆收到的匿名信进行分析，尝试破解其来源和意图，判断是否与盗窃团伙有关",
-      "understandingLevel": 3,
-      "targetKeywords": ["匿名信", "来源破解", "意图分析"],
-      "reasoningGoal": "确定匿名信与古董画失踪以及盗窃团伙之间的关系",
-      "progressWeight": 40.0,
-      "isMandatory": true,
+      "taskName": "时空错位？",
+      "taskDescription": "确定我们实际穿越到了哪个时间点的地球。",
+      "targetKeywords": ["几十万年前", "原始地球", "人类起源"],
+      "reasoningGoal": "穿越的具体时间线",
+      "progressWeight": 20.0,
       "taskOrder": 4,
-      "prerequisiteFragmentIds": [9]
+      "prerequisiteFragmentIds": [10, 13, 12]
     }
   ]
 }
+
+

@@ -295,7 +295,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
             result.setCompletionTime(progress != null ? progress.getCompletionTime() : null);
 
             // 使用 BigDecimal 处理权重
-            BigDecimal taskWeight = BigDecimal.valueOf(task.getProgressWeight());
+            BigDecimal taskWeight = task.getProgressWeight();
 
             if (isCompleted) {
                 completedWeight = completedWeight.add(taskWeight);
@@ -379,7 +379,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         // 3. 处理每个未完成任务
         for (InferenceTask task : incompleteTasks) {
             Long taskId = task.getTaskId();
-            Set<Long> prerequisiteIds = task.getPrerequisiteFragmentIds();
+            List<Long> prerequisiteIds = task.getPrerequisiteFragmentIds();
 
             // 3.1 获取该任务当前的已触发线索
             Set<Long> currentFragments = taskFragmentsMap.getOrDefault(taskId, new HashSet<>());
@@ -399,7 +399,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
                         taskId, prerequisiteIds, updatedFragments);
 
                 // 使用 BigDecimal 累加进度
-                BigDecimal taskWeight = BigDecimal.valueOf(task.getProgressWeight());
+                BigDecimal taskWeight = task.getProgressWeight();
                 progress = progress.add(taskWeight);
                 haiGuiRoomProgressRepository.updateTaskStatus(
                         roomId,
@@ -432,7 +432,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
 
                 if (taskOpt.isPresent()) {
                     InferenceTask task = taskOpt.get();
-                    Set<Long> prerequisiteIds = task.getPrerequisiteFragmentIds();
+                    List<Long> prerequisiteIds = task.getPrerequisiteFragmentIds();
 
                     // 获取该任务当前的已触发线索
                     Set<Long> currentFragments = taskFragmentsMap.getOrDefault(taskId, new HashSet<>());

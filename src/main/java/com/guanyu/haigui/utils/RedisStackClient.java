@@ -396,7 +396,7 @@ public class RedisStackClient {
      * @param vector 向量数据
      * @return 是否成功
      */
-    public boolean storeVector(String redisKey, List<Float> vector) {
+    public boolean storeVector(String redisKey, List<Double> vector) {
         try {
             if (vector == null || vector.isEmpty()) {
                 log.warn("向量为空，无法存储: redisKey={}", redisKey);

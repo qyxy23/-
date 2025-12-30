@@ -1,34 +1,31 @@
 package com.guanyu.haigui.pojo.model;
 
+import com.guanyu.haigui.converter.ListLongConverter;
 import com.guanyu.haigui.converter.ListStringConverter;
-import com.guanyu.haigui.converter.LongSetConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
- * 推理任务数据模型（映射hai_gui_soup_inference_task表）
+ * 推理任务数据模型（精简版）
  */
 @Entity
 @Table(name = "hai_gui_soup_inference_task",
         indexes = {
                 @Index(name = "idx_soup_id", columnList = "soup_id"),
-                @Index(name = "idx_understanding_level", columnList = "understanding_level"),
-                @Index(name = "idx_task_order", columnList = "task_order"),
-                @Index(name = "idx_mandatory", columnList = "is_mandatory"),
                 @Index(name = "idx_is_deleted", columnList = "is_deleted")
         })
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class InferenceTask {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long taskId;
@@ -42,31 +39,24 @@ public class InferenceTask {
     @Column(name = "task_description", nullable = false, columnDefinition = "TEXT")
     private String taskDescription;
 
-    @Column(name = "understanding_level", nullable = false)
-    private Integer understandingLevel;
-
     @Column(name = "target_keywords", columnDefinition = "JSON")
     @Convert(converter = ListStringConverter.class)
-    private List<String> targetKeywords; // 移除初始化
+    private List<String> targetKeywords = new ArrayList<>();
 
     @Column(name = "reasoning_goal", nullable = false, columnDefinition = "TEXT")
     private String reasoningGoal;
 
-    @Column(name = "progress_weight", precision = 5, nullable = false)
-    private Double progressWeight;
-
-    @Column(name = "is_mandatory", columnDefinition = "TINYINT(1) DEFAULT 1")
-    private Boolean isMandatory = true;
+    @Column(name = "progress_weight", precision = 5, scale = 2, nullable = false)
+    private BigDecimal progressWeight;  // 使用BigDecimal精确表示小数
 
     @Column(name = "task_order", nullable = false)
     private Integer taskOrder = 0;
 
-    // 关键修复：允许为null，在@PrePersist中初始化
-    @Column(name = "prerequisite_fragment_ids", columnDefinition = "JSON")
-    @Convert(converter = LongSetConverter.class) // 复用Long集合转换器
-    private Set<Long> prerequisiteFragmentIds = new HashSet<>(); // 初始化空集合
+    @Column(name = "prerequisite_fragment_ids", columnDefinition = "JSON", nullable = false)
+    @Convert(converter = ListLongConverter.class)  // 使用List<Long>替代Set<Long>
+    private List<Long> prerequisiteFragmentIds = new ArrayList<>();
 
-    @Column(name = "is_deleted", columnDefinition = "TINYINT(1) DEFAULT 0")
+    @Column(name = "is_deleted", columnDefinition = "TINYINT(1) DEFAULT 0", nullable = false)
     private Boolean isDeleted = false;
 
     @Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "DATETIME(6)")
@@ -81,13 +71,26 @@ public class InferenceTask {
         if (createdAt == null) createdAt = now;
         if (updatedAt == null) updatedAt = now;
 
-        // 关键修复：在持久化前初始化集合
+        // 确保集合不为null
         if (targetKeywords == null) targetKeywords = new ArrayList<>();
-        if (prerequisiteFragmentIds == null) prerequisiteFragmentIds = new HashSet<>();
+        if (prerequisiteFragmentIds == null) prerequisiteFragmentIds = new ArrayList<>();
     }
 
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    // 精简构造函数
+    public InferenceTask(String soupId, String taskName, String taskDescription,
+                         String reasoningGoal, BigDecimal progressWeight) {
+        this.soupId = soupId;
+        this.taskName = taskName;
+        this.taskDescription = taskDescription;
+        this.reasoningGoal = reasoningGoal;
+        this.progressWeight = progressWeight;
+        this.isDeleted = false;
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
     }
 }

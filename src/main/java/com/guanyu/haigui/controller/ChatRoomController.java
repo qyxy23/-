@@ -88,7 +88,6 @@ public class ChatRoomController {
     }
 
 
-
     @Operation(summary = "获取指定房间的最新N条消息")
     @MessageMapping("/chat.recent/{roomId}/{limit}") // 接收请求：包含roomId和limit
     @SendTo("/topic/recent/{roomId}") // 广播结果：发送到对应房间的Topic（仅订阅该房间的客户端能收到）
@@ -233,6 +232,4 @@ public class ChatRoomController {
     public Result<EndGameVO> endGame(@PathVariable String roomId) {
         return Result.success(soupQuestionServiceImpl.endGame(roomId));
     }
-
-
 }

@@ -141,7 +141,7 @@ public class AuditService {
                         .orElseThrow(() -> new BusinessException(404, "审核记录不存在"));
                 HaiGuiSoup soup = dto.fromToHaiGuiSoup(userInfo);
                 haiGuiSoupRepository.save(soup);
-                // System.out.println("soup = " + soup);
+                System.out.println("soup = " + soup);
                 audit.setOriginalSoupId(soup.getSoupId());
                 audit.setAuditStatus(HaiGuiSoupAudit.AuditStatus.APPROVED);
                 audit.setAuditorId(BaseContext.getCurrentId());
@@ -151,8 +151,8 @@ public class AuditService {
                 System.out.println("audit = " + audit.getDraftFragments());
                 haiGuiSoupAuditRepository.save(audit);
                 // 向量化线索并进行存储
-                Map<Integer, Long> fragments = haiGuiSoupInfoService.convertToClueFragmentsAndSave(audit,dto.getFragments(), soup);
-                List<InferenceTask> tasks = haiGuiSoupInfoService.convertToInferenceTasks(dto, soup, fragments);
+                Map<Integer, Long> fragments = haiGuiSoupInfoService.convertToClueFragmentsAndSave(dto.getFragments(), soup);
+                List<InferenceTask> tasks = haiGuiSoupInfoService.convertToInferenceTasks(dto.getInferenceTasks(), soup, fragments);
                 if (fragments.isEmpty() || tasks.isEmpty()) {
                     throw new BusinessException(500, "请检查线索和推理任务是否填写正确");
                 }
