@@ -66,6 +66,4 @@ public class HaiGuiTangController {
             return Result.error("标题生成失败: " + e.getMessage());
         }
     }
-
-
 }

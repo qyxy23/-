@@ -9,7 +9,7 @@ import java.util.List;
 @Data
 public class ClueFragmentInfo {
     // 只保留表中存在的字段
-    private String fragmentContent;
+    private String content;
 
     @Convert(converter = ListStringConverter.class)
     private List<String> triggerKeywords;

@@ -54,7 +54,6 @@ public class SecurityConfig {
 
             UserInfo userInfo = userDetailsMapper.selectUserInfoByUsername(username);
 
-
             if (userInfo == null) {
                 throw new UsernameNotFoundException("用户不存在：" + username);
             }

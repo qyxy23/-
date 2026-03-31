@@ -47,7 +47,7 @@ public class HaiGuiInfoUtil {
             ClueFragmentInfo fragment = new ClueFragmentInfo();
 
             // 只保留需要的字段
-            fragment.setFragmentContent(getText(node, "content"));
+            fragment.setContent(getText(node, "content"));
             fragment.setTriggerKeywords(parseStringArray(node.path("triggerKeywords")));
 
             fragments.add(fragment);

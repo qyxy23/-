@@ -44,6 +44,7 @@ public class ChatGameMember {
     /** 成员状态（新增） */
     @Enumerated(EnumType.STRING) // 存储枚举的字符串值（如"ONLINE"）
     @Column(name = "status", nullable = false)
+    @Builder.Default
     private MemberStatus status = MemberStatus.ONLINE; // 默认在线
 
     /** 重写equals：基于复合主键判断相等性 */

@@ -79,11 +79,13 @@ public class ChatGame {
 
     /** 房间隐私类型（对应privacy_type） */
     @Enumerated(EnumType.STRING)
+    @Builder.Default
     @Column(name = "privacy_type", nullable = false, columnDefinition = "ENUM('PUBLIC', 'PRIVATE')")
     private PrivacyType privacyType = PrivacyType.PUBLIC;
 
     /** 是否需要邀请加入（对应need_invite） */
     @Column(name = "need_invite", nullable = false)
+    @Builder.Default
     private Boolean needInvite = false;
 
     /** 关联的游戏会话ID（对应session_id） */

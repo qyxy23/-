@@ -190,9 +190,9 @@ public class HaiGuiSoupInfoService {
         for (ClueFragmentInfo fragment : fragments) {
             ClueFragment clueFragment = new ClueFragment();
             clueFragment.setSoupId(soup.getSoupId());
-            clueFragment.setFragmentContent(fragment.getFragmentContent());
+            clueFragment.setFragmentContent(fragment.getContent());
             clueFragment.setTriggerKeywords(fragment.getTriggerKeywords());
-            clueFragment.setVectorData(vectorizeFragment(fragment.getFragmentContent()));
+            clueFragment.setVectorData(vectorizeFragment(fragment.getContent()));
             clueFragment.setIsDeleted(false);
             clueFragment.setCreatedAt(LocalDateTime.now());
             clueFragment.setUpdatedAt(LocalDateTime.now());
