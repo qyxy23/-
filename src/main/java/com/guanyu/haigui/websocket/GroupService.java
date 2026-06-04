@@ -664,6 +664,7 @@ public class GroupService {
     private void broadcastGroupMessageToMembers(Object messageVo, String groupId) {
         // 获取群成员列表（可根据需要加缓存）
         Set<Long> groupMembers = groupRoomUtils.getGroupMembers(groupId);
+        log.info("群聊消息已发送到用户专属主题");
         // 遍历发送给每个成员
         groupMembers.forEach(memberId -> {
             simpMessagingTemplate.convertAndSendToUser(

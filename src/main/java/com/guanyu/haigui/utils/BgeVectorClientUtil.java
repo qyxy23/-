@@ -9,7 +9,6 @@ import com.guanyu.haigui.pojo.dto.SingleEncodeRequest;
 import com.guanyu.haigui.pojo.vo.BatchEncodeResponse;
 import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import java.io.IOException;
@@ -20,7 +19,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
 
-@Component
+// @Component
 public class BgeVectorClientUtil {
     @Value("${qingyou.BgeVector.host}") // 注入实例变量
     private String instanceServiceUrl;

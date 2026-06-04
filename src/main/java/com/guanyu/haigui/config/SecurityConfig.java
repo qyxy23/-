@@ -32,6 +32,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/*
+Cors配置
+ */
 @Slf4j
 @Configuration
 @EnableWebSecurity
@@ -121,7 +124,7 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
 
         // 2. 允许的前端域名（替换为你的前端地址，如 http://localhost:5173、https://your-frontend.com）
-        config.setAllowedOrigins(Arrays.asList("http://localhost:5173", "http://124.220.226.16:5173","https://qingyou.icu"));
+        config.setAllowedOrigins(Arrays.asList("http://localhost:5173", "http://124.220.226.16:5173","https://qingyou.icu", "https://turtlesoup.qingyou.icu"));
 
         // 3. 允许的请求方法（GET/POST/PUT/DELETE/OPTIONS）
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
