@@ -61,6 +61,7 @@
         <where>
             <if test="roomName != null and roomName != ''">AND cr.room_name LIKE CONCAT('%', #{roomName}, '%')</if>
             <if test="status != null">AND cr.status = #{status}</if>
+            <if test="status == null">AND cr.status IN ('WAITING', 'ACTIVE', 'VOTING')</if>
             <if test="requiredMembers != null">AND cr.required_members >= #{requiredMembers}</if>
             <if test="currentMembers != null">AND cr.current_members = #{currentMembers}</if>
             <if test="createTime != null">AND cr.create_time = #{createTime}</if>
@@ -84,6 +85,7 @@
         <where>
             <if test="roomName != null and roomName != ''">AND cr.room_name LIKE CONCAT('%', #{roomName}, '%')</if>
             <if test="status != null">AND cr.status = #{status}</if>
+            <if test="status == null">AND cr.status IN ('WAITING', 'ACTIVE', 'VOTING')</if>
             <if test="requiredMembers != null">AND cr.required_members >= #{requiredMembers}</if>
             <if test="currentMembers != null">AND cr.current_members = #{currentMembers}</if>
             <if test="createTime != null">AND cr.create_time = #{createTime}</if>

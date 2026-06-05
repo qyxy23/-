@@ -6,7 +6,7 @@ import lombok.Getter;
 // 房间状态
 @Getter
 public enum RoomStatus {
-    WAITING("等待集齐"),
+    WAITING("未开始"),
     ACTIVE("进行中"),
     VOTING("进行投票"),
     FINISHED("已结束"),

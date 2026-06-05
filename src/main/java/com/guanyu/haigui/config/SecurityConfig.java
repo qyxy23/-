@@ -124,7 +124,8 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
 
         // 2. 允许的前端域名（替换为你的前端地址，如 http://localhost:5173、https://your-frontend.com）
-        config.setAllowedOrigins(Arrays.asList("http://localhost:5173", "http://124.220.226.16:5173","https://qingyou.icu", "https://turtlesoup.qingyou.icu"));
+        // 生产环境应限制具体域名，开发测试环境可使用通配符
+        config.setAllowedOriginPatterns(Arrays.asList("*"));
 
         // 3. 允许的请求方法（GET/POST/PUT/DELETE/OPTIONS）
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));

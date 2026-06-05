@@ -488,22 +488,21 @@ public class MessageServiceImpl implements MessageService {
     @Async("taskExecutor")
     public void sendToUserPrivateTopic(PrivateMessageVO message) {
         try {
-            // 使用convertAndSendToUser方法推送消息，该方法会自动添加/user/前缀
-            // 实际路径会是/user/{userId}/private-messages
+            UserInfo receiver = userRepository.findById(message.getReceiverId()).orElse(null);
+            UserInfo sender = userRepository.findById(message.getSenderId()).orElse(null);
 
-            // 推送给接收者
-            simpMessagingTemplate.convertAndSendToUser(
-                    String.valueOf(message.getReceiverId()), // 目标用户ID
-                    "/private-messages", // 订阅路径（相对路径，会自动加上/user/{userId}前缀）
-                    message // 消息内容
-            );
-
-            // 同时也发送给发送者，用于消息确认和同步
-            simpMessagingTemplate.convertAndSendToUser(
-                    String.valueOf(message.getSenderId()), // 发送者用户ID
-                    "/private-messages", // 订阅路径
-                    message // 消息内容
-            );
+            if (receiver != null) {
+                simpMessagingTemplate.convertAndSendToUser(
+                        receiver.getUsername(),
+                        "/private-messages",
+                        message);
+            }
+            if (sender != null) {
+                simpMessagingTemplate.convertAndSendToUser(
+                        sender.getUsername(),
+                        "/private-messages",
+                        message);
+            }
 
             log.info("私聊消息已发送到用户专属主题: receiverId={}, senderId={}",
                     message.getReceiverId(), message.getSenderId());

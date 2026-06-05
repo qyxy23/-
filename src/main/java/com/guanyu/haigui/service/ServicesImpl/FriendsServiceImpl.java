@@ -72,10 +72,8 @@ public class FriendsServiceImpl implements FriendsService {
                 .applicantId(applicationId).status(FriendStatus.RETRACTED).build();
 
         // 发送给目标用户的私人频道（前端需订阅：/user/{userId}/queue/private-messages）
-        simpMessagingTemplate.convertAndSendToUser(
-                String.valueOf(targetUserId),
-                "/queue/private-messages",
-                notification);
+        userRepository.findById(targetUserId).ifPresent(user ->
+                simpMessagingTemplate.convertAndSendToUser(user.getUsername(), "/private-messages", notification));
         return notification;
     }
 
@@ -310,10 +308,8 @@ public class FriendsServiceImpl implements FriendsService {
         FriendRetractNotificationVO notification = FriendRetractNotificationVO.builder()
                 .applicantId(currentUserId).status(FriendStatus.PENDING)
                 .chatType(MessageChatType.FRIEND_JOIN_REQUESTS).build();
-        simpMessagingTemplate.convertAndSendToUser(
-                targetUserId.toString(),
-                "/private-messages",
-                notification);
+        userRepository.findById(targetUserId).ifPresent(user ->
+                simpMessagingTemplate.convertAndSendToUser(user.getUsername(), "/private-messages", notification));
         log.info("发送好友申请：{} -> {}", currentUserId, targetUserId);
         return notification;
     }
@@ -374,10 +370,8 @@ public class FriendsServiceImpl implements FriendsService {
                 .applicantId(applicationId).status(FriendStatus.REJECTED).build();
 
         // 发送给目标用户的私人频道（前端需订阅：/user/{userId}/queue/private-messages）
-        simpMessagingTemplate.convertAndSendToUser(
-                String.valueOf(targetUserId),
-                "/queue/private-messages",
-                notification);
+        userRepository.findById(targetUserId).ifPresent(user ->
+                simpMessagingTemplate.convertAndSendToUser(user.getUsername(), "/private-messages", notification));
     }
 
     // 4. 删除好友

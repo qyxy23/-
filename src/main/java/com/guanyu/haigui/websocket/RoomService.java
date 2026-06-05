@@ -152,7 +152,9 @@ public class RoomService {
 
     // LobbyService.java
     public PageImpl<LobbyListVO> searchLobbies(LobbyListDTO dto, int page) {
-        // 设置默认值（可选）
+        if (dto == null) {
+            dto = new LobbyListDTO();
+        }
         if (dto.getExcludeInvited() == null) {
             dto.setExcludeInvited(true); // 默认排除邀请房间
         }

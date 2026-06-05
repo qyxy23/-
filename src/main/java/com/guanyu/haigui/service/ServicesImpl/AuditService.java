@@ -49,6 +49,8 @@ public class AuditService {
     private final HaiGuiSoupInfoService haiGuiSoupInfoService;
     private final HaiGuiSoupRepository haiGuiSoupRepository;
     private final HaiGuiSoupAuditRepository haiGuiSoupAuditRepository;
+    private final ClueFragmentRepository clueFragmentRepository;
+    private final InferenceTaskRepository inferenceTaskRepository;
     private final ObjectMapper objectMapper;
     private final RedissonClient redissonClient;
 
@@ -133,8 +135,7 @@ public class AuditService {
             try {
                 UserInfo userInfo = userInfoRepository.findById(BaseContext.getCurrentId())
                         .orElseThrow(() -> new BusinessException(404, "用户不存在"));
-                boolean userRole = sysUserRoleRepository.existsById(new SysUserRole.UserRoleId(userInfo.getUserId(), UserRoleEnum.SOUP_AUDITOR.getRoleId()));
-                if (!userRole) {
+                if (!hasAuditPermission(userInfo.getUserId())) {
                     throw new BusinessException(403, "您不是审核员,无权限");
                 }
                 HaiGuiSoupAudit audit = haiGuiSoupAuditRepository.findById(dto.getAuditRecordId())
@@ -243,10 +244,109 @@ public class AuditService {
     }
 
     public HaiGuiDetailResult queryTurtleSoupDetail(Long auditId) {
+        HaiGuiSoupAudit audit = requireAuditAccess(auditId);
+        HaiGuiInfoResult haiGuiInfoResult = haiGuiSoupInfoService.getFragmentsAndTasks(
+                audit.getDraftFragments(), audit.getDraftTasks());
+
+        if (shouldLoadPublishedExtras(audit, haiGuiInfoResult)) {
+            haiGuiInfoResult = loadPublishedExtras(audit.getOriginalSoupId(), haiGuiInfoResult);
+        }
+
+        return HaiGuiDetailResult.fromHaiGuiSoupAudit(audit, haiGuiInfoResult);
+    }
+
+    private boolean shouldLoadPublishedExtras(HaiGuiSoupAudit audit, HaiGuiInfoResult draftInfo) {
+        if (!StringUtils.hasText(audit.getOriginalSoupId())) {
+            return false;
+        }
+        boolean fragmentsEmpty = draftInfo.getFragments() == null
+                || draftInfo.getFragments().isEmpty()
+                || draftInfo.getFragments().stream().noneMatch(f -> StringUtils.hasText(f.getContent()));
+        boolean tasksEmpty = draftInfo.getInferenceTasks() == null || draftInfo.getInferenceTasks().isEmpty();
+        return fragmentsEmpty || tasksEmpty;
+    }
+
+    private HaiGuiInfoResult loadPublishedExtras(String soupId, HaiGuiInfoResult draftInfo) {
+        List<ClueFragmentInfo> fragments = draftInfo.getFragments();
+        List<InferenceTaskInfo> tasks = draftInfo.getInferenceTasks();
+
+        if (fragments == null || fragments.isEmpty()
+                || fragments.stream().noneMatch(f -> StringUtils.hasText(f.getContent()))) {
+            fragments = clueFragmentRepository.findBySoupIdAndIsDeletedFalse(soupId).stream()
+                    .map(fragment -> {
+                        ClueFragmentInfo info = new ClueFragmentInfo();
+                        info.setContent(fragment.getFragmentContent());
+                        info.setTriggerKeywords(fragment.getTriggerKeywords());
+                        return info;
+                    })
+                    .collect(Collectors.toList());
+        }
+
+        if (tasks == null || tasks.isEmpty()) {
+            tasks = inferenceTaskRepository.findBySoupIdAndIsDeletedFalseOrderByTaskOrderAsc(soupId).stream()
+                    .map(task -> {
+                        InferenceTaskInfo info = new InferenceTaskInfo();
+                        info.setTaskName(task.getTaskName());
+                        info.setTaskDescription(task.getTaskDescription());
+                        info.setTargetKeywords(task.getTargetKeywords());
+                        info.setReasoningGoal(task.getReasoningGoal());
+                        info.setProgressWeight(task.getProgressWeight() != null
+                                ? task.getProgressWeight().doubleValue() : 0.0);
+                        info.setTaskOrder(task.getTaskOrder());
+                        info.setPrerequisiteFragmentIds(task.getPrerequisiteFragmentIds());
+                        return info;
+                    })
+                    .collect(Collectors.toList());
+        }
+
+        return new HaiGuiInfoResult(draftInfo.getManual(), fragments, tasks);
+    }
+
+    /**
+     * 上传者修改自己的海龟汤（待审核 / 已拒绝可改，已通过只读）
+     */
+    public String updateMyTurtleSoup(UpdateHaiGuiAuditDTO dto) {
+        Long userId = BaseContext.getCurrentId();
+        HaiGuiSoupAudit audit = haiGuiSoupAuditRepository.findById(dto.getAuditId())
+                .orElseThrow(() -> new BusinessException(404, "审核记录不存在"));
+        if (!audit.getUploaderId().equals(userId)) {
+            throw new BusinessException(403, "无权修改此海龟汤");
+        }
+        if (audit.getAuditStatus() == HaiGuiSoupAudit.AuditStatus.APPROVED) {
+            throw new BusinessException(403, "已通过审核，无法修改");
+        }
+        if (audit.getAuditStatus() != HaiGuiSoupAudit.AuditStatus.PENDING
+                && audit.getAuditStatus() != HaiGuiSoupAudit.AuditStatus.REJECTED) {
+            throw new BusinessException(403, "当前状态无法修改");
+        }
+
+        boolean wasRejected = audit.getAuditStatus() == HaiGuiSoupAudit.AuditStatus.REJECTED;
+        audit.setTitle(dto.getSoupTitle());
+        audit.setSurface(dto.getSoupSurface());
+        audit.setBottom(dto.getSoupBottom());
+        audit.setDefaultMaxQuestions(dto.getDefaultMaxQuestions());
+        audit.setEstimatedDuration(dto.getEstimatedDuration());
+        audit.setPlayerCount(dto.getPlayerCount());
+        audit.setDifficultyLevel(dto.getDifficultyLevel());
+        audit.setTags(dto.getTag());
+        if (wasRejected) {
+            audit.setAuditStatus(HaiGuiSoupAudit.AuditStatus.PENDING);
+            audit.setAuditComment(null);
+            audit.setAuditTime(null);
+            audit.setAuditorId(null);
+        }
+        haiGuiSoupAuditRepository.save(audit);
+        return wasRejected ? "已重新提交审核" : "修改成功";
+    }
+
+    private HaiGuiSoupAudit requireAuditAccess(Long auditId) {
         HaiGuiSoupAudit audit = haiGuiSoupAuditRepository.findById(auditId)
                 .orElseThrow(() -> new BusinessException(404, "审核记录不存在"));
-        HaiGuiInfoResult haiGuiInfoResult = haiGuiSoupInfoService.getFragmentsAndTasks(audit.getDraftFragments(),audit.getDraftTasks());
-        return HaiGuiDetailResult.fromHaiGuiSoupAudit(audit,haiGuiInfoResult);
+        Long userId = BaseContext.getCurrentId();
+        if (audit.getUploaderId().equals(userId) || hasAuditPermission(userId)) {
+            return audit;
+        }
+        throw new BusinessException(403, "无权查看此海龟汤");
     }
 
     public String rejectTurtleSoup(rejectTurtleSoupDTO rejectTurtleSoupDTO) {
@@ -412,13 +512,19 @@ public class AuditService {
     }
 
 
+    private boolean hasAuditPermission(Long userId) {
+        return sysUserRoleRepository.existsById(
+                new SysUserRole.UserRoleId(userId, UserRoleEnum.SOUP_AUDITOR.getRoleId()))
+                || sysUserRoleRepository.existsById(
+                new SysUserRole.UserRoleId(userId, UserRoleEnum.ADMIN.getRoleId()));
+    }
+
     private HaiGuiSoupAudit findById(Long auditId) {
         HaiGuiSoupAudit audit = haiGuiSoupAuditRepository.findById(auditId)
                 .orElseThrow(() -> new BusinessException(404, "审核记录不存在"));
         UserInfo userInfo = userInfoRepository.findById(BaseContext.getCurrentId())
                 .orElseThrow(() -> new BusinessException(404, "用户不存在"));
-        boolean userRole = sysUserRoleRepository.existsById(new SysUserRole.UserRoleId(userInfo.getUserId(), UserRoleEnum.SOUP_AUDITOR.getRoleId()));
-        if (!userRole) {
+        if (!hasAuditPermission(userInfo.getUserId())) {
             throw new BusinessException(403, "您不是审核员,无权限");
         }
         return audit;

@@ -10,7 +10,7 @@ import com.guanyu.haigui.repository.FriendRelationRepository;
 import com.guanyu.haigui.repository.UserInfoRepository;
 import com.guanyu.haigui.service.UserService;
 import com.guanyu.haigui.utils.JwtTokenUtil;
-import com.guanyu.haigui.utils.MinioUtil;
+import com.guanyu.haigui.utils.CosUtil;
 import com.guanyu.haigui.utils.RedisServiceUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -37,7 +37,7 @@ public class UserServiceImpl implements UserService {
     private BCryptPasswordEncoder passwordEncoder; // 注入密码编码器
 
     @Resource
-    private MinioUtil minioUtil;
+    private CosUtil cosUtil;
     @Resource
     private UserInfoRepository userInfoRepository; // 用户信息DAO（需自己实现）
     @Resource
@@ -52,7 +52,7 @@ public class UserServiceImpl implements UserService {
      * @return 头像的访问URL（前端可直接使用）
      */
     public String uploadUserAvatar(MultipartFile avatarFile) {
-        String avatarUrl = minioUtil.generateAvatarUrl(avatarFile);
+        String avatarUrl = cosUtil.uploadImage(avatarFile);
         Long userId = BaseContext.getCurrentId();
         // -------------------------- 5. 更新用户头像到数据库 --------------------------
         UserInfo userInfo = userInfoRepository.findById(userId)
@@ -62,7 +62,7 @@ public class UserServiceImpl implements UserService {
             deleteAvatar(userInfo.getAvatar());
             log.info("用户头像删除成功 → 用户ID: {}, 旧URL: {}", userId, userInfo.getAvatar());
         }
-        userInfo.setAvatar(avatarUrl); // 存储访问URL（而非MinIO内部路径）
+        userInfo.setAvatar(avatarUrl);
         userInfoRepository.save(userInfo);
         log.info("用户头像更新成功 → 用户ID: {}, URL: {}", userId, avatarUrl);
 
@@ -122,7 +122,7 @@ public class UserServiceImpl implements UserService {
      * 删除旧头像（可选，避免存储冗余）
      */
     private void deleteAvatar(String oldAvatarUrl) {
-        minioUtil.deleteAvatar(oldAvatarUrl);
+        cosUtil.deleteByUrl(oldAvatarUrl);
     }
 
 

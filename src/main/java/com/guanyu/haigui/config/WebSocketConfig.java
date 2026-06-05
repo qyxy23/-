@@ -50,8 +50,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws") // 前端连接的URL
                 .setAllowedOriginPatterns("*") // 允许跨域
-                .addInterceptors(jwtWebSocketInterceptor) // 注册JWT拦截器进行身份验证
-                .withSockJS(); // 支持SockJS回退机制
+                .addInterceptors(jwtWebSocketInterceptor); // 注册JWT拦截器进行身份验证
+        // 移除.withSockJS()以支持原生WebSocket连接（兼容移动端和小程序）
     }
 
     /**

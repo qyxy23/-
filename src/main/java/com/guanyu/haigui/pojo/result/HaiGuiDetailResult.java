@@ -34,6 +34,8 @@ public class HaiGuiDetailResult{
 
     private HaiGuiSoupAudit.AuditStatus auditStatus = HaiGuiSoupAudit.AuditStatus.PENDING;
 
+    /** 拒绝原因（已拒绝时有值） */
+    private String rejectReason;
 
     private LocalDateTime createdAt;
 
@@ -57,6 +59,7 @@ public class HaiGuiDetailResult{
         result.setTags(audit.getTags());
         result.setUploaderId(audit.getUploaderId());
         result.setAuditStatus(audit.getAuditStatus());
+        result.setRejectReason(audit.getAuditComment());
         result.setCreatedAt(audit.getCreatedAt());
         result.setManual(audit.getDraftManual());
         result.setFragments(haiGuiInfoResult.getFragments());

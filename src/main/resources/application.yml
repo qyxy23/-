@@ -1,5 +1,6 @@
 server:
   port: 8080
+  address: 0.0.0.0
 
 rocketmq:
   # NameServer 地址（替换为你的服务器 IP 和端口，默认端口 9876）
@@ -86,13 +87,13 @@ mybatis:
     default-fetch-size: 100
     default-statement-timeout: 30
 
-minio:
-  endpoint: ${qingyou.minio.endpoint}
-  accesskey: ${qingyou.minio.accesskey}
-  secretKey: ${qingyou.minio.secretKey}
-  realEndpoint: ${qingyou.minio.real-endpoint}
-  bucket:
-    avatars: user-avatars
+cos:
+  client:
+    host: ${qingyou.cos.host}
+    secret-id: ${qingyou.cos.secret-id}
+    secret-key: ${qingyou.cos.secret-key}
+    region: ${qingyou.cos.region}
+    bucket: ${qingyou.cos.bucket}
 
 BgeVector:
   host: ${qingyou.BgeVector.host}

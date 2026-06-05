@@ -69,6 +69,12 @@ public class AuditController {
     }
 
 
+    @Operation(summary = "上传者修改自己的海龟汤", description = "待审核或已拒绝可修改，通过后不可改")
+    @PostMapping("/updateMyTurtleSoup")
+    public Result<String> updateMyTurtleSoup(@RequestBody UpdateHaiGuiAuditDTO updateHaiGuiAuditDTO) {
+        return Result.success(auditService.updateMyTurtleSoup(updateHaiGuiAuditDTO));
+    }
+
     @Operation(summary = "拒绝海龟汤接口", description = "审核员拒绝海龟汤并写明原因")
     @PostMapping("/rejectTurtleSoup")
     public Result<String> rejectTurtleSoup(@RequestBody rejectTurtleSoupDTO rejectTurtleSoupDTO) {

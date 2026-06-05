@@ -10,7 +10,7 @@ import com.guanyu.haigui.pojo.model.*;
 import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.repository.*;
 import com.guanyu.haigui.utils.GroupRoomUtils;
-import com.guanyu.haigui.utils.MinioUtil;
+import com.guanyu.haigui.utils.CosUtil;
 import com.guanyu.haigui.utils.RedisServiceUtil;
 import io.micrometer.common.util.StringUtils;
 import jakarta.persistence.EntityManager;
@@ -51,7 +51,7 @@ public class GroupService {
     private final RedisServiceUtil redisServiceUtil;
     // private static final int LATEST_MESSAGES_LIMIT = 20;
     private final GroupRoomUtils groupRoomUtils;
-    private final MinioUtil minioUtil;
+    private final CosUtil cosUtil;
     @PersistenceContext
     private EntityManager entityManager;
     private final ChatGroupAdminRepository chatGroupAdminRepository;
@@ -144,11 +144,7 @@ public class GroupService {
         notification.setApplyTime(request.getApplyTime());
 
         // 发送给群主（群主订阅此主题：/topic/group/{groupId}/join-requests）
-        simpMessagingTemplate.convertAndSendToUser(
-                String.valueOf(group.getCreator().getUserId()), // 群主ID
-                "/private-messages", // 订阅路径
-                notification // 群主消息内容
-        );
+        pushToUserPrivateChannel(group.getCreator().getUserId(), notification);
         return notification;
     }
 
@@ -586,9 +582,7 @@ public class GroupService {
         request.setProcessor(
                 userInfoRepository.findById(processorId).orElseThrow(() -> new BusinessException(403, "处理人不存在")));
         joinRequestRepo.save(request);
-        simpMessagingTemplate.convertAndSendToUser(
-                request.getUser().getUserId().toString(),
-                "/private-messages",
+        pushToUserPrivateChannel(request.getUser().getUserId(),
                 new JoinGroupRoomVO(request.getUser().getUserId(), group.getGroupId(),
                         group.getGroupName(), group.getGroupAvatar(), JoinGroupStatus.REFUSE,
                         MessageChatType.GROUP_REFUSE_REQUESTS));
@@ -630,9 +624,7 @@ public class GroupService {
         chatGroupMemberRepository.save(member);
         groupRoomUtils.addUserToGroup(group.getGroupId(), request.getUser().getUserId());
 
-        simpMessagingTemplate.convertAndSendToUser(
-                request.getUser().getUserId().toString(),
-                "/private-messages",
+        pushToUserPrivateChannel(request.getUser().getUserId(),
                 new JoinGroupRoomVO(request.getUser().getUserId(), group.getGroupId(),
                         group.getGroupName(), group.getGroupAvatar(), JoinGroupStatus.AGREE,
                         MessageChatType.GROUP_AGREE_REQUESTS));
@@ -647,12 +639,23 @@ public class GroupService {
                 throw new BusinessException(403, "您不是管理员，无法上传群头像");
             }
         }
-        String avatarUrl = minioUtil.generateAvatarUrl(avatarFile);
+        String oldAvatarUrl = group.getGroupAvatar();
+        String avatarUrl = cosUtil.uploadImage(avatarFile);
+        if (StringUtils.isNotBlank(oldAvatarUrl)) {
+            cosUtil.deleteByUrl(oldAvatarUrl);
+            log.info("群头像删除成功 → 群ID: {}, 旧URL: {}", groupId, oldAvatarUrl);
+        }
         chatGroupRepository.updateGroupAvatar(groupId, avatarUrl);
         updateGroupAvatarVO updateGroupAvatarVO = new updateGroupAvatarVO(groupId, avatarUrl,
                 MessageChatType.GROUP_UPDATE_AVATAR);
         broadcastGroupMessageToMembers(updateGroupAvatarVO, groupId);
         return updateGroupAvatarVO;
+    }
+
+    private void pushToUserPrivateChannel(Long userId, Object payload) {
+        if (userId == null) return;
+        userInfoRepository.findById(userId).ifPresent(user ->
+                simpMessagingTemplate.convertAndSendToUser(user.getUsername(), "/private-messages", payload));
     }
 
     /**
@@ -666,26 +669,30 @@ public class GroupService {
         Set<Long> groupMembers = groupRoomUtils.getGroupMembers(groupId);
         log.info("群聊消息已发送到用户专属主题");
         // 遍历发送给每个成员
-        groupMembers.forEach(memberId -> {
-            simpMessagingTemplate.convertAndSendToUser(
-                    String.valueOf(memberId), // 目标用户ID（Stomp会自动拼接成/user/{memberId}/private-messages）
-                    "/private-messages", // 订阅路径（客户端需要订阅此路径才能收到消息）
-                    messageVo // 要发送的消息内容
-            );
-        });
+        groupMembers.forEach(memberId -> pushToUserPrivateChannel(memberId, messageVo));
     }
 
     public updateGroupNameVO updateGroupName(updateGroupNameDTO request) {
         Long userId = BaseContext.getCurrentId();
         ChatGroup group = chatGroupRepository.findById(request.getGroupId())
                 .orElseThrow(() -> new BusinessException(403, "群不存在"));
-        if (!group.getCreator().getUserId().equals(userId)) {
-            throw new BusinessException(403, "您不是群主，无权修改群名称");
+        if (!isUserGroupAdmin(group.getGroupId(), userId)) {
+            if (!group.getCreator().getUserId().equals(userId)) {
+                throw new BusinessException(403, "您不是群主或管理员，无权修改群名称");
+            }
         }
-        chatGroupRepository.updateGroupName(request.getGroupId(), request.getGroupName());
+        String groupName = request.getGroupName();
+        if (groupName == null || groupName.trim().isEmpty()) {
+            throw new BusinessException(400, "群名称不能为空");
+        }
+        groupName = groupName.trim();
+        if (groupName.length() > 32) {
+            throw new BusinessException(400, "群名称最多32个字");
+        }
+        chatGroupRepository.updateGroupName(request.getGroupId(), groupName);
         updateGroupNameVO updateGroupNameVO = new updateGroupNameVO();
         updateGroupNameVO.setGroupId(request.getGroupId());
-        updateGroupNameVO.setGroupName(request.getGroupName());
+        updateGroupNameVO.setGroupName(groupName);
         updateGroupNameVO.setChatType(MessageChatType.GROUP_UPDATE_NAME);
         broadcastGroupMessageToMembers(updateGroupNameVO, request.getGroupId());
         return updateGroupNameVO;
@@ -984,30 +991,26 @@ public class GroupService {
         notification.setChatType(MessageChatType.GROUP_RETRACT_REQUESTS);
 
         // 发送给申请人的私人频道（前端需订阅：/user/{userId}/queue/private-messages）
-        simpMessagingTemplate.convertAndSendToUser(
-                String.valueOf(request.getUser().getUserId()),
-                "/queue/private-messages",
-                notification
-        );
+        pushToUserPrivateChannel(request.getUser().getUserId(), notification);
         return notification;
     }
 
 
 
     public GroupIdentitiesVO getGroupIdentities(String groupId) {
-        // 1. 一次查询：获取该群的所有管理员记录
         List<ChatGroupAdministrator> allAdmins = chatGroupAdminRepository.findByChatGroupGroupId(groupId);
         if (CollectionUtils.isEmpty(allAdmins)) {
-            // 无管理员记录，返回空VO
             GroupIdentitiesVO vo = new GroupIdentitiesVO();
             vo.setGroupId(groupId);
-            vo.setOwnerId(null);
+            chatGroupRepository.findById(groupId).ifPresent(group -> {
+                if (group.getCreator() != null) {
+                    vo.setOwnerId(group.getCreator().getUserId());
+                }
+            });
             vo.setAdmins(Collections.emptyList());
             return vo;
         }
-
-        // 2. 过滤分组：群主（isOwner=true）和管理员（isOwner=false）
-        return getGroupIdentitiesVO(allAdmins,groupId);
+        return getGroupIdentitiesVO(allAdmins, groupId);
     }
 
     @NotNull

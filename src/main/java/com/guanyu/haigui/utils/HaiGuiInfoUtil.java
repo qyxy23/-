@@ -38,18 +38,24 @@ public class HaiGuiInfoUtil {
     private static List<ClueFragmentInfo> parseFragments(JsonNode fragmentsNode) {
         List<ClueFragmentInfo> fragments = new ArrayList<>();
 
-        // 空值检查：节点为null或不是数组
+        fragmentsNode = unwrapArrayNode(fragmentsNode, "fragments");
         if (fragmentsNode == null || !fragmentsNode.isArray()) {
-            return fragments; // 返回空列表
+            return fragments;
         }
 
         for (JsonNode node : fragmentsNode) {
             ClueFragmentInfo fragment = new ClueFragmentInfo();
-
-            // 只保留需要的字段
-            fragment.setContent(getText(node, "content"));
-            fragment.setTriggerKeywords(parseStringArray(node.path("triggerKeywords")));
-
+            String content = firstNonBlank(
+                    getText(node, "content"),
+                    getText(node, "fragmentContent"),
+                    getText(node, "clue"),
+                    getText(node, "text")
+            );
+            fragment.setContent(content);
+            JsonNode keywordsNode = node.has("triggerKeywords")
+                    ? node.path("triggerKeywords")
+                    : node.path("keywords");
+            fragment.setTriggerKeywords(parseStringArray(keywordsNode));
             fragments.add(fragment);
         }
 
@@ -123,6 +129,7 @@ public class HaiGuiInfoUtil {
     private static List<InferenceTaskInfo> parseTasks(JsonNode tasksNode) {
         List<InferenceTaskInfo> tasks = new ArrayList<>();
 
+        tasksNode = unwrapArrayNode(tasksNode, "tasks", "inferenceTasks");
         if (tasksNode == null || !tasksNode.isArray()) {
             return tasks;
         }
@@ -200,5 +207,32 @@ public class HaiGuiInfoUtil {
             }
         }
         return list;
+    }
+
+    private static JsonNode unwrapArrayNode(JsonNode node, String... keys) {
+        if (node == null) {
+            return null;
+        }
+        if (node.isArray()) {
+            return node;
+        }
+        if (node.isObject()) {
+            for (String key : keys) {
+                JsonNode child = node.path(key);
+                if (child.isArray()) {
+                    return child;
+                }
+            }
+        }
+        return node;
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return "";
     }
 }

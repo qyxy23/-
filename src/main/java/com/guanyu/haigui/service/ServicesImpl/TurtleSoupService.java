@@ -6,7 +6,7 @@ import com.guanyu.haigui.pojo.model.HaiGuiSoup;
 import com.guanyu.haigui.pojo.model.HaiGuiSoupAudit;
 import com.guanyu.haigui.repository.HaiGuiSoupAuditRepository;
 import com.guanyu.haigui.repository.HaiGuiSoupRepository;
-import com.guanyu.haigui.utils.MinioUtil;
+import com.guanyu.haigui.utils.CosUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,22 +25,20 @@ import org.springframework.web.multipart.MultipartFile;
 public class TurtleSoupService {
 
     private final HaiGuiSoupRepository haiGuiSoupRepository;
-    private final MinioUtil minioUtil;
+    private final CosUtil cosUtil;
     private final HaiGuiSoupAuditRepository haiGuiSoupAuditRepository;
 
 
     public String uploadHaiGuiSoupAvatar(MultipartFile avatarFile, String soupId) {
-        String avatarUrl = minioUtil.generateAvatarUrl(avatarFile);
+        String avatarUrl = cosUtil.uploadImage(avatarFile);
         HaiGuiSoup soup = haiGuiSoupRepository.findById(soupId).orElseThrow
                 (() -> new BusinessException(404, "故事不存在"));
-        // -------------------------- 5. 更新图像到数据库 --------------------------
 
-        // 若用户已有头像，先删除旧文件（避免占用空间）
         if (StringUtils.hasText(soup.getSoupAvatar())) {
-            minioUtil.deleteAvatar(soup.getSoupAvatar());
+            cosUtil.deleteByUrl(soup.getSoupAvatar());
             log.info("海龟汤图像删除成功 → 汤ID: {}, 旧URL: {}", soupId, soup.getSoupAvatar());
         }
-        soup.setSoupAvatar(avatarUrl); // 存储访问URL（而非MinIO内部路径）
+        soup.setSoupAvatar(avatarUrl);
         haiGuiSoupRepository.save(soup);
         log.info("海龟汤头像更新成功 → 汤ID: {}, URL: {}", soup, avatarUrl);
         return avatarUrl;
