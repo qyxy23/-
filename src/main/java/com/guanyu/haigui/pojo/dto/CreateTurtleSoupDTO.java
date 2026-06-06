@@ -28,8 +28,11 @@ public class CreateTurtleSoupDTO {
     // 底
     private String soupBottom;
 
-    //主持人手册
+    // 主持人手册（供真人主持）
     private String manual;
+
+    // AI 判题规则
+    private String aiJudgeRules;
 
     //线索
     private List<ClueFragmentInfo> fragments;
@@ -64,6 +67,7 @@ public class CreateTurtleSoupDTO {
         haiGuiSoup.setSoupSurface(soupSurface);
         haiGuiSoup.setSoupBottom(soupBottom);
         haiGuiSoup.setHostManual(manual);
+        haiGuiSoup.setAiJudgeRules(aiJudgeRules != null ? aiJudgeRules : "");
         haiGuiSoup.setDefaultMaxQuestions(maxRounds);
         haiGuiSoup.setTaskGenerationStrategy("HYBRID");
         haiGuiSoup.setVectorMatchThreshold(new BigDecimal("0.7"));

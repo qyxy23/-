@@ -1,7 +1,6 @@
 package com.guanyu.haigui.config;
 
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
-import com.guanyu.haigui.utils.RedisStackClient;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,7 +10,7 @@ import org.springframework.context.annotation.Configuration;
  * 确保向量化相关的Bean正确配置和注入
  */
 @Configuration
-@EnableConfigurationProperties
+@EnableConfigurationProperties(VectorSearchProperties.class)
 public class VectorConfig {
 
     /**
@@ -21,13 +20,5 @@ public class VectorConfig {
     @Bean
     public BgeVectorClientUtil bgeVectorClientUtil() {
         return new BgeVectorClientUtil();
-    }
-
-    /**
-     * 配置Redis Stack客户端
-     */
-    @Bean
-    public RedisStackClient redisStackClient() {
-        return new RedisStackClient();
     }
 }

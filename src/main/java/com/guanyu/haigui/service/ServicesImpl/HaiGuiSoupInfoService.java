@@ -63,28 +63,33 @@ public class HaiGuiSoupInfoService {
         - 标签：%s
         
         # 输出要求
-        请严格按以下JSON格式输出，包含两个顶级字段：
-        1. hostManual（主持人手册文本）
-        2. fragments（线索数组）
-        3. tasks（任务数组）
+        请严格按以下JSON格式输出，包含四个顶级字段：
+        1. hostManual（主持人手册，供真人主持参考）
+        2. aiJudgeRules（AI判题规则，供线上AI判题使用）
+        3. fragments（线索数组）
+        4. tasks（任务数组）
         
-        ## 主持人手册规范
+        ## 主持人手册(hostManual)规范
         - 包含游戏简介、主持流程、控场技巧、时间管理建议
         - 内容以精华凝练为主，使用Markdown格式分段
+        
+        ## AI判题规则(aiJudgeRules)规范
+        - 200-500字，专门写给AI主持人
+        - 写明：什么答「是」、什么答「不是」、什么答「不重要」
+        - 写明：哪些信息不能主动透露、易混淆点如何处理
+        - 不要写控场、计时、复盘等给人看的内容
         
         ## 线索(fragments)规范
         - 建议数量为%d条(线索内容要求一定是要能够从汤底中找到的，如果实在找不到足够数量的线索，也不要自己编造汤底没有的线索内容)
         - 字段说明：
           • content: 线索内容（50-150字）
-          • triggerKeywords: 触发关键词数组(2-4个)
         
         ## 任务(tasks)规范
         - 数量严格3-5个
         - 所有任务progressWeight总和=100
         - 字段说明：
           • taskName: 任务名称（10字内）
-          • taskDescription: 任务描述（50字内）
-          • targetKeywords: 目标关键词数组(2-3个)
+          • taskDescription: 任务描述（50字内，含玩家需推理到的要点）
           • reasoningGoal: 推理目标（20字内）
           • progressWeight: 进度权重（总和100）
           • taskOrder: 顺序号(从1开始)
@@ -97,22 +102,20 @@ public class HaiGuiSoupInfoService {
         
         # 特别约束
         1. 返回标准JSON，控制字符用\\n转义
-        2. 避免重复关键词
-        3. 时间类线索占比≤20%%
+        2. 时间类线索占比≤20%%
         
         {
           "hostManual": "### 主持指南...",
+          "aiJudgeRules": "判题边界规则...",
           "fragments": [
             {
-              "content": "线索片段内容",
-              "triggerKeywords": ["关键词1", "关键词2"]
+              "content": "线索片段内容"
             }
           ],
           "tasks": [
             {
               "taskName": "任务名称",
               "taskDescription": "任务描述",
-              "targetKeywords": ["关键词1", "关键词2"],
               "reasoningGoal": "推理目标描述",
               "progressWeight": 30.0,
               "taskOrder": 1,
@@ -191,7 +194,6 @@ public class HaiGuiSoupInfoService {
             ClueFragment clueFragment = new ClueFragment();
             clueFragment.setSoupId(soup.getSoupId());
             clueFragment.setFragmentContent(fragment.getContent());
-            clueFragment.setTriggerKeywords(fragment.getTriggerKeywords());
             clueFragment.setVectorData(vectorizeFragment(fragment.getContent()));
             clueFragment.setIsDeleted(false);
             clueFragment.setCreatedAt(LocalDateTime.now());
@@ -200,10 +202,11 @@ public class HaiGuiSoupInfoService {
             ClueFragment savedFragment = clueFragmentRepository.saveAndFlush(clueFragment);
             clueFragments.add(savedFragment);
 
-            // 存储到Redis
-            String soupFragmentKey = String.format("hai_gui:soup:%s:fragment:%s",
-                    soup.getSoupId(), savedFragment.getFragmentId());
-            redisClient.storeVector(soupFragmentKey, savedFragment.getVectorData());
+            // 存储到 Redis Stack 向量索引
+            redisClient.storeClueFragmentVector(
+                    soup.getSoupId(),
+                    savedFragment.getFragmentId().toString(),
+                    savedFragment.getVectorData());
 
             fragmentIdList.add(savedFragment.getFragmentId().toString());
             fragmentOrderToIdMap.put(order, savedFragment.getFragmentId()); // 使用顺序号作为键
@@ -212,6 +215,7 @@ public class HaiGuiSoupInfoService {
 
         if (!fragmentIdList.isEmpty()) {
             redisClient.add(soupFragmentsKey, fragmentIdList);
+            redisClient.registerSoup(soup.getSoupId());
         }
 
         updateSoupWithClueInfo(soup, clueFragments);
@@ -249,7 +253,6 @@ public class HaiGuiSoupInfoService {
             inferenceTask.setSoupId(soup.getSoupId());
             inferenceTask.setTaskName(task.getTaskName());
             inferenceTask.setTaskDescription(task.getTaskDescription());
-            inferenceTask.setTargetKeywords(task.getTargetKeywords());
             inferenceTask.setReasoningGoal(task.getReasoningGoal());
             inferenceTask.setProgressWeight(BigDecimal.valueOf(task.getProgressWeight()));
             inferenceTask.setTaskOrder(task.getTaskOrder());

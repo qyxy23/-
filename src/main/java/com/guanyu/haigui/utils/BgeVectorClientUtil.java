@@ -99,15 +99,10 @@ public class BgeVectorClientUtil {
             String requestBody = objectMapper.writeValueAsString(request);
             HttpResponse<String> response = sendRequest(requestBody);
 
-            // 手动解析JSON，验证字段类型
             JsonNode rootNode = objectMapper.readTree(response.body());
-            System.out.println("【texts字段类型】" + rootNode.get("texts").getNodeType()); // 输出：ARRAY（字符串数组）
-            System.out.println("【texts字段值】" + rootNode.get("texts").asText()); // 输出：["测试文本"]
 
-            // 构造响应对象
             SingleEncodeResponse resp = new SingleEncodeResponse();
-            resp.setTexts(objectMapper.readValue(rootNode.get("texts").traverse(), new TypeReference<>() {
-            }));
+            resp.setTexts(parseTextsNode(rootNode.get("texts")));
             resp.setEmbeddings(objectMapper.readValue(rootNode.get("embeddings").traverse(), new TypeReference<>() {
             }));
 
@@ -121,5 +116,18 @@ public class BgeVectorClientUtil {
             }
             throw new BgeVectorException("单个文本向量化失败：" + e.getMessage(), e);
         }
+    }
+
+    /**
+     * BGE 单条接口 texts 字段可能是字符串或单元素数组
+     */
+    private static String parseTextsNode(JsonNode textsNode) {
+        if (textsNode == null || textsNode.isNull()) {
+            return null;
+        }
+        if (textsNode.isArray()) {
+            return textsNode.isEmpty() ? null : textsNode.get(0).asText();
+        }
+        return textsNode.asText();
     }
 }

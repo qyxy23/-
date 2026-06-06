@@ -37,8 +37,11 @@ public class UpdateHaiGuiAuditDTO {
     // 海龟汤标签（只能选择一个）
     private SoupTag tag;
 
-    //主持人手册
+    // 主持人手册（真人主持）
     private String draftManual;
+
+    // AI 判题规则
+    private String draftAiJudgeRules;
 
     // 汤线索
     private List<ClueFragmentInfo> draftFragments;

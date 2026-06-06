@@ -2,7 +2,6 @@ package com.guanyu.haigui.service.ServicesImpl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.guanyu.haigui.Enum.UserRoleEnum;
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.context.BaseContext;
@@ -19,6 +18,7 @@ import com.guanyu.haigui.pojo.vo.AddAuditUserVO;
 import com.guanyu.haigui.pojo.vo.QueryMyTurtleSoupListVO;
 import com.guanyu.haigui.pojo.vo.QueryTurtleSoupListVO;
 import com.guanyu.haigui.repository.*;
+import com.guanyu.haigui.utils.HaiGuiInfoUtil;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
@@ -119,7 +119,8 @@ public class AuditService {
         String prompt = haiGuiSoupInfoService.generatePrompt(audit);
         // 调用AI生成信息
         HaiGuiInfoResult result = haiGuiSoupInfoService.generateInfo(prompt);
-        ToJson(audit, result.getManual(), result.getFragments(), result.getInferenceTasks());
+        ToJson(audit, result.getManual(), result.getAiJudgeRules(),
+                result.getFragments(), result.getInferenceTasks());
         haiGuiSoupAuditRepository.save(audit);
         return result;
     }
@@ -148,7 +149,8 @@ public class AuditService {
                 audit.setAuditorId(BaseContext.getCurrentId());
                 audit.setAuditTime(LocalDateTime.now());
                 System.out.println("audit = " + dto.getFragments());
-                ToJson(audit,dto.getManual(),dto.getFragments(),dto.getInferenceTasks());
+                ToJson(audit, dto.getManual(), dto.getAiJudgeRules(),
+                        dto.getFragments(), dto.getInferenceTasks());
                 System.out.println("audit = " + audit.getDraftFragments());
                 haiGuiSoupAuditRepository.save(audit);
                 // 向量化线索并进行存储
@@ -276,7 +278,6 @@ public class AuditService {
                     .map(fragment -> {
                         ClueFragmentInfo info = new ClueFragmentInfo();
                         info.setContent(fragment.getFragmentContent());
-                        info.setTriggerKeywords(fragment.getTriggerKeywords());
                         return info;
                     })
                     .collect(Collectors.toList());
@@ -288,7 +289,6 @@ public class AuditService {
                         InferenceTaskInfo info = new InferenceTaskInfo();
                         info.setTaskName(task.getTaskName());
                         info.setTaskDescription(task.getTaskDescription());
-                        info.setTargetKeywords(task.getTargetKeywords());
                         info.setReasoningGoal(task.getReasoningGoal());
                         info.setProgressWeight(task.getProgressWeight() != null
                                 ? task.getProgressWeight().doubleValue() : 0.0);
@@ -299,7 +299,8 @@ public class AuditService {
                     .collect(Collectors.toList());
         }
 
-        return new HaiGuiInfoResult(draftInfo.getManual(), fragments, tasks);
+        return new HaiGuiInfoResult(
+                draftInfo.getManual(), draftInfo.getAiJudgeRules(), fragments, tasks);
     }
 
     /**
@@ -484,7 +485,8 @@ public class AuditService {
         audit.setAuditStatus(HaiGuiSoupAudit.AuditStatus.PENDING);
         audit.setAuditorId(BaseContext.getCurrentId());
 
-        ToJson(audit, dto.getDraftManual(), dto.getDraftFragments(), dto.getDraftTasks());
+        ToJson(audit, dto.getDraftManual(), dto.getDraftAiJudgeRules(),
+                dto.getDraftFragments(), dto.getDraftTasks());
 
         // 8. 保存更新
         haiGuiSoupAuditRepository.save(audit);
@@ -492,12 +494,10 @@ public class AuditService {
 
 
 
-    private void ToJson(HaiGuiSoupAudit audit, String manual, List<ClueFragmentInfo> clue, List<InferenceTaskInfo> task) {
+    private void ToJson(HaiGuiSoupAudit audit, String hostManual, String aiJudgeRules,
+                        List<ClueFragmentInfo> clue, List<InferenceTaskInfo> task) {
         try {
-            // 4. 序列化主持人手册（包装为 JSON 对象）
-            ObjectNode manualNode = objectMapper.createObjectNode();
-            manualNode.put("content", manual != null ? manual : "");
-            audit.setDraftManual(objectMapper.writeValueAsString(manualNode));
+            audit.setDraftManual(HaiGuiInfoUtil.serializeDraftManual(hostManual, aiJudgeRules));
 
             // 5. 序列化线索片段列表并转为 JsonNode
             String fragmentsStr = objectMapper.writeValueAsString(clue);

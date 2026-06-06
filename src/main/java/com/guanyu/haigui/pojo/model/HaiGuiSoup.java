@@ -45,6 +45,9 @@ public class HaiGuiSoup {
     @Column(name = "host_manual", columnDefinition = "TEXT", nullable = false)
     private String hostManual;
 
+    @Column(name = "ai_judge_rules", columnDefinition = "TEXT")
+    private String aiJudgeRules = "";
+
     @Column(name = "key_clues", columnDefinition = "JSON", nullable = false)
     private String keyClues;
 

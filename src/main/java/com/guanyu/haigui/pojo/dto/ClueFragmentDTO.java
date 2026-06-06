@@ -31,12 +31,6 @@ public class ClueFragmentDTO {
 
 
     /**
-     * 关键词列表
-     */
-    private List<String> triggerKeywords;
-
-
-    /**
      * 线索片段顺序
      */
     private Integer fragmentOrder;

@@ -378,7 +378,6 @@ public class ChatServicesImpl implements ChatService {
         CompletedCluesResult result = new CompletedCluesResult();
         result.setFragmentId(clue.getFragmentId());
         result.setFragmentContent(clue.getFragmentContent());
-        result.setTriggerKeywords(clue.getTriggerKeywords());
         return result;
     }
 

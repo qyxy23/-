@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.json.JsonWriteFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.guanyu.haigui.pojo.Info.ClueFragmentInfo;
 import com.guanyu.haigui.pojo.Info.InferenceTaskInfo;
@@ -23,18 +24,69 @@ import java.util.stream.Collectors;
 public class HaiGuiInfoUtil {
 
     public static HaiGuiInfoResult getHaiGuiInfo(JsonNode draftFragments, JsonNode draftTasks) {
-        // 处理空值情况
-
-        // 解析线索片段（空值安全）
         List<ClueFragmentInfo> fragments = parseFragments(draftFragments);
-
-        // 解析任务（空值安全）
         List<InferenceTaskInfo> tasks = parseTasks(draftTasks);
-
-        return new HaiGuiInfoResult(null, fragments, tasks);
+        return new HaiGuiInfoResult(null, null, fragments, tasks);
     }
 
-    // 解析线索片段（简化版）
+    public HaiGuiInfoResult parserHaiGuiInfo(String aiResponse) {
+        try {
+            String cleanedResponse = cleanAiResponseSimple(aiResponse);
+            log.debug("清理后的AI响应: {}", cleanedResponse);
+
+            ObjectMapper mapper = new ObjectMapper()
+                    .configure(JsonReadFeature.ALLOW_UNESCAPED_CONTROL_CHARS.mappedFeature(), true)
+                    .configure(JsonWriteFeature.ESCAPE_NON_ASCII.mappedFeature(), true)
+                    .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
+                    .registerModule(new JavaTimeModule());
+
+            JsonNode rootNode = mapper.readTree(cleanedResponse);
+
+            String hostManual = extractHostManual(rootNode);
+            String aiJudgeRules = extractAiJudgeRules(rootNode);
+            List<ClueFragmentInfo> fragments = parseFragments(rootNode.path("fragments"));
+            List<InferenceTaskInfo> tasks = parseTasks(rootNode.path("tasks"));
+
+            log.info("成功解析响应：{}个线索片段，{}个任务", fragments.size(), tasks.size());
+            return new HaiGuiInfoResult(hostManual, aiJudgeRules, fragments, tasks);
+
+        } catch (Exception e) {
+            log.error("解析AI响应失败：{}", e.getMessage(), e);
+            log.debug("原始AI响应: {}", aiResponse);
+            throw new RuntimeException("AI响应解析失败: " + e.getMessage(), e);
+        }
+    }
+
+    public static DraftManualContent parseDraftManual(String raw) {
+        DraftManualContent content = new DraftManualContent();
+        if (raw == null || raw.isBlank()) {
+            return content;
+        }
+        try {
+            JsonNode node = new ObjectMapper().readTree(raw);
+            content.setHostManual(firstNonBlank(
+                    getText(node, "hostManual"),
+                    getText(node, "content")
+            ));
+            content.setAiJudgeRules(getText(node, "aiJudgeRules"));
+        } catch (Exception e) {
+            content.setHostManual(raw);
+        }
+        return content;
+    }
+
+    public static String serializeDraftManual(String hostManual, String aiJudgeRules) {
+        try {
+            ObjectNode node = new ObjectMapper().createObjectNode();
+            node.put("hostManual", hostManual != null ? hostManual : "");
+            node.put("aiJudgeRules", aiJudgeRules != null ? aiJudgeRules : "");
+            node.put("content", hostManual != null ? hostManual : "");
+            return new ObjectMapper().writeValueAsString(node);
+        } catch (Exception e) {
+            throw new RuntimeException("草稿手册序列化失败", e);
+        }
+    }
+
     private static List<ClueFragmentInfo> parseFragments(JsonNode fragmentsNode) {
         List<ClueFragmentInfo> fragments = new ArrayList<>();
 
@@ -45,70 +97,25 @@ public class HaiGuiInfoUtil {
 
         for (JsonNode node : fragmentsNode) {
             ClueFragmentInfo fragment = new ClueFragmentInfo();
-            String content = firstNonBlank(
+            fragment.setContent(firstNonBlank(
                     getText(node, "content"),
                     getText(node, "fragmentContent"),
                     getText(node, "clue"),
                     getText(node, "text")
-            );
-            fragment.setContent(content);
-            JsonNode keywordsNode = node.has("triggerKeywords")
-                    ? node.path("triggerKeywords")
-                    : node.path("keywords");
-            fragment.setTriggerKeywords(parseStringArray(keywordsNode));
+            ));
             fragments.add(fragment);
         }
 
         return fragments;
     }
 
-    public HaiGuiInfoResult parserHaiGuiInfo(String aiResponse) {
-        try {
-            // 1. 清理AI响应 - 简化版本
-            String cleanedResponse = cleanAiResponseSimple(aiResponse);
-            log.debug("清理后的AI响应: {}", cleanedResponse);
-
-            // 2. 配置ObjectMapper以允许控制字符
-            ObjectMapper mapper = new ObjectMapper()
-                    // 替代 ALLOW_UNQUOTED_CONTROL_CHARS
-                    .configure(JsonReadFeature.ALLOW_UNESCAPED_CONTROL_CHARS.mappedFeature(), true)
-                    // 替代 ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER
-                    .configure(JsonWriteFeature.ESCAPE_NON_ASCII.mappedFeature(), true)
-                    // 其他配置保持不变
-                    .configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false)
-                    .registerModule(new JavaTimeModule());
-
-            // 3. 解析JSON
-            JsonNode rootNode = mapper.readTree(cleanedResponse);
-
-            // 4. 提取主持人手册
-            String hostManual = extractHostManual(rootNode);
-
-            // 5. 解析线索片段
-            List<ClueFragmentInfo> fragments = parseFragments(rootNode.path("fragments"));
-
-            // 6. 解析任务
-            List<InferenceTaskInfo> tasks = parseTasks(rootNode.path("tasks"));
-
-            log.info("成功解析响应：{}个线索片段，{}个任务", fragments.size(), tasks.size());
-            return new HaiGuiInfoResult(hostManual, fragments, tasks);
-
-        } catch (Exception e) {
-            log.error("解析AI响应失败：{}", e.getMessage(), e);
-            log.debug("原始AI响应: {}", aiResponse); // 记录原始响应以便调试
-            throw new RuntimeException("AI响应解析失败: " + e.getMessage(), e);
-        }
-    }
-
-    // 清理AI响应中的Markdown代码块标记
     private String cleanAiResponseSimple(String aiResponse) {
         String cleaned = aiResponse.trim();
 
-        // 处理可能的代码块标记
         if (cleaned.startsWith("```json")) {
-            cleaned = cleaned.substring(7); // 移除 ```json
+            cleaned = cleaned.substring(7);
         } else if (cleaned.startsWith("```")) {
-            cleaned = cleaned.substring(3); // 移除 ```
+            cleaned = cleaned.substring(3);
         }
 
         if (cleaned.endsWith("```")) {
@@ -118,14 +125,14 @@ public class HaiGuiInfoUtil {
         return cleaned.trim();
     }
 
-    // 提取主持人手册
     private String extractHostManual(JsonNode rootNode) {
-        JsonNode manualNode = rootNode.path("hostManual");
-        return manualNode.isMissingNode() ? "" : manualNode.asText();
+        return getText(rootNode, "hostManual");
     }
 
+    private String extractAiJudgeRules(JsonNode rootNode) {
+        return getText(rootNode, "aiJudgeRules");
+    }
 
-    // 解析任务（转换为实体对象）
     private static List<InferenceTaskInfo> parseTasks(JsonNode tasksNode) {
         List<InferenceTaskInfo> tasks = new ArrayList<>();
 
@@ -136,23 +143,16 @@ public class HaiGuiInfoUtil {
 
         for (JsonNode node : tasksNode) {
             InferenceTaskInfo task = new InferenceTaskInfo();
-
-            // 只保留需要的字段
             task.setTaskName(getText(node, "taskName"));
             task.setTaskDescription(getText(node, "taskDescription"));
-            task.setTargetKeywords(parseStringArray(node.path("targetKeywords")));
             task.setReasoningGoal(getText(node, "reasoningGoal"));
             task.setProgressWeight(getDouble(node, "progressWeight"));
             task.setTaskOrder(getInt(node, "taskOrder"));
 
-            // 修复1：解析为整数列表
             List<Integer> idList = parseIntArray(node.path("prerequisiteFragmentIds"));
-
-            // 修复2：转换为Long列表（满足InferenceTaskInfo的要求）
             List<Long> longList = idList.stream()
                     .map(Integer::longValue)
                     .collect(Collectors.toList());
-
             task.setPrerequisiteFragmentIds(longList);
 
             tasks.add(task);
@@ -160,7 +160,6 @@ public class HaiGuiInfoUtil {
         return tasks;
     }
 
-    // 新增：解析整数数组的方法
     private static List<Integer> parseIntArray(JsonNode node) {
         List<Integer> result = new ArrayList<>();
         if (node != null && node.isArray()) {
@@ -179,34 +178,19 @@ public class HaiGuiInfoUtil {
         return result;
     }
 
-    // 安全获取文本值
     private static String getText(JsonNode node, String field) {
         JsonNode fieldNode = node.path(field);
         return fieldNode.isMissingNode() ? "" : fieldNode.asText();
     }
 
-    // 安全获取整型值
     private static Integer getInt(JsonNode node, String field) {
         JsonNode fieldNode = node.path(field);
         return fieldNode.isMissingNode() ? 0 : fieldNode.asInt();
     }
 
-    // 安全获取浮点值
     private static Double getDouble(JsonNode node, String field) {
         JsonNode fieldNode = node.path(field);
         return fieldNode.isMissingNode() ? 0.0 : fieldNode.asDouble();
-    }
-
-
-    // 解析字符串数组
-    private static List<String> parseStringArray(JsonNode node) {
-        List<String> list = new ArrayList<>();
-        if (node != null && node.isArray()) {
-            for (JsonNode item : node) {
-                list.add(item.asText());
-            }
-        }
-        return list;
     }
 
     private static JsonNode unwrapArrayNode(JsonNode node, String... keys) {
@@ -234,5 +218,11 @@ public class HaiGuiInfoUtil {
             }
         }
         return "";
+    }
+
+    @lombok.Data
+    public static class DraftManualContent {
+        private String hostManual = "";
+        private String aiJudgeRules = "";
     }
 }

@@ -5,7 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 海龟汤信息类
+ * 海龟汤信息类（运行时判题用）
  */
 @Data
 @AllArgsConstructor
@@ -15,14 +15,6 @@ public class SoupInfo {
     private String soupTitle;
     private String soupSurface;
     private String soupBottom;
-    private String hostManual;
+    private String aiJudgeRules;
     private Double currentProgress;
-
-    public SoupInfo(String soupId, String soupTitle, String soupSurface, String soupBottom, String hostManual) {
-        this.soupId = soupId;
-        this.soupTitle = soupTitle;
-        this.soupSurface = soupSurface;
-        this.soupBottom = soupBottom;
-        this.hostManual = hostManual;
-    }
 }

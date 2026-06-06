@@ -233,11 +233,11 @@
             <artifactId>redisson</artifactId>
             <version>3.41.0</version>
         </dependency>
-        <!-- Lettuce（连接Redis Stack） -->
+        <!-- Lettuce（连接Redis Stack，需 6.8+ 才支持 RediSearch 向量 API） -->
         <dependency>
             <groupId>io.lettuce</groupId>
             <artifactId>lettuce-core</artifactId>
-            <version>6.3.2.RELEASE</version> <!-- 或更高版本 -->
+            <version>6.8.1.RELEASE</version>
         </dependency>
         <!-- LettuceMod（Redis Stack 的 RediSearch 支持） -->
         <dependency>

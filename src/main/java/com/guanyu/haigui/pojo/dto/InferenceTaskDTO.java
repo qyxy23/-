@@ -40,11 +40,6 @@ public class InferenceTaskDTO {
     private Integer understandingLevel;
 
     /**
-     * 目标关键词列表
-     */
-    private List<String> targetKeywords;
-
-    /**
      * 推理目标（AI判断标准）
      */
     private String reasoningGoal;

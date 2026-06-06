@@ -39,10 +39,6 @@ public class InferenceTask {
     @Column(name = "task_description", nullable = false, columnDefinition = "TEXT")
     private String taskDescription;
 
-    @Column(name = "target_keywords", columnDefinition = "JSON")
-    @Convert(converter = ListStringConverter.class)
-    private List<String> targetKeywords = new ArrayList<>();
-
     @Column(name = "reasoning_goal", nullable = false, columnDefinition = "TEXT")
     private String reasoningGoal;
 
@@ -71,8 +67,6 @@ public class InferenceTask {
         if (createdAt == null) createdAt = now;
         if (updatedAt == null) updatedAt = now;
 
-        // 确保集合不为null
-        if (targetKeywords == null) targetKeywords = new ArrayList<>();
         if (prerequisiteFragmentIds == null) prerequisiteFragmentIds = new ArrayList<>();
     }
 

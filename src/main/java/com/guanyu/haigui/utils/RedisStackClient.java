@@ -1,23 +1,27 @@
 package com.guanyu.haigui.utils;
 
+import com.guanyu.haigui.vector.ClueFragmentVectorIndex;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.sync.RedisCommands;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
-import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Component
 @Slf4j
+@RequiredArgsConstructor
 public class RedisStackClient {
+
+    private final ClueFragmentVectorIndex clueFragmentVectorIndex;
 
     @Value("${qingyou.redis.host}")
     private String host;
@@ -62,65 +66,10 @@ public class RedisStackClient {
 
 
     /**
-     * 获取海龟汤向量
-     * @param soupId 海龟汤ID
-     * @param vectorType 向量类型
-     * @return 向量数据
+     * 确保 RediSearch 向量索引存在
      */
-    public List<Float> getSoupVector(String soupId, String vectorType) {
-        try {
-            String vectorKey = String.format("hai_gui:vec:%s:%s", vectorType.toLowerCase(), soupId);
-            String vectorJson = commands.get(vectorKey);
-
-            if (vectorJson == null) {
-                return null;
-            }
-
-            // 解析JSON数组格式的向量
-            String vectorStr = vectorJson.replaceAll("[\\[\\]]", "");
-            String[] vectorParts = vectorStr.split(",\\s*");
-
-            List<Float> vector = new ArrayList<>();
-            for (String part : vectorParts) {
-                if (!part.trim().isEmpty()) {
-                    vector.add(Float.parseFloat(part.trim()));
-                }
-            }
-
-            return vector;
-
-        } catch (Exception e) {
-            log.error("获取海龟汤向量失败: soupId={}, vectorType={}", soupId, vectorType, e);
-            return null;
-        }
-    }
-
-
-
-
-    /**
-     * 计算两个向量的余弦相似度
-     */
-    private double calculateCosineSimilarity(List<Float> vector1, List<Float> vector2) {
-        if (vector1.size() != vector2.size()) {
-            return 0.0;
-        }
-
-        double dotProduct = 0.0;
-        double norm1 = 0.0;
-        double norm2 = 0.0;
-
-        for (int i = 0; i < vector1.size(); i++) {
-            dotProduct += vector1.get(i) * vector2.get(i);
-            norm1 += Math.pow(vector1.get(i), 2);
-            norm2 += Math.pow(vector2.get(i), 2);
-        }
-
-        if (norm1 == 0 || norm2 == 0) {
-            return 0.0;
-        }
-
-        return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
+    public void ensureVectorIndex() {
+        clueFragmentVectorIndex.ensureIndex();
     }
 
     /**
@@ -129,11 +78,15 @@ public class RedisStackClient {
      */
     public void deleteSoup(String soupId) {
         try {
+            String soupFragmentsKey = String.format("hai_gui:soup:%s:fragment", soupId);
+            Set<String> fragmentIds = commands.smembers(soupFragmentsKey);
+            clueFragmentVectorIndex.deleteSoupFragmentVectors(soupId, fragmentIds);
 
             // 删除基本信息
             commands.del("hai_gui:soup:" + soupId);
+            commands.del(soupFragmentsKey);
 
-            // 删除向量数据
+            // 删除其他类型向量数据
             commands.del("hai_gui:vec:surface:" + soupId);
             commands.del("hai_gui:vec:bottom:" + soupId);
             commands.del("hai_gui:vec:manual:" + soupId);
@@ -146,6 +99,36 @@ public class RedisStackClient {
         } catch (Exception e) {
             log.error("删除海龟汤数据失败: soupId={}", soupId, e);
         }
+    }
+
+    /**
+     * 存储线索片段向量（Redis Stack RediSearch 索引）
+     */
+    public boolean storeClueFragmentVector(String soupId, String fragmentId, List<Double> vector) {
+        return clueFragmentVectorIndex.storeFragmentVector(soupId, fragmentId, vector);
+    }
+
+    /**
+     * 线索片段向量是否已存在于 Redis Stack
+     */
+    public boolean clueFragmentVectorExists(String soupId, String fragmentId) {
+        return clueFragmentVectorIndex.hasFragmentVector(soupId, fragmentId);
+    }
+
+    /**
+     * 注册线索片段到海龟汤索引集合
+     */
+    public void registerClueFragment(String soupId, String fragmentId) {
+        String soupFragmentsKey = String.format("hai_gui:soup:%s:fragment", soupId);
+        commands.sadd(soupFragmentsKey, fragmentId);
+        registerSoup(soupId);
+    }
+
+    /**
+     * 注册海龟汤到全局索引集合
+     */
+    public void registerSoup(String soupId) {
+        commands.sadd("hai_gui:soups:all", soupId);
     }
 
     /**
@@ -387,138 +370,7 @@ public class RedisStackClient {
     }
 
     /**
-     * 将浮点数向量编码为 Base64 字符串（存储/传输格式）
-     */
-    /**
-     * 存储向量到Redis
-     *
-     * @param redisKey Redis键名
-     * @param vector 向量数据
-     * @return 是否成功
-     */
-    public boolean storeVector(String redisKey, List<Double> vector) {
-        try {
-            if (vector == null || vector.isEmpty()) {
-                log.warn("向量为空，无法存储: redisKey={}", redisKey);
-                return false;
-            }
-
-            // 将向量转换为JSON字符串存储
-            String vectorJson = vector.toString();
-            commands.set(redisKey, vectorJson);
-
-            // 设置过期时间（30天）
-            commands.expire(redisKey, 30 * 24 * 60 * 60);
-
-            log.info("成功存储向量: key={}, dimension={}", redisKey, vector.size());
-            return true;
-
-        } catch (Exception e) {
-            log.error("存储向量失败: key={}", redisKey, e);
-            return false;
-        }
-    }
-
-    /**
-     * 从Redis获取向量
-     *
-     * @param redisKey Redis键名
-     * @return 向量数据
-     */
-    public List<Float> getVector(String redisKey) {
-        try {
-            String vectorJson = commands.get(redisKey);
-            if (vectorJson == null) {
-                log.warn("向量不存在: key={}", redisKey);
-                return Collections.emptyList();
-            }
-
-            // 解析JSON格式的向量
-            String vectorStr = vectorJson.replaceAll("[\\[\\]]", "");
-            String[] vectorParts = vectorStr.split(",\\s*");
-
-            List<Float> vector = new ArrayList<>();
-            for (String part : vectorParts) {
-                if (!part.trim().isEmpty()) {
-                    vector.add(Float.parseFloat(part.trim()));
-                }
-            }
-
-            log.debug("成功获取向量: key={}, dimension={}", redisKey, vector.size());
-            return vector;
-
-        } catch (Exception e) {
-            log.error("获取向量失败: key={}", redisKey, e);
-            return Collections.emptyList();
-        }
-    }
-
-    /**
-     * 删除向量
-     *
-     * @param redisKey Redis键名
-     * @return 是否成功
-     */
-    public boolean deleteVector(String redisKey) {
-        try {
-            Long result = commands.del(redisKey);
-            boolean success = result != null && result > 0;
-
-            if (success) {
-                log.info("成功删除向量: key={}", redisKey);
-            } else {
-                log.warn("向量不存在，删除失败: key={}", redisKey);
-            }
-
-            return success;
-
-        } catch (Exception e) {
-            log.error("删除向量失败: key={}", redisKey, e);
-            return false;
-        }
-    }
-
-    /**
-     * 在多个向量中搜索相似的向量
-     *
-     * @param queryVector 查询向量
-     * @param redisKeys 要搜索的Redis键名列表
-     * @param topK 返回前K个结果
-     * @return 匹配结果（键名 -> 相似度分数）
-     */
-    public Map<String, Double> searchSimilarVectors(List<Float> queryVector, List<String> redisKeys, int topK) {
-        try {
-            Map<String, Double> results = new HashMap<>();
-
-            for (String redisKey : redisKeys) {
-                List<Float> storedVector = getVector(redisKey);
-                if (storedVector != null && !storedVector.isEmpty()) {
-                    double similarity = calculateCosineSimilarity(queryVector, storedVector);
-                    if (similarity > 0.0) { // 只保留有相似度的结果
-                        results.put(redisKey, similarity);
-                    }
-                }
-            }
-
-            // 按相似度排序并取前topK个结果
-            return results.entrySet().stream()
-                    .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
-                    .limit(topK)
-                    .collect(Collectors.toMap(
-                            Map.Entry::getKey,
-                            Map.Entry::getValue,
-                            (oldValue, newValue) -> oldValue,
-                            LinkedHashMap::new
-                    ));
-
-        } catch (Exception e) {
-            log.error("搜索相似向量失败", e);
-            return Collections.emptyMap();
-        }
-    }
-
-    /**
-     * 在指定海龟汤中搜索相似线索（基于Redis中的向量）
+     * 在指定海龟汤中搜索相似线索（RediSearch KNN）
      *
      * @param queryVector 查询向量
      * @param soupId 海龟汤ID
@@ -527,45 +379,8 @@ public class RedisStackClient {
      */
     public Map<String, Double> searchSimilarCluesInSoup(List<Float> queryVector, String soupId, int topK) {
         try {
-            Map<String, Double> results = new HashMap<>();
-            List<String> fragmentKeys = new ArrayList<>();
-
-            // 获取指定海龟汤的所有片段
-            String soupFragmentsKey = String.format("hai_gui:soup:%s:fragment", soupId);
-            Set<String> fragmentIds = commands.smembers(soupFragmentsKey);
-
-            if (fragmentIds.isEmpty()) {
-                log.warn("海龟汤中没有找到片段: soupId={}", soupId);
-                return results;
-            }
-
-            // 构建包含海龟汤ID的向量键
-            for (String fragmentId : fragmentIds) {
-                String soupFragmentKey = String.format("hai_gui:soup:%s:fragment:%s", soupId, fragmentId);
-                fragmentKeys.add(soupFragmentKey);
-            }
-
-            log.info("在海龟汤中搜索片段: soupId={}, fragmentCount={}", soupId, fragmentKeys.size());
-
-            // 搜索相似向量
-            Map<String, Double> searchResults = searchSimilarVectors(queryVector, fragmentKeys, topK);
-
-            // 转换键名，只保留片段ID
-            for (Map.Entry<String, Double> entry : searchResults.entrySet()) {
-                String key = entry.getKey();
-                if (key.startsWith(String.format("hai_gui:soup:%s:fragment:", soupId))) {
-                    String fragmentId = key.substring(String.format("hai_gui:soup:%s:fragment:", soupId).length());
-                    results.put(fragmentId, entry.getValue());
-                } else {
-                    results.put(key, entry.getValue());
-                }
-            }
-
-            log.info("海龟汤内片段搜索完成: soupId={}, totalFragments={}, matchedFragments={}",
-                    soupId, fragmentKeys.size(), results.size());
-
-            return results;
-
+            log.info("RediSearch 汤内检索: soupId={}, topK={}", soupId, topK);
+            return clueFragmentVectorIndex.searchInSoup(queryVector, soupId, topK);
         } catch (Exception e) {
             log.error("在海龟汤中搜索相似片段失败: soupId={}", soupId, e);
             return Collections.emptyMap();
@@ -573,124 +388,16 @@ public class RedisStackClient {
     }
 
     /**
-     * 搜索相似的海龟汤片段（基于Redis中的向量）
-     *
-     * @param queryVector 查询向量
-     * @param soupId 海龟汤ID（可选，如果提供则只在该汤内搜索）
-     * @param topK 返回前K个结果
-     * @return 相似的片段ID列表及其相似度分数
+     * 搜索相似的海龟汤片段（RediSearch KNN，soupId 为空时全局检索）
      */
     public Map<String, Double> searchSimilarClueFragments(List<Float> queryVector, String soupId, int topK) {
         try {
-            Map<String, Double> results = new HashMap<>();
-            List<String> fragmentKeys = new ArrayList<>();
-
-            if (soupId != null && !soupId.isEmpty()) {
-                // 搜索特定海龟汤的片段
-                String soupFragmentsKey = String.format("hai_gui:soup:%s:fragment", soupId);
-                Set<String> fragmentIds = commands.smembers(soupFragmentsKey);
-
-                for (String fragmentId : fragmentIds) {
-                    fragmentKeys.add(String.format("hai_gui:fragment:%s", fragmentId));
-                }
-
-                log.info("搜索特定海龟汤的片段: soupId={}, fragmentCount={}", soupId, fragmentKeys.size());
-            } else {
-                // 搜索所有海龟汤的片段
-                Set<String> soupIds = commands.smembers("hai_gui:soups:all");
-
-                for (String id : soupIds) {
-                    String soupFragmentsKey = String.format("hai_gui:soup:%s:fragment", id);
-                    Set<String> fragmentIds = commands.smembers(soupFragmentsKey);
-
-                    for (String fragmentId : fragmentIds) {
-                        fragmentKeys.add(String.format("hai_gui:fragment:%s", fragmentId));
-                    }
-                }
-
-                log.info("搜索所有海龟汤的片段: soupCount={}, totalFragmentCount={}", soupIds.size(), fragmentKeys.size());
-            }
-
-            if (fragmentKeys.isEmpty()) {
-                log.warn("没有找到任何片段向量");
-                return results;
-            }
-
-            // 使用现有的向量搜索功能
-            Map<String, Double> searchResults = searchSimilarVectors(queryVector, fragmentKeys, topK);
-
-            // 转换键名，去掉前缀，只保留片段ID
-            for (Map.Entry<String, Double> entry : searchResults.entrySet()) {
-                String key = entry.getKey();
-                if (key.startsWith("hai_gui:fragment:")) {
-                    String fragmentId = key.substring("hai_gui:fragment:".length());
-                    results.put(fragmentId, entry.getValue());
-                } else {
-                    results.put(key, entry.getValue());
-                }
-            }
-
-            log.info("片段向量搜索完成: queryType={}, totalFragments={}, matchedFragments={}",
-                    soupId != null ? "汤内" : "全局", fragmentKeys.size(), results.size());
-
-            return results;
-
+            log.info("RediSearch 片段检索: soupId={}, topK={}", soupId, topK);
+            return clueFragmentVectorIndex.searchFragments(queryVector, soupId, topK);
         } catch (Exception e) {
             log.error("搜索相似片段失败: soupId={}", soupId, e);
             return Collections.emptyMap();
         }
-    }
-
-    /**
-     * 批量删除向量
-     *
-     * @param redisKeys Redis键名列表
-     * @return 删除的数量
-     */
-    public int deleteVectors(List<String> redisKeys) {
-        try {
-            if (redisKeys == null || redisKeys.isEmpty()) {
-                return 0;
-            }
-
-            String[] keyArray = redisKeys.toArray(new String[0]);
-            Long deletedCount = commands.del(keyArray);
-
-            int count = deletedCount != null ? deletedCount.intValue() : 0;
-            log.info("批量删除向量完成: 删除数量={}", count);
-            return count;
-
-        } catch (Exception e) {
-            log.error("批量删除向量失败", e);
-            return 0;
-        }
-    }
-
-    /**
-     * 检查向量是否存在
-     *
-     * @param redisKey Redis键名
-     * @return 是否存在
-     */
-    public boolean vectorExists(String redisKey) {
-        try {
-            Long exists = commands.exists(redisKey);
-            return exists != null && exists > 0;
-
-        } catch (Exception e) {
-            log.error("检查向量存在性失败: key={}", redisKey, e);
-            return false;
-        }
-    }
-
-    private String encodeVectorToBase64(List<Float> vector) {
-        float[] floatArray = new float[vector.size()];
-        for (int i = 0; i < vector.size(); i++) {
-            floatArray[i] = vector.get(i);
-        }
-        ByteBuffer buffer = ByteBuffer.allocate(floatArray.length * 4); // Float 占 4 字节
-        buffer.asFloatBuffer().put(floatArray);
-        return Base64.getEncoder().encodeToString(buffer.array());
     }
 
     public void add(String soupFragmentsKey, List<String> fragmentIdList) {

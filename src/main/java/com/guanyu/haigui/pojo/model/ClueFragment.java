@@ -1,7 +1,6 @@
 package com.guanyu.haigui.pojo.model;
 
 import com.guanyu.haigui.converter.ListDoubleConverter;
-import com.guanyu.haigui.converter.ListStringConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -37,10 +36,6 @@ public class ClueFragment {
     @Column(name = "vector_data", columnDefinition = "JSON")
     @Convert(converter = ListDoubleConverter.class)
     private List<Double> vectorData;  // 使用Double更精确
-
-    @Column(name = "trigger_keywords", columnDefinition = "JSON")
-    @Convert(converter = ListStringConverter.class)
-    private List<String> triggerKeywords;
 
     @Column(name = "is_deleted", nullable = false, columnDefinition = "TINYINT(1)")
     private Boolean isDeleted = false;

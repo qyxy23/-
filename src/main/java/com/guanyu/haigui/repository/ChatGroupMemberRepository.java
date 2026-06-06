@@ -35,16 +35,18 @@ public interface ChatGroupMemberRepository extends JpaRepository<ChatGroupMember
     @Query("SELECT m AS member, a AS administrator " +
             "FROM ChatGroupMember m " +
             "LEFT JOIN ChatGroupAdministrator a " +
-            "ON m.member.userId = a.id.userId AND m.chatGroup.groupId = a.id.groupId " + // 路径正确：a.id是复合主键对象
-            "WHERE m.chatGroup.groupId = :groupId")
+            "ON m.member.userId = a.id.userId AND m.chatGroup.groupId = a.id.groupId " +
+            "WHERE m.chatGroup.groupId = :groupId " +
+            "ORDER BY CASE WHEN a.isOwner = true THEN 0 WHEN a IS NOT NULL THEN 1 ELSE 2 END, m.joinTime ASC")
     Page<ChatGroupMemberWithRole> findMembersWithRole(@Param("groupId") String groupId, Pageable pageable);
 
 
     @Query("SELECT m AS member, a AS administrator " +
             "FROM ChatGroupMember m " +
             "LEFT JOIN ChatGroupAdministrator a " +
-            "ON m.member.userId = a.id.userId AND m.chatGroup.groupId = a.id.groupId " + // 路径正确：a.id是复合主键对象
-            "WHERE m.chatGroup.groupId = :groupId")
+            "ON m.member.userId = a.id.userId AND m.chatGroup.groupId = a.id.groupId " +
+            "WHERE m.chatGroup.groupId = :groupId " +
+            "ORDER BY CASE WHEN a.isOwner = true THEN 0 WHEN a IS NOT NULL THEN 1 ELSE 2 END, m.joinTime ASC")
     List<ChatGroupMemberWithRole> findAllMembersWithRole(@Param("groupId") String groupId);
 
 

@@ -506,60 +506,108 @@ public class GroupService {
     @Transactional // 保证所有操作原子性（要么全成，要么全回滚）
     public void leaveGroupRoom(String groupId) {
         Long userId = BaseContext.getCurrentId();
-        // 1. 查询当前用户的群成员记录（必须先确认是群成员）
         Optional<ChatGroupMemberProjection> memberOpt = chatGroupMemberRepository
                 .findByMemberUserIdAndChatGroupGroupId(userId, groupId);
 
-        if (memberOpt.isPresent()) {
-            ChatGroupMemberProjection memberProj = memberOpt.get();
-            // 2. 判断是否是群主：是则删除整个群（级联清理所有关联数据）
-            if (isUserGroupOwner(groupId, userId)) {
-                // 先清除持久化上下文中的实体，确保直接执行SQL删除
-                entityManager.flush();
-                entityManager.clear();
-                // 先手动删除关联表中的数据，避免外键约束问题
-                entityManager.createNativeQuery("DELETE FROM chat_group_administrators WHERE group_id = ?1")
-                        .setParameter(1, groupId)
-                        .executeUpdate();
-                entityManager.createNativeQuery("DELETE FROM chat_group_members WHERE group_id = ?1")
-                        .setParameter(1, groupId)
-                        .executeUpdate();
-                entityManager.createNativeQuery("DELETE FROM user_group_sticky WHERE group_id = ?1")
-                        .setParameter(1, groupId)
-                        .executeUpdate();
-                // 最后删除群组本身
-                chatGroupRepository.deleteById(groupId);
-                log.info("群主 {} 删除群 {}", userId, groupId);
-            } else {
-                // 3. 普通成员：通过复合主键删除群成员实体
-                ChatGroupMemberId memberId = new ChatGroupMemberId(
-                        memberProj.getMemberId(), // 从投影获取memberId
-                        memberProj.getGroupId() // 从投影获取groupId
-                );
-                chatGroupMemberRepository.deleteById(memberId); // 删除实体
-                // 3.2 删除用户在当前群的置顶记录
-                userInfoRepository.deleteGroupSticky(userId, groupId);
-                // 3.3 删除用户在当前群的加群申请记录
-                joinRequestRepo.deleteByUserUserIdAndGroupGroupId(userId, groupId);
-                // 4. 额外处理：如果当前用户是该群的管理员（非群主）
-                Optional<ChatGroupAdministrator> adminOpt = chatGroupAdminRepository
-                        .findByChatGroupGroupIdAndUserUserId(groupId, userId);
-                // 4.1 删除群管理表中的记录
-                adminOpt.ifPresent(chatGroupAdminRepository::delete);
-            }
-
-            // 5. 清理内存中的群成员缓存
-            groupRoomUtils.leaveGroupRoom(groupId, userId);
-
-            // 6. 广播用户退出事件（客户端更新群成员列表）
-            leaveGroupRoomVO leaveVO = new leaveGroupRoomVO();
-            leaveVO.setUserId(userId);
-            leaveVO.setRoomId(groupId);
-            leaveVO.setChatType(MessageChatType.GROUP_LEAVE);
-            broadcastGroupMessageToMembers(leaveVO, groupId);
-        } else {
+        if (memberOpt.isEmpty()) {
             throw new BusinessException(403, "您未加入该群，无法退出");
         }
+
+        if (isUserGroupOwner(groupId, userId)) {
+            dissolveGroup(groupId, userId);
+        } else {
+            removeMemberFromGroup(groupId, userId);
+        }
+
+        leaveGroupRoomVO leaveVO = new leaveGroupRoomVO();
+        leaveVO.setUserId(userId);
+        leaveVO.setRoomId(groupId);
+        leaveVO.setChatType(MessageChatType.GROUP_LEAVE);
+        broadcastGroupMessageToMembers(leaveVO, groupId);
+    }
+
+    /**
+     * 群主/管理员将成员移出群聊
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void kickGroupMember(String groupId, Long targetUserId) {
+        Long operatorId = BaseContext.getCurrentId();
+
+        if (targetUserId == null) {
+            throw new BusinessException(400, "请指定要移出的成员");
+        }
+        if (operatorId.equals(targetUserId)) {
+            throw new BusinessException(403, "不能移出自己");
+        }
+        if (!chatGroupMemberRepository.existsByChatGroupGroupIdAndMemberUserId(groupId, operatorId)) {
+            throw new BusinessException(403, "您不是群成员，无权操作");
+        }
+        if (!chatGroupMemberRepository.existsByChatGroupGroupIdAndMemberUserId(groupId, targetUserId)) {
+            throw new BusinessException(403, "该用户不是群成员");
+        }
+        if (isUserGroupOwner(groupId, targetUserId)) {
+            throw new BusinessException(403, "不能移出群主");
+        }
+
+        boolean operatorIsOwner = isUserGroupOwner(groupId, operatorId);
+        boolean operatorIsAdmin = isUserGroupAdmin(groupId, operatorId);
+        if (!operatorIsOwner && !operatorIsAdmin) {
+            throw new BusinessException(403, "只有群主或管理员可以移出成员");
+        }
+        if (!operatorIsOwner && isUserGroupAdmin(groupId, targetUserId)) {
+            throw new BusinessException(403, "管理员不能移出其他管理员");
+        }
+
+        UserInfo targetUser = userInfoRepository.findById(targetUserId)
+                .orElseThrow(() -> new BusinessException(403, "被移出用户不存在"));
+        UserInfo operator = userInfoRepository.findById(operatorId)
+                .orElseThrow(() -> new BusinessException(403, "操作者不存在"));
+
+        removeMemberFromGroup(groupId, targetUserId);
+
+        kickGroupRoomVO kickVO = new kickGroupRoomVO();
+        kickVO.setRoomId(groupId);
+        kickVO.setUserId(targetUserId);
+        kickVO.setUserName(targetUser.getUsername());
+        kickVO.setOperatorId(operatorId);
+        kickVO.setOperatorName(operator.getUsername());
+        kickVO.setChatType(MessageChatType.GROUP_KICK);
+        broadcastGroupMessageToMembers(kickVO, groupId);
+        pushToUserPrivateChannel(targetUserId, kickVO);
+        log.info("用户 {} 将 {} 移出群 {}", operatorId, targetUserId, groupId);
+    }
+
+    private void dissolveGroup(String groupId, Long ownerUserId) {
+        entityManager.flush();
+        entityManager.clear();
+        entityManager.createNativeQuery("DELETE FROM chat_group_administrators WHERE group_id = ?1")
+                .setParameter(1, groupId)
+                .executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM chat_group_members WHERE group_id = ?1")
+                .setParameter(1, groupId)
+                .executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM user_group_sticky WHERE group_id = ?1")
+                .setParameter(1, groupId)
+                .executeUpdate();
+        chatGroupRepository.deleteById(groupId);
+        log.info("群主 {} 解散群 {}", ownerUserId, groupId);
+    }
+
+    private void removeMemberFromGroup(String groupId, Long userId) {
+        ChatGroupMemberProjection memberProj = chatGroupMemberRepository
+                .findByMemberUserIdAndChatGroupGroupId(userId, groupId)
+                .orElseThrow(() -> new BusinessException(403, "用户不是群成员"));
+
+        ChatGroupMemberId memberId = new ChatGroupMemberId(
+                memberProj.getMemberId(),
+                memberProj.getGroupId()
+        );
+        chatGroupMemberRepository.deleteById(memberId);
+        userInfoRepository.deleteGroupSticky(userId, groupId);
+        joinRequestRepo.deleteByUserUserIdAndGroupGroupId(userId, groupId);
+        chatGroupAdminRepository.findByChatGroupGroupIdAndUserUserId(groupId, userId)
+                .ifPresent(chatGroupAdminRepository::delete);
+        groupRoomUtils.leaveGroupRoom(groupId, userId);
     }
 
     public void RefuseJoinRequest(dealJoinGroupRoomRequest dealJoinGroupRoomRequest) {

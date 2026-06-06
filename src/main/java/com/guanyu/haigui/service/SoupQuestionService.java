@@ -63,9 +63,6 @@ public interface SoupQuestionService {
      */
     SoupInfo getSoupInfo(String soupId);
 
-
-    // SoupQuestionResponse processSoupQuestion1(SoupQuestionRequest request);
-
     RoomSoupQuestionVO RoomProcessSoupQuestion(ChatWithAIRoomRequest request);
 
     RoomGetClueVO getClue(String roomId);

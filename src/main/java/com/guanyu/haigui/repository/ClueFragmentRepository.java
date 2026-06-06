@@ -58,4 +58,9 @@ public interface ClueFragmentRepository extends JpaRepository<ClueFragment, Long
     List<String> findAllDistinctSoupIds();
 
     List<ClueFragment> findBySoupId(String soupId);
+
+    /**
+     * 查找所有未删除的线索片段（用于向量迁移）
+     */
+    List<ClueFragment> findByIsDeletedFalse();
 }

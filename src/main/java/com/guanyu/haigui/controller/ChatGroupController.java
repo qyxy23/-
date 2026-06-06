@@ -176,6 +176,15 @@ public class ChatGroupController {
         groupService.leaveGroupRoom(groupId);
     }
 
+    @Operation(summary = "移出群成员（群主可移出管理员/成员，管理员仅可移出普通成员）")
+    @PostMapping("/kick/{groupId}")
+    public Result<String> kickGroupMember(
+            @PathVariable String groupId,
+            @RequestParam Long targetUserId) {
+        groupService.kickGroupMember(groupId, targetUserId);
+        return Result.success("已移出群聊");
+    }
+
 
     @Operation(summary = "获取指定群聊所有成员")
     @GetMapping("/getAllGroupUsers/{groupId}")

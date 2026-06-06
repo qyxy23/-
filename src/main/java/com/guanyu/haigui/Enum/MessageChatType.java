@@ -13,6 +13,7 @@ public enum MessageChatType {
     GROUP_RETRACT_REQUESTS("撤回加入群聊申请"),
     FRIEND_RETRACT_REQUESTS("撤回好友申请"),
     GROUP_LEAVE("离开群聊"),
+    GROUP_KICK("移出群聊"),
     GROUP_UPDATE_NAME("修改群名称"),
     LOBBY_MESSAGE("大厅消息"),
     // VOICE("语音"),
