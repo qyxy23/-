@@ -11,10 +11,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Optional;
+
 @Repository
 public interface HaiGuiSoupRepository extends JpaRepository<HaiGuiSoup, String> {
-
-
 
         @Query(value = "SELECT new com.guanyu.haigui.pojo.dto.SoupProjectionDTO(" +
                 "h.soupId, " +
@@ -29,7 +29,8 @@ public interface HaiGuiSoupRepository extends JpaRepository<HaiGuiSoup, String> 
                 "h.playerCount, " +
                 "h.difficultyLevel, " +
                 "h.tags, " +
-                "h.soupAvatar " +
+                "h.soupAvatar, " +
+                "h.defaultMaxQuestions " +
                 ") FROM HaiGuiSoup h " +
                 "LEFT JOIN UserInfo u ON h.uploaderId = u.userId " +
                 "WHERE h.isDeleted = false " +
@@ -47,5 +48,27 @@ public interface HaiGuiSoupRepository extends JpaRepository<HaiGuiSoup, String> 
                 @Param("playerCount") Integer playerCount,
                 @Param("minDuration") Integer minDuration,
                 @Param("maxDuration") Integer maxDuration);
+
+        @Query(value = "SELECT new com.guanyu.haigui.pojo.dto.SoupProjectionDTO(" +
+                "h.soupId, " +
+                "h.soupTitle, " +
+                "h.soupSurface, " +
+                "h.soupBottom, " +
+                "h.playCount, " +
+                "h.uploaderId, " +
+                "u.avatar, " +
+                "h.uploadTime, " +
+                "h.estimatedDuration, " +
+                "h.playerCount, " +
+                "h.difficultyLevel, " +
+                "h.tags, " +
+                "h.soupAvatar, " +
+                "h.defaultMaxQuestions " +
+                ") FROM HaiGuiSoup h " +
+                "LEFT JOIN UserInfo u ON h.uploaderId = u.userId " +
+                "WHERE h.soupId = :soupId " +
+                "AND h.isDeleted = false " +
+                "AND h.isPublished = true")
+        Optional<SoupProjectionDTO> findPublishedSoupBriefById(@Param("soupId") String soupId);
 
 }

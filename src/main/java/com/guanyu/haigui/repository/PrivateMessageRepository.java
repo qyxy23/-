@@ -92,4 +92,13 @@ public interface PrivateMessageRepository extends JpaRepository<PrivateMessage, 
 
     // -------------------------- 可选：按消息ID查找 --------------------------
     Optional<PrivateMessage> findByMessageId(String messageId);
+
+    /** 硬删除两用户之间的全部私聊消息 */
+    @Modifying
+    @Query("""
+            DELETE FROM PrivateMessage pm
+            WHERE (pm.sender.userId = :userId1 AND pm.receiver.userId = :userId2)
+               OR (pm.sender.userId = :userId2 AND pm.receiver.userId = :userId1)
+            """)
+    void deleteAllBetweenUsers(@Param("userId1") Long userId1, @Param("userId2") Long userId2);
 }

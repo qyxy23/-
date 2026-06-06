@@ -2,6 +2,7 @@ package com.guanyu.haigui.service.ServicesImpl;
 
 import com.guanyu.haigui.Enum.DifficultyLevel;
 import com.guanyu.haigui.Enum.SoupTag;
+import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.pojo.dto.SoupProjectionDTO;
 import com.guanyu.haigui.pojo.model.SoupListPageResponse;
 import com.guanyu.haigui.pojo.vo.SoupListItem;
@@ -112,6 +113,18 @@ public class HaiGuiRankingService {
         }
     }
 
+    /**
+     * 获取已发布海龟汤公开详情（不含汤底、线索、任务、手册）
+     */
+    public SoupListItem getSoupBrief(String soupId) {
+        if (soupId == null || soupId.isBlank()) {
+            throw new BusinessException(400, "海龟汤 ID 不能为空");
+        }
+        return haiGuiSoupRepository.findPublishedSoupBriefById(soupId.trim())
+                .map(this::convertToSoupListItem)
+                .orElseThrow(() -> new BusinessException(404, "海龟汤不存在或未发布"));
+    }
+
     private SoupListItem convertToSoupListItem(SoupProjectionDTO projection) {
         try {
             return SoupListItem.builder()
@@ -127,6 +140,7 @@ public class HaiGuiRankingService {
                     .tag(projection.getTag() != null ? projection.getTag().getDescription() : "未知标签")
                     .soupAvatar(projection.getSoupAvatar())
                     .estimatedDuration(projection.getEstimatedDuration())
+                    .defaultMaxQuestions(projection.getDefaultMaxQuestions())
                     .build();
         } catch (Exception e) {
             log.error("转换海龟汤投影到VO失败: soupId={}", projection.getSoupId(), e);
@@ -143,6 +157,8 @@ public class HaiGuiRankingService {
                     .tag(projection.getTag() != null ? projection.getTag().getDescription() : "")
                     .estimatedDuration(projection.getEstimatedDuration() != null ?
                             projection.getEstimatedDuration() : 30)
+                    .defaultMaxQuestions(projection.getDefaultMaxQuestions() != null ?
+                            projection.getDefaultMaxQuestions() : 30)
                     .build();
         }
     }

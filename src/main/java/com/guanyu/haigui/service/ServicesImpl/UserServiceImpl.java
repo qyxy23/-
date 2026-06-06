@@ -1,6 +1,7 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
 import com.guanyu.haigui.Enum.FriendStatus;
+import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.mapper.UserDetailsMapper;
 import com.guanyu.haigui.pojo.model.UserInfo;
@@ -71,21 +72,55 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public String bindPhone(String phone) {
-        UserDetailsMapper.updateUserPhone(phone, BaseContext.getCurrentId());
-        return "设置成功";
+        if (!StringUtils.hasText(phone)) {
+            throw new BusinessException(400, "手机号不能为空");
+        }
+        String trimmed = phone.trim();
+        if (!trimmed.matches("^1\\d{10}$")) {
+            throw new BusinessException(400, "手机号格式不正确");
+        }
+        UserDetailsMapper.updateUserPhone(trimmed, BaseContext.getCurrentId());
+        return "手机号绑定成功";
     }
 
     @Override
     public String bindEmail(String email) {
-        UserDetailsMapper.updateUserEmail(email, BaseContext.getCurrentId());
-        return "设置邮箱成功";
+        if (!StringUtils.hasText(email)) {
+            throw new BusinessException(400, "邮箱不能为空");
+        }
+        String trimmed = email.trim();
+        if (!trimmed.matches("^[\\w.-]+@[\\w.-]+\\.\\w+$")) {
+            throw new BusinessException(400, "邮箱格式不正确");
+        }
+        UserDetailsMapper.updateUserEmail(trimmed, BaseContext.getCurrentId());
+        return "邮箱绑定成功";
     }
 
     @Override
-    public String bindPassword(String password) {
-        password = passwordEncoder.encode(password);
-        UserDetailsMapper.updateUserPassword(password, BaseContext.getCurrentId());
-        return "成功设置密码";
+    public String changePassword(String oldPassword, String newPassword) {
+        if (!StringUtils.hasText(oldPassword)) {
+            throw new BusinessException(400, "请输入旧密码");
+        }
+        if (!StringUtils.hasText(newPassword)) {
+            throw new BusinessException(400, "请输入新密码");
+        }
+        if (newPassword.length() < 6) {
+            throw new BusinessException(400, "新密码至少6位");
+        }
+        if (oldPassword.equals(newPassword)) {
+            throw new BusinessException(400, "新密码不能与旧密码相同");
+        }
+        Long userId = BaseContext.getCurrentId();
+        UserInfo userInfo = userInfoRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(404, "用户不存在"));
+        if (!StringUtils.hasText(userInfo.getPassword())) {
+            throw new BusinessException(400, "当前账号未设置密码，请联系管理员");
+        }
+        if (!passwordEncoder.matches(oldPassword, userInfo.getPassword())) {
+            throw new BusinessException(400, "旧密码不正确");
+        }
+        UserDetailsMapper.updateUserPassword(passwordEncoder.encode(newPassword), userId);
+        return "密码修改成功";
     }
 
     @Override

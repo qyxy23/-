@@ -1,5 +1,7 @@
 package com.guanyu.haigui.pojo.result;
 
+import com.guanyu.haigui.Enum.AiGenStatus;
+import com.guanyu.haigui.Enum.PublishStatus;
 import com.guanyu.haigui.Enum.DifficultyLevel;
 import com.guanyu.haigui.Enum.SoupTag;
 import com.guanyu.haigui.pojo.Info.ClueFragmentInfo;
@@ -47,6 +49,20 @@ public class HaiGuiDetailResult{
     private List<ClueFragmentInfo> fragments;
     private List<InferenceTaskInfo> inferenceTasks;
 
+    private AiGenStatus aiGenStatus = AiGenStatus.IDLE;
+    private String aiGenError;
+    private LocalDateTime aiGenUpdatedAt;
+
+    private PublishStatus publishStatus = PublishStatus.IDLE;
+    private String publishError;
+    private LocalDateTime publishUpdatedAt;
+
+    /** 发布后对应的海龟汤 ID（审核通过后有值） */
+    private String originalSoupId;
+
+    /** 海龟汤封面图 URL */
+    private String soupAvatar;
+
     public static HaiGuiDetailResult fromHaiGuiSoupAudit(HaiGuiSoupAudit audit, HaiGuiInfoResult haiGuiInfoResult) {
         HaiGuiDetailResult result = new HaiGuiDetailResult();
         result.setAuditId(audit.getAuditId());
@@ -68,6 +84,13 @@ public class HaiGuiDetailResult{
         result.setAiJudgeRules(firstNonBlank(haiGuiInfoResult.getAiJudgeRules(), draftManual.getAiJudgeRules()));
         result.setFragments(haiGuiInfoResult.getFragments());
         result.setInferenceTasks(haiGuiInfoResult.getInferenceTasks());
+        result.setAiGenStatus(audit.getAiGenStatus() != null ? audit.getAiGenStatus() : AiGenStatus.IDLE);
+        result.setAiGenError(audit.getAiGenError());
+        result.setAiGenUpdatedAt(audit.getAiGenUpdatedAt());
+        result.setPublishStatus(audit.getPublishStatus() != null ? audit.getPublishStatus() : PublishStatus.IDLE);
+        result.setPublishError(audit.getPublishError());
+        result.setPublishUpdatedAt(audit.getPublishUpdatedAt());
+        result.setOriginalSoupId(audit.getOriginalSoupId());
         return result;
     }
 

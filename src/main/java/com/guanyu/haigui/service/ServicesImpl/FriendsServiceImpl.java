@@ -9,11 +9,14 @@ import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.dto.MsgDTO;
 import com.guanyu.haigui.pojo.model.FriendRelation;
 import com.guanyu.haigui.pojo.model.UserInfo;
+import com.guanyu.haigui.pojo.vo.FriendDeletedNotificationVO;
 import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.repository.FriendRelationRepository;
 import com.guanyu.haigui.repository.UserInfoRepository;
 import com.guanyu.haigui.service.FriendsService;
-import com.guanyu.haigui.utils.RedisServiceUtil;
+import com.guanyu.haigui.service.MessageService;
+import com.guanyu.haigui.service.UserChatSessionService;
+import com.guanyu.haigui.websocket.StompUserPushService;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -38,7 +41,9 @@ public class FriendsServiceImpl implements FriendsService {
 
     private final UserInfoRepository userRepository;
     private final FriendRelationRepository friendRelationRepository;
-    private final RedisServiceUtil redisServiceUtil;
+    private final UserChatSessionService userChatSessionService;
+    private final MessageService messageService;
+    private final StompUserPushService stompUserPushService;
     private SimpMessagingTemplate simpMessagingTemplate;
 
     /**
@@ -73,7 +78,7 @@ public class FriendsServiceImpl implements FriendsService {
 
         // 发送给目标用户的私人频道（前端需订阅：/user/{userId}/queue/private-messages）
         userRepository.findById(targetUserId).ifPresent(user ->
-                simpMessagingTemplate.convertAndSendToUser(user.getUsername(), "/private-messages", notification));
+                stompUserPushService.pushPrivateChannel(user.getUserId(), notification));
         return notification;
     }
 
@@ -175,84 +180,14 @@ public class FriendsServiceImpl implements FriendsService {
      */
     public List<FriendSearchListVO> getFriendListWithMessages() {
         long currentUserId = BaseContext.getCurrentId();
-        // 1. 查询好友基础信息（仅昵称、头像、ID）
         List<FriendBasicInfoVO> basicInfos = userRepository.findFriendBasicInfos(currentUserId);
-        if (CollectionUtils.isEmpty(basicInfos))
+        if (CollectionUtils.isEmpty(basicInfos)) {
             return Collections.emptyList();
-
-        // 提取好友ID列表（批量操作）
-        List<Long> friendIds = basicInfos.stream()
-                .map(FriendBasicInfoVO::getUserId)
-                .toList();
-
-        // 2. 优先从Redis查询未读数和最后一条消息
-        Map<Long, Long> unreadMap = new HashMap<>(); // 好友ID → 未读数
-        Map<Long, MsgDTO> lastMsgMap = new HashMap<>();// 好友ID → 最后一条消息
-
-        // 批量查Redis（避免循环单查）
-        for (Long friendId : friendIds) {
-            // 查未读数
-            Long unreadCount = redisServiceUtil.selectUnreadMsgCountFromRedis(currentUserId, friendId);
-            if (unreadCount != null)
-                unreadMap.put(friendId, unreadCount);
-
-            // 查最后一条消息
-            MsgDTO lastMsg = redisServiceUtil.selectLastMessageFromRedis(currentUserId, friendId);
-            if (lastMsg != null)
-                lastMsgMap.put(friendId, lastMsg);
         }
 
-        // 3. 收集Redis中缺失的好友ID（需要查数据库）
-        List<Long> missingUnreadIds = friendIds.stream()
-                .filter(id -> !unreadMap.containsKey(id))
-                .collect(Collectors.toList());
-        List<Long> missingLastMsgIds = friendIds.stream()
-                .filter(id -> !lastMsgMap.containsKey(id))
-                .collect(Collectors.toList());
+        List<Long> friendIds = basicInfos.stream().map(FriendBasicInfoVO::getUserId).toList();
+        Map<Long, ChatSessionVO> sessionMap = userChatSessionService.mapPrivateSessions(currentUserId, friendIds);
 
-        // 4. 批量查数据库（未读数）
-        Map<Long, Long> unreadFromDb = new HashMap<>();
-        if (!missingUnreadIds.isEmpty()) {
-            List<Object[]> unreadResults = userRepository.countUnreadMessagesByFriendIds(currentUserId,
-                    missingUnreadIds);
-            unreadFromDb = unreadResults.stream()
-                    .collect(Collectors.toMap(
-                            arr -> (Long) arr[0], // friendId
-                            arr -> (Long) arr[1] // unreadCount
-                    ));
-            // 回写Redis（带过期时间）
-            unreadFromDb.forEach(
-                    (friendId, count) -> redisServiceUtil.updateUnreadMsgCount(currentUserId, friendId, count));
-        }
-
-        // 5. 批量查数据库（最后一条消息）
-        Map<Long, MsgDTO> lastMsgFromDb = new HashMap<>();
-        if (!missingLastMsgIds.isEmpty()) {
-            List<Object[]> lastMsgResults = userRepository.findLastMessageByFriendIds(currentUserId, missingLastMsgIds);
-            lastMsgFromDb = lastMsgResults.stream()
-                    .collect(Collectors.toMap(
-                            arr -> (Long) arr[0], // friendId
-                            arr -> {
-                                LocalDateTime localDateTime = null;
-                                if (arr[2] != null) {
-                                    localDateTime = ((Timestamp) arr[2]).toLocalDateTime();
-                                }
-                                return new MsgDTO( // 内容+时间
-                                        (String) arr[1],
-                                        localDateTime);
-                            }));
-            // 回写Redis（带过期时间）
-            lastMsgFromDb.forEach((friendId, msg) -> redisServiceUtil.updateLastMsg(msg, currentUserId, friendId));
-        }
-
-        // 6. 合并Redis和数据库的结果
-        Map<Long, Long> finalUnreadMap = Stream.concat(unreadMap.entrySet().stream(), unreadFromDb.entrySet().stream())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        Map<Long, MsgDTO> finalLastMsgMap = Stream
-                .concat(lastMsgMap.entrySet().stream(), lastMsgFromDb.entrySet().stream())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-        // 7. 组装最终VO（好友基础信息 + 未读数 + 最后消息）
         return basicInfos.stream()
                 .map(basic -> {
                     FriendSearchListVO vo = new FriendSearchListVO();
@@ -260,15 +195,13 @@ public class FriendsServiceImpl implements FriendsService {
                     vo.setUsername(basic.getUsername());
                     vo.setAvatar(basic.getAvatar());
 
-                    // 未读数（默认0）
-                    vo.setUnreadCount(finalUnreadMap.getOrDefault(basic.getUserId(), 0L));
-
-                    // 最后一条消息（默认空）
-                    MsgDTO lastMsg = finalLastMsgMap.get(basic.getUserId());
-                    if (lastMsg != null) {
-                        vo.setLastMessageContent(lastMsg.getContent());
-                        vo.setLastMessageTime(lastMsg.getTime());
+                    ChatSessionVO session = sessionMap.get(basic.getUserId());
+                    if (session != null) {
+                        vo.setUnreadCount(session.getUnreadCount() != null ? session.getUnreadCount() : 0L);
+                        vo.setLastMessageContent(session.getLastMessageContent());
+                        vo.setLastMessageTime(session.getLastMessageTime());
                     } else {
+                        vo.setUnreadCount(0L);
                         vo.setLastMessageContent("");
                         vo.setLastMessageTime(null);
                     }
@@ -309,7 +242,7 @@ public class FriendsServiceImpl implements FriendsService {
                 .applicantId(currentUserId).status(FriendStatus.PENDING)
                 .chatType(MessageChatType.FRIEND_JOIN_REQUESTS).build();
         userRepository.findById(targetUserId).ifPresent(user ->
-                simpMessagingTemplate.convertAndSendToUser(user.getUsername(), "/private-messages", notification));
+                stompUserPushService.pushPrivateChannel(user.getUserId(), notification));
         log.info("发送好友申请：{} -> {}", currentUserId, targetUserId);
         return notification;
     }
@@ -371,20 +304,32 @@ public class FriendsServiceImpl implements FriendsService {
 
         // 发送给目标用户的私人频道（前端需订阅：/user/{userId}/queue/private-messages）
         userRepository.findById(targetUserId).ifPresent(user ->
-                simpMessagingTemplate.convertAndSendToUser(user.getUsername(), "/private-messages", notification));
+                stompUserPushService.pushPrivateChannel(user.getUserId(), notification));
     }
 
     // 4. 删除好友
+    @Transactional(rollbackFor = Exception.class)
     public void deleteFriend(Long currentUserId, Long friendId) {
-        // 4.1 检查是否存在好友关系
         if (!friendRelationRepository.hasSentPendingApply(currentUserId, friendId, FriendStatus.ACCEPTED) &&
                 !friendRelationRepository.hasReceivedPendingApply(friendId, currentUserId, FriendStatus.ACCEPTED)) {
             throw new FriendsException("未添加该好友");
         }
-        // 4.2 删除双向关系
+
+        messageService.hardDeletePrivateChatBetween(currentUserId, friendId);
         friendRelationRepository.deleteFriendship(currentUserId, friendId);
-        log.info("删除好友关系：{} -> {}", currentUserId, friendId);
-        // TODO: 删除好友的聊天频道/通知等逻辑
+        log.info("删除好友关系及私聊数据：{} -> {}", currentUserId, friendId);
+
+        notifyFriendDeleted(currentUserId, friendId);
+        notifyFriendDeleted(friendId, currentUserId);
+    }
+
+    private void notifyFriendDeleted(Long userId, Long peerUserId) {
+        FriendDeletedNotificationVO notification = FriendDeletedNotificationVO.builder()
+                .chatType(MessageChatType.FRIEND_DELETED)
+                .peerUserId(peerUserId)
+                .build();
+        userRepository.findById(userId).ifPresent(user ->
+                stompUserPushService.pushPrivateChannel(user.getUserId(), notification));
     }
 
     // 5. 获取好友信息（含未读数）

@@ -2,6 +2,7 @@ package com.guanyu.haigui.interceptor;
 
 import com.guanyu.haigui.pojo.vo.CustomUserDetails;
 import com.guanyu.haigui.tracker.SessionActivityTracker;
+import com.guanyu.haigui.websocket.WebSocketUserSessionManager;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
@@ -11,6 +12,7 @@ import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
+import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -38,6 +40,8 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
     // 注入全局Map（存储sessionId -> 用户信息）
     @Resource
     private ConcurrentHashMap<String, CustomUserDetails> sessionUserMap;
+    @Resource
+    private WebSocketUserSessionManager webSocketUserSessionManager;
 
     @Override
     public Message<?> preSend(@NotNull Message<?> message, @NotNull MessageChannel channel) {
@@ -125,19 +129,24 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
         SecurityContextHolder.getContext().setAuthentication(authentication);
         log.info("SecurityContext 已设置：认证信息={}", authentication);
 
-        // 6. 将 Principal 绑定到 StompHeaderAccessor（方便后续处理器获取）
+        // 6. 将 Principal 绑定到 STOMP 会话（必须写回消息头，否则 user 目的地无法路由）
         accessor.setUser(customUserDetails);
+        accessor.setLeaveMutable(true);
 
         // 7. 关键：将用户信息存入全局 Map（仅当 sessionId 有效时）
         if (StringUtils.hasText(sessionId)) {
             sessionUserMap.put(sessionId, customUserDetails);
-            log.info("已将用户信息存入 sessionUserMap，会话ID: {}, 用户名: {}", sessionId, customUserDetails.getName());
+            webSocketUserSessionManager.register(customUserDetails.getUserId(), sessionId);
+            log.info("STOMP 用户已注册: userId={}, username={}, sessionId={}",
+                    customUserDetails.getUserId(),
+                    customUserDetails.getUsername(),
+                    sessionId);
         } else {
             log.warn("sessionId 为空，无法存入 sessionUserMap");
         }
 
-        // 8. 校验成功，返回原始消息以允许连接建立
-        return originalMessage;
+        // 8. 校验成功，返回携带 user 的新消息以完成 CONNECT
+        return MessageBuilder.createMessage(originalMessage.getPayload(), accessor.getMessageHeaders());
     }
 
     private void updateSessionActivity(String sessionId) {

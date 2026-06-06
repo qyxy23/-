@@ -300,9 +300,20 @@ public class ClueFragmentVectorIndex {
     }
 
     /**
-     * TAG 查询转义：UUID 等含特殊字符的值用花括号包裹
+     * TAG 查询转义：UUID 等含 {@code -} 的值在 {@code {...}} 内须转义，否则 {@code -4ff6} 会被解析为运算符
      */
     private String escapeTag(String value) {
-        return value.replace("\\", "\\\\").replace("}", "\\}");
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+        StringBuilder sb = new StringBuilder(value.length() + 8);
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            switch (c) {
+                case '\\', '-', '.', ':', ';', '{', '}', '[', ']', '(', ')', '|', ',', '"', '\'', '!', '@', '#', '$', '%', '^', '&', '*', '+', '=', '~', ' ', '<', '>' -> sb.append('\\').append(c);
+                default -> sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 }

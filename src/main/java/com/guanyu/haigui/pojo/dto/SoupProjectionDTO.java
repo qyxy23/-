@@ -30,4 +30,5 @@ public class SoupProjectionDTO {
     private DifficultyLevel difficultyLevel;
     private SoupTag tag; // 使用新枚举类型
     private String soupAvatar;
+    private Integer defaultMaxQuestions;
 }

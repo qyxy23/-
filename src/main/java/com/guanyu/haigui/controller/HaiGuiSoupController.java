@@ -1,5 +1,6 @@
 package com.guanyu.haigui.controller;
 
+import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.pojo.dto.UploadHaiGuiSoupDTO;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.service.ServicesImpl.TurtleSoupService;
@@ -42,10 +43,11 @@ public class HaiGuiSoupController {
             String avatarUrl = turtleSoupService.uploadHaiGuiSoupAvatar(avatarFile,soupId);
             return ResponseEntity.ok(Collections.singletonMap("avatarUrl", avatarUrl));
         } catch (IllegalArgumentException e) {
-            // 参数错误（如文件过大、类型不对）
             return ResponseEntity.badRequest().body(Collections.singletonMap("error", e.getMessage()));
+        } catch (BusinessException e) {
+            return ResponseEntity.badRequest()
+                    .body(Collections.singletonMap("error", e.getMessage()));
         } catch (RuntimeException e) {
-            // 系统错误（如上传失败、用户不存在）
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Collections.singletonMap("error", "服务器内部错误，请稍后重试"));
         }

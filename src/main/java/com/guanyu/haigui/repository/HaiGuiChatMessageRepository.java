@@ -9,4 +9,6 @@ import java.util.List;
 @Repository
 public interface HaiGuiChatMessageRepository extends JpaRepository<HaiGuiChatMessageWithFragments, String> {
     List<HaiGuiChatMessageWithFragments> findAllByRoomId(String roomId);
+
+    List<HaiGuiChatMessageWithFragments> findAllByRoomIdOrderByCreatedAtAsc(String roomId);
 }

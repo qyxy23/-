@@ -61,6 +61,13 @@ public class ChatGroupController {
         return Result.success(groupService.createGroupRoom(request));
     }
 
+    @Operation(summary = "邀请好友直接加入群聊")
+    @PostMapping("/inviteFriends")
+    public Result<String> inviteFriendsToGroup(@RequestBody InviteGroupFriendsRequest request) {
+        int count = groupService.inviteFriendsToGroup(request);
+        return Result.success("已邀请 " + count + " 位好友加入群聊");
+    }
+
 
     /**
      * 上传用户头像接口

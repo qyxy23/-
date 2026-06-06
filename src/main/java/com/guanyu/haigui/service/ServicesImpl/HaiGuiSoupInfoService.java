@@ -20,6 +20,8 @@ import com.guanyu.haigui.repository.InferenceTaskRepository;
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
 import com.guanyu.haigui.utils.HaiGuiInfoUtil;
 import com.guanyu.haigui.utils.RedisStackClient;
+import com.guanyu.haigui.utils.SoupGenerationPlanner;
+import com.guanyu.haigui.utils.SoupGenerationPlanner.Plan;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -52,7 +54,11 @@ public class HaiGuiSoupInfoService {
 
 
     public String generatePrompt(HaiGuiSoupAudit dto) {
-        int fragmentCount = generateFragmentCount(dto);
+        Plan plan = SoupGenerationPlanner.plan(dto);
+        log.info("生成规划: 线索[{}~{}] 目标{}条, 任务[{}~{}] 目标{}条, {}",
+                plan.getFragmentMin(), plan.getFragmentMax(), plan.getFragmentTarget(),
+                plan.getTaskMin(), plan.getTaskMax(), plan.getTaskTarget(),
+                plan.getDensityHint());
         return String.format("""
         # 输入参数
         - 标题：《%s》
@@ -61,6 +67,11 @@ public class HaiGuiSoupInfoService {
         - 预计时长：%d分钟
         - 难度：%s
         - 标签：%s
+        
+        # 本地规划（请在此基础上结合语义微调，不要超出区间）
+        - 线索数量区间：%d ~ %d 条，建议目标 %d 条
+        - 任务数量区间：%d ~ %d 个，建议目标 %d 个
+        - 密度提示：%s
         
         # 输出要求
         请严格按以下JSON格式输出，包含四个顶级字段：
@@ -80,12 +91,15 @@ public class HaiGuiSoupInfoService {
         - 不要写控场、计时、复盘等给人看的内容
         
         ## 线索(fragments)规范
-        - 建议数量为%d条(线索内容要求一定是要能够从汤底中找到的，如果实在找不到足够数量的线索，也不要自己编造汤底没有的线索内容)
+        - 数量必须在 %d~%d 条之间，优先接近 %d 条
+        - 每条线索对应汤底中一个可独立验证的事实点；按推理层次/转折拆分，不要按字数机械切
+        - 汤面短、汤底长时：以汤底隐含层次为准，可向上限靠拢；汤底短时：可向下限靠拢
+        - 禁止同义重复；若汤底事实不足，允许少于建议条数，禁止编造汤底没有的内容
         - 字段说明：
           • content: 线索内容（50-150字）
         
         ## 任务(tasks)规范
-        - 数量严格3-5个
+        - 数量必须在 %d~%d 个之间，优先 %d 个
         - 所有任务progressWeight总和=100
         - 字段说明：
           • taskName: 任务名称（10字内）
@@ -99,6 +113,7 @@ public class HaiGuiSoupInfoService {
         - 任务间相互独立，无需按顺序完成
         - 解锁条件：获得所有前置线索(prerequisiteFragmentIds)
         - 线索序号：fragments数组的第一条线索序号为1，第二条为2，以此类推
+        - 每个任务前置线索 2~4 条，覆盖不同推理主题，避免全部堆在首尾线索
         
         # 特别约束
         1. 返回标准JSON，控制字符用\\n转义
@@ -130,30 +145,34 @@ public class HaiGuiSoupInfoService {
                 dto.getEstimatedDuration(),
                 dto.getDifficultyLevel().name(),
                 dto.getTags(),
-                fragmentCount
+                plan.getFragmentMin(),
+                plan.getFragmentMax(),
+                plan.getFragmentTarget(),
+                plan.getTaskMin(),
+                plan.getTaskMax(),
+                plan.getTaskTarget(),
+                plan.getDensityHint(),
+                plan.getFragmentMin(),
+                plan.getFragmentMax(),
+                plan.getFragmentTarget(),
+                plan.getTaskMin(),
+                plan.getTaskMax(),
+                plan.getTaskTarget()
         );
     }
 
-
+    /** @deprecated 使用 {@link SoupGenerationPlanner#plan(HaiGuiSoupAudit)} */
+    @Deprecated
     public int generateFragmentCount(HaiGuiSoupAudit audit) {
-        int soupLength = audit.getBottom().length();
-        int difficultyLevel = audit.getDifficultyLevel().ordinal();
-        // 基础片段数
-        double baseFragmentCount = 8.0;
-        double lengthFactor = 0.05;
-        double difficultyFactor = 0.5;
-        int targetFragmentCount = (int) (baseFragmentCount +
-                soupLength * lengthFactor +
-                difficultyLevel * difficultyFactor);
-        //TODO:当前片段还是太多，故改成原片段数量-5
-        return Math.max(8, Math.min(targetFragmentCount-5, 30));
+        return SoupGenerationPlanner.plan(audit).getFragmentTarget();
     }
 
     public HaiGuiInfoResult generateInfo(String prompt) {
         try {
             String aiResponse;
             if (!debugMode) {
-                String systemPrompt = "你是一位专业的海龟汤游戏设计师，需要根据用户提供的汤面/汤底信息生成完整的游戏配置模板。";
+                String systemPrompt = "你是一位专业的海龟汤游戏设计师。请根据汤面/汤底语义拆分线索与任务："
+                        + "短汤面+长汤底时按汤底转折层拆分；数量须落在用户给出的区间内，不足则少生成，禁止编造。";
                 aiResponse = aiManager.doChat(systemPrompt, prompt);
                 log.info("使用AI响应，长度: {}", aiResponse.length());
             } else {

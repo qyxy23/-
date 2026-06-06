@@ -78,4 +78,9 @@ public class SoupListItem {
      */
     private String soupAvatar;
 
+    /**
+     * 最大提问次数
+     */
+    private Integer defaultMaxQuestions;
+
 }

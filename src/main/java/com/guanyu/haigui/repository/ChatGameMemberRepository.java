@@ -23,6 +23,9 @@ public interface ChatGameMemberRepository extends JpaRepository<ChatGameMember, 
     // 根据房间ID查询所有成员（关联member和chatGame）
     List<ChatGameMember> findByIdRoomId(String roomId);
 
+    @Query("SELECT cm FROM ChatGameMember cm JOIN FETCH cm.member WHERE cm.id.roomId = :roomId")
+    List<ChatGameMember> findByRoomIdWithMember(@Param("roomId") String roomId);
+
     @Query("SELECT cm FROM ChatGameMember cm WHERE cm.chatGame.roomId = :roomId AND cm.member.userId = :userId")
     Optional<ChatGameMember> findByRoomIdAndUserId(@Param("roomId") String roomId, @Param("userId") Long userId);
 
@@ -34,13 +37,15 @@ public interface ChatGameMemberRepository extends JpaRepository<ChatGameMember, 
             "  g.room_id AS roomId, " +
             "  g.room_name AS title, " +
             "  soup.soup_surface AS soupContent, " +
-            "  g.create_time AS createTime " +
+            "  COALESCE(g.end_time, g.create_time) AS endTime, " +
+            "  gs.score AS finalScore " +
             "FROM chat_game_members m " +
             "JOIN chat_games g ON m.room_id = g.room_id " +
             "JOIN hai_gui_soup soup ON g.soup_id = soup.soup_id " +
+            "LEFT JOIN haigui_game_session gs ON g.session_id = gs.session_id " +
             "WHERE m.member_id = :userId " +
-            "  AND g.status = 'FINISHED' " +  // 新增：过滤状态为FINISHED的房间
-            "ORDER BY g.create_time DESC",
+            "  AND g.status = 'FINISHED' " +
+            "ORDER BY COALESCE(g.end_time, g.create_time) DESC",
             nativeQuery = true)
     List<Object[]> findUserGameRooms(@Param("userId") Long userId);
 }

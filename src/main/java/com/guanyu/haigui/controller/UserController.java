@@ -51,9 +51,9 @@ public class UserController {
     }
 
     @PostMapping("/bindPassword")
-    @Operation(summary = "绑定密码")
-    public Result<String> bindPassword(@RequestBody BindPasswordRequest request) {
-        return Result.success(userService.bindPassword(request.getPassword()));
+    @Operation(summary = "修改密码", description = "需校验旧密码后更新为新密码")
+    public Result<String> changePassword(@RequestBody BindPasswordRequest request) {
+        return Result.success(userService.changePassword(request.getOldPassword(), request.getNewPassword()));
     }
 
 

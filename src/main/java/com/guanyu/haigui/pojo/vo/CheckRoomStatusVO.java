@@ -18,6 +18,8 @@ public class CheckRoomStatusVO { // 类名建议大写开头（规范）
     private RoomStatus status;
     private String soupSurface;
     private MessageChatType chatType;
+    /** 开始游戏等事件附带最新成员快照，便于各端同步 */
+    private searchAllLobbyMemberVO memberSnapshot;
 
     // ------------------------------
     // 2. 错误信息内部类（静态，独立于VO实例）

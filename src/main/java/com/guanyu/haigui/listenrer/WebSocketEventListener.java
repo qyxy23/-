@@ -3,12 +3,19 @@ package com.guanyu.haigui.listenrer;
 import com.guanyu.haigui.pojo.model.UserInfo;
 import com.guanyu.haigui.pojo.vo.CustomUserDetails;
 import com.guanyu.haigui.websocket.RoomService;
+import com.guanyu.haigui.websocket.PrivateMessageSubscriptionRegistry;
+import com.guanyu.haigui.websocket.StompUserPushService;
+import com.guanyu.haigui.websocket.WebSocketUserSessionManager;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
+import org.springframework.messaging.simp.SimpMessageType;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.messaging.simp.user.UserDestinationResolver;
+import org.springframework.messaging.simp.user.UserDestinationResult;
+import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionConnectedEvent;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
@@ -34,6 +41,12 @@ public class WebSocketEventListener {
     // 注入全局Map（存储sessionId -> 用户信息）
     @Resource
     private ConcurrentHashMap<String, CustomUserDetails> sessionUserMap;
+    @Resource
+    private WebSocketUserSessionManager webSocketUserSessionManager;
+    @Resource
+    private PrivateMessageSubscriptionRegistry privateMessageSubscriptionRegistry;
+    @Resource
+    private UserDestinationResolver userDestinationResolver;
 
     /**
      * 该event方法是后端返回的响应，用于处理用户会话关联
@@ -52,8 +65,15 @@ public class WebSocketEventListener {
         // return;
         // }
         log.info("===== STOMP SessionConnectedEvent 被触发 =====");
-        // TODO: 处理用户会话关联,比如建立连接后要收消息
-
+        SimpMessageHeaderAccessor headers = SimpMessageHeaderAccessor.wrap(event.getMessage());
+        String sessionId = headers.getSessionId();
+        CustomUserDetails user = sessionId != null ? sessionUserMap.get(sessionId) : null;
+        if (user != null) {
+            log.info("STOMP 会话已建立: sessionId={}, userId={}, username={}",
+                    sessionId, user.getUserId(), user.getUsername());
+        } else {
+            log.warn("STOMP 会话已建立但未找到用户: sessionId={}", sessionId);
+        }
         log.info("===== STOMP SessionConnectedEvent 处理完毕 =====");
     }
 
@@ -62,26 +82,24 @@ public class WebSocketEventListener {
      */
     @EventListener
     public void handleSessionSubscribeEvent(SessionSubscribeEvent event) {
-        if ("dev".equals(active)) {
-            log.info("当前环境为开发环境，不处理SessionSubscribeEvent");
-            return;
-        }
         SimpMessageHeaderAccessor headers = SimpMessageHeaderAccessor.wrap(event.getMessage());
         String sessionId = headers.getSessionId();
         String destination = headers.getDestination();
 
-        log.info("===== STOMP SessionSubscribeEvent 被触发 =====");
-        log.info("客户端订阅主题: sessionId={}, destination={}", sessionId, destination);
-
-        // 获取用户信息
         CustomUserDetails customUserDetails = sessionId != null ? sessionUserMap.get(sessionId) : null;
-        if (customUserDetails != null) {
-            log.info("订阅用户: {}, {}", customUserDetails.getUserId(), customUserDetails.getUsername());
-        } else {
-            log.warn("无法获取订阅用户信息");
+        if (destination != null && destination.contains("private-messages")) {
+            if (customUserDetails != null) {
+                String brokerDestination = destination.startsWith("/queue/")
+                        ? destination
+                        : resolveBrokerDestination(sessionId);
+                privateMessageSubscriptionRegistry.register(
+                        customUserDetails.getUserId(), sessionId, brokerDestination);
+                log.info("私聊订阅已记录: userId={}, sessionId={}, brokerDestination={}",
+                        customUserDetails.getUserId(), sessionId, brokerDestination);
+            } else {
+                log.warn("私聊订阅未记录（无用户信息）: sessionId={}, destination={}", sessionId, destination);
+            }
         }
-
-        log.info("===== STOMP SessionSubscribeEvent 处理完毕 =====");
     }
 
     /**
@@ -117,6 +135,8 @@ public class WebSocketEventListener {
                 log.info("用户 {} 断开连接，sessionId [{}] 已移除",
                         customUserDetails != null ? customUserDetails.getUsername() : "未知用户", sessionId);
             }
+            webSocketUserSessionManager.unregister(sessionId);
+            privateMessageSubscriptionRegistry.unregisterSession(sessionId);
 
             // 如果获取到用户信息，执行大厅清理逻辑
             // if (customUserDetails != null) {
@@ -162,5 +182,18 @@ public class WebSocketEventListener {
         String username = userInfo != null ? userInfo.getUsername() : "未知用户";
 
         log.info("用户 {} 取消订阅了主题: sessionId={}, destination={}", username, sessionId, destination);
+    }
+
+    private String resolveBrokerDestination(String sessionId) {
+        SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create(SimpMessageType.SUBSCRIBE);
+        accessor.setSessionId(sessionId);
+        accessor.setDestination("/user" + StompUserPushService.PRIVATE_MESSAGE_DEST);
+        accessor.setLeaveMutable(true);
+        UserDestinationResult result = userDestinationResolver.resolveDestination(
+                MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders()));
+        if (result == null || result.getTargetDestinations().isEmpty()) {
+            return null;
+        }
+        return result.getTargetDestinations().iterator().next();
     }
 }

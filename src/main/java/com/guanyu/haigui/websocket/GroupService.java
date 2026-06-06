@@ -9,9 +9,9 @@ import com.guanyu.haigui.pojo.dto.*;
 import com.guanyu.haigui.pojo.model.*;
 import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.repository.*;
+import com.guanyu.haigui.service.UserChatSessionService;
 import com.guanyu.haigui.utils.GroupRoomUtils;
 import com.guanyu.haigui.utils.CosUtil;
-import com.guanyu.haigui.utils.RedisServiceUtil;
 import io.micrometer.common.util.StringUtils;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -46,9 +46,10 @@ public class GroupService {
     private final ModelMapper modelMapper;
     private final ChatGroupMessageRepository chatGroupMessageRepository;
     private final SimpMessagingTemplate simpMessagingTemplate; // WebSocket消息模板
+    private final StompUserPushService stompUserPushService;
     private final GroupJoinRequestRepository joinRequestRepo;
     private final UserInfoRepository userInfoRepository;
-    private final RedisServiceUtil redisServiceUtil;
+    private final UserChatSessionService userChatSessionService;
     // private static final int LATEST_MESSAGES_LIMIT = 20;
     private final GroupRoomUtils groupRoomUtils;
     private final CosUtil cosUtil;
@@ -174,11 +175,73 @@ public class GroupService {
         ownerAdmin.setChatGroup(newGroup);
         ownerAdmin.setIsOwner(true);
         chatGroupAdminRepository.save(ownerAdmin);
-        // 4. 添加群成员（创建者+好友）
-        addUserToGroup(newGroup.getGroupId(), currentUserId); // 添加创建者
-        request.getFriendIds().forEach(friendId -> addUserToGroup(newGroup.getGroupId(), friendId)); // 添加好友
+        addUserToGroup(newGroup.getGroupId(), currentUserId);
+        request.getFriendIds().forEach(friendId -> addUserToGroup(newGroup.getGroupId(), friendId));
 
         return newGroup.getGroupId();
+    }
+
+    /**
+     * 群成员邀请好友直接入群（无需审批）
+     *
+     * @return 实际加入人数
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public int inviteFriendsToGroup(InviteGroupFriendsRequest request) {
+        Long currentUserId = BaseContext.getCurrentId();
+        String groupId = request.getGroupId();
+
+        if (!chatGroupMemberRepository.existsByChatGroupGroupIdAndMemberUserId(groupId, currentUserId)) {
+            throw new BusinessException(403, "您不是群成员，无法邀请好友");
+        }
+
+        ChatGroup group = chatGroupRepository.findById(groupId)
+                .orElseThrow(() -> new BusinessException(404, "群聊不存在"));
+
+        List<Long> friendIds = request.getFriendIds().stream().distinct().toList();
+        validateFriendRelations(currentUserId, friendIds);
+
+        UserInfo inviter = userInfoRepository.findById(currentUserId)
+                .orElseThrow(() -> new BusinessException(403, "用户不存在"));
+
+        List<Long> addedIds = new ArrayList<>();
+        for (Long friendId : friendIds) {
+            if (chatGroupMemberRepository.existsByChatGroupGroupIdAndMemberUserId(groupId, friendId)) {
+                continue;
+            }
+            addUserToGroup(groupId, friendId);
+            addedIds.add(friendId);
+
+            pushToUserPrivateChannel(
+                    friendId,
+                    new JoinGroupRoomVO(
+                            friendId,
+                            groupId,
+                            group.getGroupName(),
+                            group.getGroupAvatar(),
+                            JoinGroupStatus.AGREE,
+                            MessageChatType.GROUP_AGREE_REQUESTS));
+        }
+
+        if (addedIds.isEmpty()) {
+            throw new BusinessException(400, "所选好友已在群中");
+        }
+
+        for (Long addedId : addedIds) {
+            UserInfo addedUser = userInfoRepository.findById(addedId)
+                    .orElseThrow(() -> new BusinessException(403, "被邀请用户不存在"));
+            GroupMemberJoinVO joinVO = new GroupMemberJoinVO();
+            joinVO.setRoomId(groupId);
+            joinVO.setUserId(addedId);
+            joinVO.setUserName(addedUser.getUsername());
+            joinVO.setOperatorId(currentUserId);
+            joinVO.setOperatorName(inviter.getUsername());
+            joinVO.setChatType(MessageChatType.GROUP_MEMBER_JOIN);
+            broadcastGroupMessageToMembers(joinVO, groupId);
+        }
+
+        log.info("用户 {} 邀请 {} 加入群 {}", currentUserId, addedIds, groupId);
+        return addedIds.size();
     }
 
     private void validateFriendRelations(Long userId, List<Long> friendIds) {
@@ -245,16 +308,20 @@ public class GroupService {
             return; // 已存在则跳过
         }
 
+        ChatGroup group = chatGroupRepository.findById(groupId)
+                .orElseThrow(() -> new BusinessException(403, "群聊不存在"));
         ChatGroupMemberId memberIdObj = new ChatGroupMemberId(memberId, groupId);
         ChatGroupMember member = ChatGroupMember.builder()
                 .id(memberIdObj)
                 .member(sysUserRepository.findById(memberId).orElseThrow(() -> new BusinessException(403, "用户不存在")))
-                .chatGroup(chatGroupRepository.findById(groupId).orElseThrow(() -> new BusinessException(403, "群聊不存在")))
+                .chatGroup(group)
                 .joinTime(LocalDateTime.now())
                 .build();
 
         chatGroupMemberRepository.save(member);
         groupRoomUtils.addUserToGroup(groupId, memberId);
+        userChatSessionService.ensureGroupSession(
+                memberId, groupId, group.getGroupName(), group.getGroupAvatar());
     }
 
     /**
@@ -446,9 +513,8 @@ public class GroupService {
             // 过滤条件：消息所属群ID等于目标群
             return cb.equal(root.get("chatGroup").get("groupId"), dto.getGroupId());
         };
-        redisServiceUtil.clearGroupMsgCount(BaseContext.getCurrentId(), dto.getGroupId());
+        userChatSessionService.clearGroupUnread(BaseContext.getCurrentId(), dto.getGroupId());
 
-        // 构建分页请求（无排序）
         Pageable pageable = PageRequest.of(dto.getPage(), dto.getSize());
         // 执行查询（返回GroupMessage分页）
         Page<GroupMessage> messagePage = chatGroupMessageRepository.findAll(spec, pageable);
@@ -494,12 +560,15 @@ public class GroupService {
         message.setCreateTime(LocalDateTime.now());
         message.setStatus(MessageStatus.SENT);
         chatGroupMessageRepository.save(message);
-        redisServiceUtil.updateLastGroupMessage1(request.getGroupId(), message.getContent(), message.getCreateTime());
-        redisServiceUtil.updateLastGroupSenderId(request.getGroupId(), message.getSender().getUserId());
-        // 4. 转换为VO并广播给群成员
+        userChatSessionService.onGroupMessageSent(
+                request.getGroupId(),
+                userID,
+                message.getContent(),
+                message.getCreateTime(),
+                sender.getUsername());
         GroupMessageVO vo = GroupMessageVO.from(message);
         vo.setChatType(MessageChatType.GROUP_MESSAGE);
-        broadcastGroupMessageToMembers(vo, request.getGroupId());
+        broadcastGroupMessageToMembers(vo, request.getGroupId(), userID);
         return vo;
     }
 
@@ -586,9 +655,7 @@ public class GroupService {
         entityManager.createNativeQuery("DELETE FROM chat_group_members WHERE group_id = ?1")
                 .setParameter(1, groupId)
                 .executeUpdate();
-        entityManager.createNativeQuery("DELETE FROM user_group_sticky WHERE group_id = ?1")
-                .setParameter(1, groupId)
-                .executeUpdate();
+        userChatSessionService.removeAllGroupSessions(groupId);
         chatGroupRepository.deleteById(groupId);
         log.info("群主 {} 解散群 {}", ownerUserId, groupId);
     }
@@ -603,7 +670,7 @@ public class GroupService {
                 memberProj.getGroupId()
         );
         chatGroupMemberRepository.deleteById(memberId);
-        userInfoRepository.deleteGroupSticky(userId, groupId);
+        userChatSessionService.removeGroupSession(userId, groupId);
         joinRequestRepo.deleteByUserUserIdAndGroupGroupId(userId, groupId);
         chatGroupAdminRepository.findByChatGroupGroupIdAndUserUserId(groupId, userId)
                 .ifPresent(chatGroupAdminRepository::delete);
@@ -694,6 +761,7 @@ public class GroupService {
             log.info("群头像删除成功 → 群ID: {}, 旧URL: {}", groupId, oldAvatarUrl);
         }
         chatGroupRepository.updateGroupAvatar(groupId, avatarUrl);
+        userChatSessionService.updateGroupAvatar(groupId, avatarUrl);
         updateGroupAvatarVO updateGroupAvatarVO = new updateGroupAvatarVO(groupId, avatarUrl,
                 MessageChatType.GROUP_UPDATE_AVATAR);
         broadcastGroupMessageToMembers(updateGroupAvatarVO, groupId);
@@ -702,8 +770,7 @@ public class GroupService {
 
     private void pushToUserPrivateChannel(Long userId, Object payload) {
         if (userId == null) return;
-        userInfoRepository.findById(userId).ifPresent(user ->
-                simpMessagingTemplate.convertAndSendToUser(user.getUsername(), "/private-messages", payload));
+        stompUserPushService.pushPrivateChannel(userId, payload);
     }
 
     /**
@@ -713,11 +780,15 @@ public class GroupService {
      * @param groupId   群聊ID
      */
     private void broadcastGroupMessageToMembers(Object messageVo, String groupId) {
-        // 获取群成员列表（可根据需要加缓存）
+        broadcastGroupMessageToMembers(messageVo, groupId, null);
+    }
+
+    private void broadcastGroupMessageToMembers(Object messageVo, String groupId, Long excludeUserId) {
         Set<Long> groupMembers = groupRoomUtils.getGroupMembers(groupId);
         log.info("群聊消息已发送到用户专属主题");
-        // 遍历发送给每个成员
-        groupMembers.forEach(memberId -> pushToUserPrivateChannel(memberId, messageVo));
+        groupMembers.stream()
+                .filter(memberId -> excludeUserId == null || !memberId.equals(excludeUserId))
+                .forEach(memberId -> pushToUserPrivateChannel(memberId, messageVo));
     }
 
     public updateGroupNameVO updateGroupName(updateGroupNameDTO request) {
@@ -738,6 +809,7 @@ public class GroupService {
             throw new BusinessException(400, "群名称最多32个字");
         }
         chatGroupRepository.updateGroupName(request.getGroupId(), groupName);
+        userChatSessionService.updateGroupName(request.getGroupId(), groupName);
         updateGroupNameVO updateGroupNameVO = new updateGroupNameVO();
         updateGroupNameVO.setGroupId(request.getGroupId());
         updateGroupNameVO.setGroupName(groupName);

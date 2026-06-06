@@ -57,11 +57,6 @@ public class ChatGroup {
     @Builder.Default
     private Set<ChatGroupMember> members = new HashSet<>();
 
-    /** 群置顶列表（一对多关联user_group_sticky表，级联删除） */
-    @OneToMany(mappedBy = "chatGroup", cascade = CascadeType.ALL, orphanRemoval = true)
-    @Builder.Default
-    private Set<UserGroupSticky> stickies = new HashSet<>();
-
     // ✅ 新增：群管理员列表（一对多关联chat_group_administrators表，级联删除）
     @OneToMany(mappedBy = "chatGroup", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

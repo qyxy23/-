@@ -96,6 +96,14 @@ public class CustomUserDetails extends UserInfo implements UserDetails, Serializ
         return this;
     }
 
+    @Override
+    public String getName() {
+        if (getUserId() != null) {
+            return String.valueOf(getUserId());
+        }
+        return super.getName();
+    }
+
     // 实现UserDetails接口方法
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

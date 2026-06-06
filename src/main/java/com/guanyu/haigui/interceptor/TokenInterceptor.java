@@ -28,11 +28,8 @@ public class TokenInterceptor implements HandlerInterceptor {
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             return true;
         }
-        System.out.println("当前请求的资源：" + handler);
-
         //1、从请求头中获取令牌
         String token = request.getHeader( "Authorization" );
-        log.info("当前请求的令牌：{}", token);
         // 检查token是否为null
         if (token == null) {
             log.warn("Missing token in request header");
@@ -50,11 +47,9 @@ public class TokenInterceptor implements HandlerInterceptor {
         token = token.substring(7);
         //2、校验令牌
         try {
-            log.info("jwt校验:{}", token);
             jwtTokenUtil.validateToken(token);
             Long empId = jwtTokenUtil.getUserIdFromToken(token);
             log.info("当前用户id：{}", empId);
-            System.out.println(empId+"通过token");
             //设置当前登录用户id到当前线程中
             BaseContext.setCurrentId(empId);
             //3、通过，放行

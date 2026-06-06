@@ -2,6 +2,8 @@ package com.guanyu.haigui.pojo.model;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.guanyu.haigui.Enum.AiGenStatus;
+import com.guanyu.haigui.Enum.PublishStatus;
 import com.guanyu.haigui.Enum.DifficultyLevel;
 import com.guanyu.haigui.Enum.SoupTag;
 import com.guanyu.haigui.converter.SoupTagConverter;
@@ -93,6 +95,26 @@ public class HaiGuiSoupAudit {
     @Column(columnDefinition = "JSON")
     @JdbcTypeCode(SqlTypes.JSON)
     private JsonNode draftTasks; // 推理任务（JSON 数组，用 JsonNode 接收）
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "ai_gen_status", nullable = false, length = 20)
+    private AiGenStatus aiGenStatus = AiGenStatus.IDLE;
+
+    @Column(name = "ai_gen_error", columnDefinition = "TEXT")
+    private String aiGenError;
+
+    @Column(name = "ai_gen_updated_at", columnDefinition = "DATETIME(6)")
+    private LocalDateTime aiGenUpdatedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "publish_status", nullable = false, length = 20)
+    private PublishStatus publishStatus = PublishStatus.IDLE;
+
+    @Column(name = "publish_error", columnDefinition = "TEXT")
+    private String publishError;
+
+    @Column(name = "publish_updated_at", columnDefinition = "DATETIME(6)")
+    private LocalDateTime publishUpdatedAt;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "DATETIME(6)")

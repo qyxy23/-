@@ -37,7 +37,7 @@ public class HaiGuiChatMessageWithFragments {
     private String questionContent;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "ai_answer", columnDefinition = "ENUM('YES','NO','PARTIAL','UNKNOWN')", nullable = false)
+    @Column(name = "ai_answer", columnDefinition = "ENUM('YES','NO','PARTIAL','UNIMPORTANT','UNKNOWN')", nullable = false)
     private QuestionWithAiAnswer aiAnswer;
 
     @Column(name = "triggered_fragment_ids", columnDefinition = "JSON")

@@ -1,7 +1,7 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.guanyu.haigui.Enum.AiGenStatus;
+import com.guanyu.haigui.Enum.PublishStatus;
 import com.guanyu.haigui.Enum.UserRoleEnum;
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.context.BaseContext;
@@ -15,11 +15,13 @@ import com.guanyu.haigui.pojo.model.*;
 import com.guanyu.haigui.pojo.result.HaiGuiDetailResult;
 import com.guanyu.haigui.pojo.result.HaiGuiInfoResult;
 import com.guanyu.haigui.pojo.vo.AddAuditUserVO;
+import com.guanyu.haigui.pojo.vo.GenerateInfoResponseVO;
+import com.guanyu.haigui.pojo.vo.PublishResponseVO;
 import com.guanyu.haigui.pojo.vo.QueryMyTurtleSoupListVO;
 import com.guanyu.haigui.pojo.vo.QueryTurtleSoupListVO;
 import com.guanyu.haigui.repository.*;
-import com.guanyu.haigui.utils.HaiGuiInfoUtil;
-import lombok.AllArgsConstructor;
+import com.guanyu.haigui.utils.AuditDraftValidator;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
@@ -38,7 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-@AllArgsConstructor
+@RequiredArgsConstructor
 @Service
 @Slf4j
 @Transactional(rollbackFor = Exception.class)
@@ -51,9 +53,13 @@ public class AuditService {
     private final HaiGuiSoupAuditRepository haiGuiSoupAuditRepository;
     private final ClueFragmentRepository clueFragmentRepository;
     private final InferenceTaskRepository inferenceTaskRepository;
-    private final ObjectMapper objectMapper;
     private final RedissonClient redissonClient;
+    private final AuditAiGenerateService auditAiGenerateService;
+    private final AuditPublishService auditPublishService;
+    private final AuditDraftService auditDraftService;
 
+    private static final String AI_GENERATE_LOCK_PREFIX = "audit:ai_generate:";
+    private static final String PUBLISH_LOCK_PREFIX = "audit:publish:";
 
     /*
     添加审核员
@@ -113,65 +119,106 @@ public class AuditService {
         }
     }
 
-    public HaiGuiInfoResult generateInfo(Long auditId) {
-        HaiGuiSoupAudit audit = findById(auditId);
-        // 生成提示
-        String prompt = haiGuiSoupInfoService.generatePrompt(audit);
-        // 调用AI生成信息
-        HaiGuiInfoResult result = haiGuiSoupInfoService.generateInfo(prompt);
-        ToJson(audit, result.getManual(), result.getAiJudgeRules(),
-                result.getFragments(), result.getInferenceTasks());
-        haiGuiSoupAuditRepository.save(audit);
-        return result;
+    /**
+     * 提交异步 AI 生成任务（按 auditId 加锁，结果写入草稿字段）
+     */
+    public GenerateInfoResponseVO submitGenerateInfo(Long auditId) {
+        findById(auditId);
+        recoverStaleGenerating(auditId);
+
+        HaiGuiSoupAudit audit = haiGuiSoupAuditRepository.findById(auditId)
+                .orElseThrow(() -> new BusinessException(404, "审核记录不存在"));
+        if (audit.getAiGenStatus() == AiGenStatus.GENERATING) {
+            return GenerateInfoResponseVO.generating();
+        }
+
+        int updated = haiGuiSoupAuditRepository.markGeneratingIfNot(auditId, LocalDateTime.now());
+        if (updated == 0) {
+            return GenerateInfoResponseVO.generating();
+        }
+
+        auditAiGenerateService.generateAsync(auditId);
+        return GenerateInfoResponseVO.accepted();
     }
 
-    public String createTurtleSoup(CreateTurtleSoupDTO dto) {
-        RLock lock = redissonClient.getLock("turtle_soup_create_lock");
-        try {
-            // 尝试立即获取锁（不等待）
-            if (!lock.tryLock()) {
-                throw new BusinessException(429, "请稍等，当前有人正在操作");
-            }
+    private void recoverStaleGenerating(Long auditId) {
+        HaiGuiSoupAudit audit = haiGuiSoupAuditRepository.findById(auditId).orElse(null);
+        if (audit == null || audit.getAiGenStatus() != AiGenStatus.GENERATING) {
+            return;
+        }
+        RLock lock = redissonClient.getLock(AI_GENERATE_LOCK_PREFIX + auditId);
+        if (!lock.isLocked()) {
+            audit.setAiGenStatus(AiGenStatus.FAILED);
+            audit.setAiGenError("上次生成已中断，请重新发起");
+            audit.setAiGenUpdatedAt(LocalDateTime.now());
+            haiGuiSoupAuditRepository.save(audit);
+        }
+    }
 
-            try {
-                UserInfo userInfo = userInfoRepository.findById(BaseContext.getCurrentId())
-                        .orElseThrow(() -> new BusinessException(404, "用户不存在"));
-                if (!hasAuditPermission(userInfo.getUserId())) {
-                    throw new BusinessException(403, "您不是审核员,无权限");
-                }
-                HaiGuiSoupAudit audit = haiGuiSoupAuditRepository.findById(dto.getAuditRecordId())
-                        .orElseThrow(() -> new BusinessException(404, "审核记录不存在"));
-                HaiGuiSoup soup = dto.fromToHaiGuiSoup(userInfo);
-                haiGuiSoupRepository.save(soup);
-                System.out.println("soup = " + soup);
-                audit.setOriginalSoupId(soup.getSoupId());
-                audit.setAuditStatus(HaiGuiSoupAudit.AuditStatus.APPROVED);
-                audit.setAuditorId(BaseContext.getCurrentId());
-                audit.setAuditTime(LocalDateTime.now());
-                System.out.println("audit = " + dto.getFragments());
-                ToJson(audit, dto.getManual(), dto.getAiJudgeRules(),
-                        dto.getFragments(), dto.getInferenceTasks());
-                System.out.println("audit = " + audit.getDraftFragments());
-                haiGuiSoupAuditRepository.save(audit);
-                // 向量化线索并进行存储
-                Map<Integer, Long> fragments = haiGuiSoupInfoService.convertToClueFragmentsAndSave(dto.getFragments(), soup);
-                List<InferenceTask> tasks = haiGuiSoupInfoService.convertToInferenceTasks(dto.getInferenceTasks(), soup, fragments);
-                if (fragments.isEmpty() || tasks.isEmpty()) {
-                    throw new BusinessException(500, "请检查线索和推理任务是否填写正确");
-                }
-                return "创建成功";
-            } finally {
-                // 安全解锁：检查当前线程是否持有锁
-                if (lock.isHeldByCurrentThread()) {
-                    lock.unlock();
-                }
-            }
-        } catch (BusinessException e) {
-            if (e.getMessage().contains("当前有人正在操作")) {
-                // 提示用户稍后重试
-                return "error: 请稍后重试";
-            }
-            throw e;
+    /**
+     * 提交异步发布（按 auditId 加锁，向量化入库在后台完成，前端可离开页面）
+     */
+    public PublishResponseVO submitPublish(CreateTurtleSoupDTO dto) {
+        UserInfo userInfo = userInfoRepository.findById(BaseContext.getCurrentId())
+                .orElseThrow(() -> new BusinessException(404, "用户不存在"));
+        if (!hasAuditPermission(userInfo.getUserId())) {
+            throw new BusinessException(403, "您不是审核员,无权限");
+        }
+
+        Long auditId = dto.getAuditRecordId();
+        findById(auditId);
+        recoverStalePublishing(auditId);
+
+        HaiGuiSoupAudit audit = haiGuiSoupAuditRepository.findById(auditId)
+                .orElseThrow(() -> new BusinessException(404, "审核记录不存在"));
+        if (audit.getAuditStatus() != HaiGuiSoupAudit.AuditStatus.PENDING) {
+            throw new BusinessException(400, "当前状态无法发布");
+        }
+        if (audit.getAiGenStatus() == AiGenStatus.GENERATING) {
+            throw new BusinessException(409, "AI 正在生成中，请完成后再发布");
+        }
+        if (audit.getPublishStatus() == PublishStatus.PUBLISHING) {
+            return PublishResponseVO.publishing();
+        }
+
+        AuditDraftValidator.validateTaskPrerequisites(dto.getFragments(), dto.getInferenceTasks());
+        applyPublishDtoToAudit(dto, audit);
+        audit.setAuditorId(BaseContext.getCurrentId());
+        haiGuiSoupAuditRepository.save(audit);
+
+        int updated = haiGuiSoupAuditRepository.markPublishingIfNot(auditId, LocalDateTime.now());
+        if (updated == 0) {
+            return PublishResponseVO.publishing();
+        }
+
+        auditPublishService.publishAsync(auditId);
+        return PublishResponseVO.accepted();
+    }
+
+    private void applyPublishDtoToAudit(CreateTurtleSoupDTO dto, HaiGuiSoupAudit audit) {
+        audit.setTitle(dto.getSoupTitle());
+        audit.setSurface(dto.getSoupSurface());
+        audit.setBottom(dto.getSoupBottom());
+        audit.setEstimatedDuration(dto.getEstimatedDuration());
+        audit.setPlayerCount(dto.getPlayerCount());
+        audit.setDifficultyLevel(dto.getDifficultyLevel());
+        audit.setTags(dto.getTag());
+        audit.setDefaultMaxQuestions(dto.getMaxRounds());
+        auditDraftService.writeDraft(audit, dto.getManual(), dto.getAiJudgeRules(),
+                dto.getFragments(), dto.getInferenceTasks());
+    }
+
+    private void recoverStalePublishing(Long auditId) {
+        HaiGuiSoupAudit audit = haiGuiSoupAuditRepository.findById(auditId).orElse(null);
+        if (audit == null || audit.getPublishStatus() != PublishStatus.PUBLISHING) {
+            return;
+        }
+        RLock lock = redissonClient.getLock(PUBLISH_LOCK_PREFIX + auditId);
+        if (!lock.isLocked()) {
+            audit.setPublishStatus(PublishStatus.FAILED);
+            audit.setPublishError("上次发布已中断，请重新发起");
+            audit.setPublishUpdatedAt(LocalDateTime.now());
+            haiGuiSoupAuditRepository.save(audit);
         }
     }
 
@@ -254,7 +301,19 @@ public class AuditService {
             haiGuiInfoResult = loadPublishedExtras(audit.getOriginalSoupId(), haiGuiInfoResult);
         }
 
-        return HaiGuiDetailResult.fromHaiGuiSoupAudit(audit, haiGuiInfoResult);
+        HaiGuiDetailResult result = HaiGuiDetailResult.fromHaiGuiSoupAudit(audit, haiGuiInfoResult);
+        if (StringUtils.hasText(audit.getOriginalSoupId())) {
+            haiGuiSoupRepository.findById(audit.getOriginalSoupId())
+                    .ifPresent(soup -> {
+                        result.setSoupAvatar(soup.getSoupAvatar());
+                        if (audit.getAuditStatus() == HaiGuiSoupAudit.AuditStatus.APPROVED) {
+                            result.setPlayerCount(soup.getPlayerCount());
+                            result.setDefaultMaxQuestions(soup.getDefaultMaxQuestions());
+                            result.setEstimatedDuration(soup.getEstimatedDuration());
+                        }
+                    });
+        }
+        return result;
     }
 
     private boolean shouldLoadPublishedExtras(HaiGuiSoupAudit audit, HaiGuiInfoResult draftInfo) {
@@ -485,32 +544,12 @@ public class AuditService {
         audit.setAuditStatus(HaiGuiSoupAudit.AuditStatus.PENDING);
         audit.setAuditorId(BaseContext.getCurrentId());
 
-        ToJson(audit, dto.getDraftManual(), dto.getDraftAiJudgeRules(),
+        auditDraftService.writeDraft(audit, dto.getDraftManual(), dto.getDraftAiJudgeRules(),
                 dto.getDraftFragments(), dto.getDraftTasks());
 
         // 8. 保存更新
         haiGuiSoupAuditRepository.save(audit);
     }
-
-
-
-    private void ToJson(HaiGuiSoupAudit audit, String hostManual, String aiJudgeRules,
-                        List<ClueFragmentInfo> clue, List<InferenceTaskInfo> task) {
-        try {
-            audit.setDraftManual(HaiGuiInfoUtil.serializeDraftManual(hostManual, aiJudgeRules));
-
-            // 5. 序列化线索片段列表并转为 JsonNode
-            String fragmentsStr = objectMapper.writeValueAsString(clue);
-            audit.setDraftFragments(objectMapper.readTree(fragmentsStr));
-
-            // 6. 序列化推理任务列表并转为 JsonNode
-            String tasksStr = objectMapper.writeValueAsString(task);
-            audit.setDraftTasks(objectMapper.readTree(tasksStr));
-        } catch (JsonProcessingException e) {
-            throw new BusinessException(500, "JSON序列化失败: " + e.getMessage());
-        }
-    }
-
 
     private boolean hasAuditPermission(Long userId) {
         return sysUserRoleRepository.existsById(

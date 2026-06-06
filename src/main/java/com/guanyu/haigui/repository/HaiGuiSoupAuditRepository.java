@@ -4,7 +4,12 @@ import com.guanyu.haigui.pojo.model.HaiGuiSoupAudit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
+import java.time.LocalDateTime;
 
 @Repository
 public interface HaiGuiSoupAuditRepository extends JpaRepository<HaiGuiSoupAudit, Long> {
@@ -39,4 +44,26 @@ public interface HaiGuiSoupAuditRepository extends JpaRepository<HaiGuiSoupAudit
             String title,
             HaiGuiSoupAudit.AuditStatus status,
             Pageable pageable);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE HaiGuiSoupAudit a
+            SET a.aiGenStatus = com.guanyu.haigui.Enum.AiGenStatus.GENERATING,
+                a.aiGenError = null,
+                a.aiGenUpdatedAt = :time
+            WHERE a.auditId = :auditId AND a.aiGenStatus <> com.guanyu.haigui.Enum.AiGenStatus.GENERATING
+            """)
+    int markGeneratingIfNot(@Param("auditId") Long auditId, @Param("time") LocalDateTime time);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE HaiGuiSoupAudit a
+            SET a.publishStatus = com.guanyu.haigui.Enum.PublishStatus.PUBLISHING,
+                a.publishError = null,
+                a.publishUpdatedAt = :time
+            WHERE a.auditId = :auditId
+              AND a.auditStatus = com.guanyu.haigui.pojo.model.HaiGuiSoupAudit.AuditStatus.PENDING
+              AND a.publishStatus <> com.guanyu.haigui.Enum.PublishStatus.PUBLISHING
+            """)
+    int markPublishingIfNot(@Param("auditId") Long auditId, @Param("time") LocalDateTime time);
 }

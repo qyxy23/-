@@ -2,12 +2,15 @@ package com.guanyu.haigui.controller;
 
 import com.guanyu.haigui.Enum.SoupTag;
 import com.guanyu.haigui.pojo.model.SoupListPageResponse;
+import com.guanyu.haigui.pojo.vo.SoupListItem;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.service.ServicesImpl.HaiGuiRankingService;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -105,6 +108,17 @@ public class HaiGuiRankingController {
             return Result.success("获取海龟汤列表成功", response);
         } catch (Exception e) {
             log.error("获取海龟汤列表失败", e);
+            return Result.error("获取失败: " + e.getMessage());
+        }
+    }
+
+    @Operation(summary = "获取海龟汤公开详情", description = "返回标题、汤面、封面及游玩参数，不含汤底/线索/任务/手册")
+    @GetMapping("/soup/{soupId}")
+    public Result<SoupListItem> getSoupBrief(@PathVariable String soupId) {
+        try {
+            return Result.success(haiGuiRankingService.getSoupBrief(soupId));
+        } catch (Exception e) {
+            log.error("获取海龟汤详情失败 soupId={}", soupId, e);
             return Result.error("获取失败: " + e.getMessage());
         }
     }

@@ -13,7 +13,7 @@ public interface UserService {
 
     String bindEmail(String email);
 
-    String bindPassword(String password);
+    String changePassword(String oldPassword, String newPassword);
 
     UserInfoVO getUserInfo(Long userId);
 

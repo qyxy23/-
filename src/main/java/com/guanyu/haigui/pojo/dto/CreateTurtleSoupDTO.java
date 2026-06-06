@@ -66,7 +66,7 @@ public class CreateTurtleSoupDTO {
         haiGuiSoup.setSoupTitle(soupTitle);
         haiGuiSoup.setSoupSurface(soupSurface);
         haiGuiSoup.setSoupBottom(soupBottom);
-        haiGuiSoup.setHostManual(manual);
+        haiGuiSoup.setHostManual(manual != null ? manual : "");
         haiGuiSoup.setAiJudgeRules(aiJudgeRules != null ? aiJudgeRules : "");
         haiGuiSoup.setDefaultMaxQuestions(maxRounds);
         haiGuiSoup.setTaskGenerationStrategy("HYBRID");

@@ -14,6 +14,7 @@ import com.guanyu.haigui.pojo.model.*;
 import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.repository.*;
 import com.guanyu.haigui.service.ServicesImpl.SoupQuestionServiceImpl;
+import com.guanyu.haigui.service.UserChatSessionService;
 import com.guanyu.haigui.utils.RedisServiceUtil;
 import com.guanyu.haigui.utils.SessionMapUtil;
 import lombok.AllArgsConstructor;
@@ -23,6 +24,8 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.math.BigInteger;
@@ -37,9 +40,11 @@ import java.util.stream.Collectors;
 public class RoomService {
     // 存储大厅ID与成员用户ID的映射（线程安全，仅存用户ID减少内存占用）
     private final RedisServiceUtil redisService;
+    private final UserChatSessionService userChatSessionService;
     private final ChatGameMapper chatGameMapper;
     private final ChatGameMemberMapper chatGameMemberMapper;
     private final SimpMessagingTemplate simpMessagingTemplate;
+    private final StompUserPushService stompUserPushService;
     private final UserInfoRepository userInfoRepository;
     private final ChatGameRepository chatGameRepository;
     private final ChatGameMemberRepository chatGameMemberRepository;
@@ -273,9 +278,40 @@ public class RoomService {
         vo.setChatType(MessageChatType.GAME_JOIN);
         // 7. 更新Redis在线房间缓存（可选）
         redisService.updateOnlineRoomsAndNumbers(roomId, num);
-        simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId, vo);
+        broadcastMemberChange(roomId, MessageChatType.GAME_JOIN, user.getUserId(), user.getUsername(), user.getAvatar());
         log.info("用户[{}]加入房间[{}]成功", user.getUserId(), roomId);
         return vo;
+    }
+
+    /**
+     * 事务提交后再推送成员变动，并附带最新成员列表快照，避免订阅方读到未提交数据
+     */
+    private void broadcastMemberChange(String roomId, MessageChatType chatType, Long userId, String userName, String userAvatar) {
+        broadcastMemberChange(roomId, chatType, userId, userName, userAvatar, null);
+    }
+
+    private void broadcastMemberChange(String roomId, MessageChatType chatType, Long userId, String userName, String userAvatar, String eventStatus) {
+        Runnable publish = () -> {
+            LobbyMemberChangeVO message = new LobbyMemberChangeVO();
+            message.setChatType(chatType);
+            message.setUserId(userId);
+            message.setUserName(userName);
+            message.setUserAvatar(userAvatar);
+            message.setRoomId(roomId);
+            message.setEventStatus(eventStatus);
+            message.setMemberSnapshot(getAllMembersByRoomId(roomId));
+            simpMessagingTemplate.convertAndSend("/topic/memberChange" + roomId, message);
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    publish.run();
+                }
+            });
+        } else {
+            publish.run();
+        }
     }
 
     /**
@@ -422,11 +458,7 @@ public class RoomService {
                     log.info("房主[{}]离开，转移创建人身份给[{}]（用户ID：{}）",
                             user.getName(), newOwnerInfo.getName(), newOwnerInfo.getUserId());
 
-                    // 发送WebSocket通知：告知新房主已成为新主人
-                    NewOwnerVO newOwnerVO = new NewOwnerVO();
-                    newOwnerVO.setUserId(newOwnerInfo.getUserId());
-                    newOwnerVO.setStatus(LobbyMemberStatus.BECOME_OWNER); // 自定义状态：成为房主
-                    simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId,newOwnerVO);
+                    broadcastMemberChange(roomId, null, newOwnerInfo.getUserId(), newOwnerInfo.getUsername(), newOwnerInfo.getAvatar(), LobbyMemberStatus.BECOME_OWNER.name());
                 } else {
                     // 没有合适的新主人，房间自动取消（延续原逻辑）
                     room.setStatus(RoomStatus.CANCELLED);
@@ -453,8 +485,7 @@ public class RoomService {
         lobbyVO.setUserName(user.getName());
         lobbyVO.setUserAvatar(user.getAvatar());
         lobbyVO.setChatType(MessageChatType.GAME_QUIT);
-        // 8. 更新Redis在线房间缓存（可选）
-        simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId,lobbyVO);
+        broadcastMemberChange(roomId, MessageChatType.GAME_QUIT, user.getUserId(), user.getName(), user.getAvatar());
         log.info("用户[{}]离开房间[{}]成功", user.getName(), roomId);
         return lobbyVO;
     }
@@ -532,7 +563,7 @@ public class RoomService {
         suspendRoomVO.setUserId(userId);
         suspendRoomVO.setRoomId(roomId);
         suspendRoomVO.setChatType(MessageChatType.SUSPEND_ROOM);
-        simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId,suspendRoomVO);
+        broadcastMemberChange(roomId, MessageChatType.SUSPEND_ROOM, userId, null, null);
         return suspendRoomVO;
     }
 
@@ -552,7 +583,7 @@ public class RoomService {
         resumeRoomVO.setUserId(userId);
         resumeRoomVO.setRoomId(roomId);
         resumeRoomVO.setChatType(MessageChatType.RETURN_ROOM);
-        simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId,resumeRoomVO);
+        broadcastMemberChange(roomId, MessageChatType.RETURN_ROOM, userId, null, null);
         return resumeRoomVO;
     }
 
@@ -572,7 +603,7 @@ public class RoomService {
         readyVO.setUserId(userId);
         readyVO.setRoomId(roomId);
         readyVO.setChatType(MessageChatType.READY_ROOM);
-        simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId,readyVO);
+        broadcastMemberChange(roomId, MessageChatType.READY_ROOM, userId, null, null);
         return readyVO;
     }
 
@@ -595,7 +626,7 @@ public class RoomService {
         cancelReadyVO.setUserId(userId);
         cancelReadyVO.setRoomId(roomId);
         cancelReadyVO.setChatType(MessageChatType.CANCEL_READY_ROOM);
-        simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId,cancelReadyVO);
+        broadcastMemberChange(roomId, MessageChatType.CANCEL_READY_ROOM, userId, null, null);
         return cancelReadyVO;
     }
 
@@ -669,8 +700,28 @@ public class RoomService {
                 roomId, soupId, tasks.size());
         log.info("房间{}已激活", roomId);
         CheckRoomStatusVO vo = CheckRoomStatusVO.success(roomId, room.getStatus(), soup.getSoupSurface());
-        simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId, vo);
+        vo.setMemberSnapshot(getAllMembersByRoomId(roomId));
+        String pushRoomId = roomId;
+        publishAfterCommit(() -> {
+            CheckRoomStatusVO pushVo = CheckRoomStatusVO.success(
+                    pushRoomId, RoomStatus.ACTIVE, soup.getSoupSurface());
+            pushVo.setMemberSnapshot(getAllMembersByRoomId(pushRoomId));
+            simpMessagingTemplate.convertAndSend("/topic/memberChange" + pushRoomId, pushVo);
+        });
         return vo;
+    }
+
+    private void publishAfterCommit(Runnable publish) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    publish.run();
+                }
+            });
+        } else {
+            publish.run();
+        }
     }
 
     public String CancelRoom(String roomId) {
@@ -784,11 +835,7 @@ public class RoomService {
                 invitationVOs.add(vo);
 
                 // -------------------------- 6. 向被邀请者发送实时邀请通知 --------------------------
-                simpMessagingTemplate.convertAndSendToUser(
-                        String.valueOf(inviteeId), // 目标用户ID（Stomp会自动拼接成/user/{inviteeId}/private-messages）
-                        "/private-messages", // 订阅路径（客户端需要订阅此路径才能收到消息）
-                        vo // 要发送的消息内容（邀请记录）
-                );
+                stompUserPushService.pushPrivateChannel(inviteeId, vo);
 
                 log.info("用户[{}]成功邀请好友[{}]加入房间[{}]，已保存海龟汤邀请消息记录", currentUserId, inviteeId, roomId);
 
@@ -805,14 +852,12 @@ public class RoomService {
         return invitationVOs;
     }
 
-    @Async("taskExecutor") // 指定使用配置的"taskExecutor"线程池
-    public void asyncAfterSendMessage(Long userId,Long receiverId) {
-        // 更新最后一条消息缓存
-        redisService.updateLastMsg("邀请你一起玩海龟汤", userId, receiverId);
-        // 如果是发送给好友的消息，更新好友的未读计数
-        if (!userId.equals(receiverId)) {
-            redisService.updateUnreadMsgCount(receiverId, userId);
-        }
+    @Async("taskExecutor")
+    public void asyncAfterSendMessage(Long userId, Long receiverId) {
+        String content = "邀请你一起玩海龟汤";
+        String senderName = userInfoRepository.findById(userId).map(UserInfo::getUsername).orElse("");
+        userChatSessionService.onPrivateMessageSent(
+                userId, receiverId, content, LocalDateTime.now(), senderName);
     }
 
 

@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
+
 public interface ChatGameMsgRepository extends
         JpaRepository<ChatGameMessage, Long>,  // 主键为 Long，继承基础 CRUD
         JpaSpecificationExecutor<ChatGameMessage> {  // 可选：支持 Specification 复杂查询
@@ -37,4 +39,10 @@ public interface ChatGameMsgRepository extends
             String roomId,
             Pageable pageable
     );
+
+    @Query("SELECT m FROM ChatGameMessage m " +
+            "LEFT JOIN FETCH m.sender " +
+            "WHERE m.chatGame.roomId = :roomId " +
+            "ORDER BY m.createTime ASC")
+    List<ChatGameMessage> findByChatGame_RoomIdOrderByCreateTimeAsc(@Param("roomId") String roomId);
 }

@@ -130,6 +130,16 @@ public class RedisServiceUtil {
         );
     }
 
+    /** 清除两用户之间私聊相关的 Redis 缓存（未读、最后一条消息） */
+    public void clearPrivateChatBetween(Long userId1, Long userId2) {
+        redisTemplate.delete(CHAT_UNREAD_KEY + ":" + userId1 + ":" + userId2);
+        redisTemplate.delete(CHAT_UNREAD_KEY + ":" + userId2 + ":" + userId1);
+        redisTemplate.delete(CHAT_LAST_MSG_KEY + ":" + userId1 + ":" + userId2);
+        redisTemplate.delete(CHAT_LAST_TIME_KEY + ":" + userId1 + ":" + userId2);
+        redisTemplate.delete(CHAT_LAST_MSG_KEY + ":" + userId2 + ":" + userId1);
+        redisTemplate.delete(CHAT_LAST_TIME_KEY + ":" + userId2 + ":" + userId1);
+    }
+
     public void deleteOnlineStatus(Long id) {
         redisTemplate.delete(USER_ONLINE_KEY_PREFIX + id);
     }

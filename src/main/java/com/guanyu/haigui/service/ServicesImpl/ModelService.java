@@ -126,9 +126,15 @@ public class ModelService {
         }
 
         AiInferenceEndpoint model = modelRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("模型配置不存在, EndpointId: " + id));
+                .orElseThrow(() -> new EntityNotFoundException("模型配置不存在, ID: " + id));
+
+        if (!Boolean.TRUE.equals(model.getIsActive())) {
+            throw new IllegalArgumentException("该接入点未启用，请先在列表中启用后再切换");
+        }
 
         redisServiceUtil.updateChatModel(model.getEndpointId());
+        log.info("切换当前 AI 接入点: id={}, endpointId={}, modelName={}",
+                id, model.getEndpointId(), model.getModelName());
 
         return convertToResponse(model);
     }

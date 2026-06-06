@@ -23,8 +23,11 @@ public class RoomSoupQuestionVO {
     //答案
     private String answer;
 
-    //当前进度
+    //当前累计进度
     private Double currentProgress;
+
+    /** 本次提问带来的进度增量 */
+    private Double progressDelta;
 
     //剩余次数
     private int remainingQuestions;
@@ -40,14 +43,16 @@ public class RoomSoupQuestionVO {
 
 
     // public static RoomSoupQuestionVO success(String roomId, Long questionId,String question,String answer,Double currentProgress,int remainingQuestions){
-    public static RoomSoupQuestionVO success(String roomId,String question,String answer,Double currentProgress,int remainingQuestions){
+    public static RoomSoupQuestionVO success(String roomId, String question, String answer,
+                                             Double totalProgress, Double progressDelta,
+                                             int remainingQuestions) {
         RoomSoupQuestionVO roomSoupQuestionVO = new RoomSoupQuestionVO();
         roomSoupQuestionVO.setRoomId(roomId);
-        // roomSoupQuestionVO.setQuestionId(questionId.toString());
         roomSoupQuestionVO.setQuestion(question);
         roomSoupQuestionVO.setAnswer(answer);
         roomSoupQuestionVO.setStatus("success");
-        roomSoupQuestionVO.setCurrentProgress(currentProgress);
+        roomSoupQuestionVO.setCurrentProgress(totalProgress);
+        roomSoupQuestionVO.setProgressDelta(progressDelta);
         roomSoupQuestionVO.setRemainingQuestions(remainingQuestions);
         roomSoupQuestionVO.setChatType(MessageChatType.SOUP_QUESTION);
         roomSoupQuestionVO.setSendTime(LocalDateTime.now());
