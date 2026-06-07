@@ -165,54 +165,54 @@ public class RoomService {
         }
 
         int validPage = Math.max(1, page);
-        PageHelper.startPage(validPage, 10); // 分页（每页10条）
+        try {
+            PageHelper.startPage(validPage, 10); // 分页（每页10条）
 
-        // 1. 分页查询聊天室核心信息（不关联成员）
-        List<Map<String, Object>> baseList = chatGameMapper.searchLobbiesBase(dto);
-        if (baseList.isEmpty()) {
-            return new PageImpl<>(Collections.emptyList(), PageRequest.of(validPage - 1, 10), 0);
+            // 1. 分页查询聊天室核心信息（不关联成员）
+            List<Map<String, Object>> baseList = chatGameMapper.searchLobbiesBase(dto);
+            if (baseList.isEmpty()) {
+                return new PageImpl<>(Collections.emptyList(), PageRequest.of(validPage - 1, 10), 0);
+            }
+
+            // 2. 收集所有聊天室的room_id（去重）
+            Set<String> roomIds = baseList.stream()
+                    .map(map -> (String) map.get("room_id"))
+                    .collect(Collectors.toSet());
+
+            // 3. 批量查询这些房间的成员列表（返回Map<roomId, List<MemberSimpleVO>>）
+            List<MemberSimpleVO> membersList = chatGameMemberMapper.selectMembersByRoomIds(roomIds);
+            Map<String, List<MemberSimpleVO>> membersMap = membersList.stream()
+                    .collect(Collectors.groupingBy(MemberSimpleVO::getRoomId));
+
+            // 4. 组装LobbyListVO列表
+            List<LobbyListVO> voList = baseList.stream().map(map -> {
+                LobbyListVO vo = new LobbyListVO();
+                vo.setRoomId((String) map.get("room_id"));
+                vo.setRoomName((String) map.get("room_name"));
+                vo.setRequiredMembers(safeConvertToLong(map.get("required_members")));
+                vo.setCurrentMembers(safeConvertToLong(map.get("current_members")));
+                vo.setStatus(RoomStatus.valueOf((String) map.get("status")));
+                vo.setCreateTime((LocalDateTime) map.get("create_time"));
+
+                CreatorInfoVO creator = new CreatorInfoVO();
+                creator.setUserId(safeConvertToLong(map.get("creator_user_id")));
+                creator.setUsername((String) map.get("creator_username"));
+                creator.setAvatar((String) map.get("creator_avatar"));
+                vo.setCreator(creator);
+                vo.setMembers(membersMap.getOrDefault(vo.getRoomId(), Collections.emptyList()));
+
+                return vo;
+            }).collect(Collectors.toList());
+
+            // 5. 转换为Spring Data Page
+            PageInfo<Map<String, Object>> pageInfo = new PageInfo<>(baseList);
+            return new PageImpl<>(
+                    voList,
+                    PageRequest.of(validPage - 1, 10),
+                    pageInfo.getTotal());
+        } finally {
+            PageHelper.clearPage();
         }
-
-        // 2. 收集所有聊天室的room_id（去重）
-        Set<String> roomIds = baseList.stream()
-                .map(map -> (String) map.get("room_id"))
-                .collect(Collectors.toSet());
-
-        // 3. 批量查询这些房间的成员列表（返回Map<roomId, List<MemberSimpleVO>>）
-        // LobbyService.java 中的步骤3
-        List<MemberSimpleVO> membersList = chatGameMemberMapper.selectMembersByRoomIds(roomIds);
-        // 按 roomId 分组为 Map<String, List<MemberSimpleVO>>
-        Map<String, List<MemberSimpleVO>> membersMap = membersList.stream()
-                .collect(Collectors.groupingBy(MemberSimpleVO::getRoomId));
-
-        // 4. 组装LobbyListVO列表
-        List<LobbyListVO> voList = baseList.stream().map(map -> {
-            LobbyListVO vo = new LobbyListVO();
-            // 填充聊天室核心信息
-            vo.setRoomId((String) map.get("room_id"));
-            vo.setRoomName((String) map.get("room_name"));
-            vo.setRequiredMembers(safeConvertToLong(map.get("required_members")));
-            vo.setCurrentMembers(safeConvertToLong(map.get("current_members")));
-            vo.setStatus(RoomStatus.valueOf((String) map.get("status")));
-            vo.setCreateTime((LocalDateTime) map.get("create_time"));
-
-            // 填充创建者
-            CreatorInfoVO creator = new CreatorInfoVO();
-            creator.setUserId(safeConvertToLong(map.get("creator_user_id")));
-            creator.setUsername((String) map.get("creator_username"));
-            creator.setAvatar((String) map.get("creator_avatar"));
-            vo.setCreator(creator);
-            vo.setMembers(membersMap.getOrDefault(vo.getRoomId(), Collections.emptyList()));
-
-            return vo;
-        }).collect(Collectors.toList());
-
-        // 5. 转换为Spring Data Page
-        PageInfo<Map<String, Object>> pageInfo = new PageInfo<>(baseList);
-        return new PageImpl<>(
-                voList,
-                PageRequest.of(validPage - 1, 10),
-                pageInfo.getTotal());
     }
 
     private Long safeConvertToLong(Object value) {
@@ -574,10 +574,16 @@ public class RoomService {
         ChatGameMemberId memberId = new ChatGameMemberId(userId, roomId);
         ChatGameMember member = chatGameMemberRepository.findById(memberId)
                 .orElseThrow(() -> new UserNotInRoomException("用户未在房间中：ID=" + userId));
-        if(!(room.getStatus() == RoomStatus.WAITING || room.getStatus() == RoomStatus.ACTIVE)){
+        if (!(room.getStatus() == RoomStatus.WAITING
+                || room.getStatus() == RoomStatus.ACTIVE
+                || room.getStatus() == RoomStatus.VOTING)) {
             throw new RuntimeException("房间已结束，无法返回");
         }
-        member.setStatus(MemberStatus.ONLINE);
+        // 游戏进行中挂起后返回应恢复为「游戏中」，而非一律「在线」
+        MemberStatus restoredStatus = room.getStatus() == RoomStatus.WAITING
+                ? MemberStatus.ONLINE
+                : MemberStatus.IN_GAME;
+        member.setStatus(restoredStatus);
         chatGameMemberRepository.save(member);
         resumeRoomVO resumeRoomVO = new resumeRoomVO();
         resumeRoomVO.setUserId(userId);
@@ -757,10 +763,7 @@ public class RoomService {
                 .orElseThrow(() -> new BusinessException(404,"汤不存在"));
 
         // -------------------------- 3. 权限与状态校验 --------------------------
-        // 校验1：只有房主可以邀请成员（creator_id == 当前用户ID）
-        if (!chatGame.getCreator().getUserId().equals(currentUserId)) {
-            throw new RoomException("只有房主有权邀请成员加入房间");
-        }
+        // 校验1：已在房间中的任意成员均可邀请（见上方 memberId 校验）
         // 校验2：房间状态是否允许邀请（已结束/已取消的房间无法邀请）
         if (chatGame.getStatus() == RoomStatus.FINISHED || chatGame.getStatus() == RoomStatus.CANCELLED) {
             throw new RoomException("房间已结束或取消，无法发起邀请");

@@ -60,11 +60,13 @@ public class HaiGuiRankingService {
             if (difficultyObj != null) {
                 if (difficultyObj instanceof DifficultyLevel) {
                     difficultyLevel = (DifficultyLevel) difficultyObj;
-                } else if (difficultyObj instanceof String) {
-                    try {
-                        difficultyLevel = DifficultyLevel.valueOf(((String) difficultyObj).toUpperCase());
-                    } catch (IllegalArgumentException e) {
-                        log.warn("无效的难度等级: {}", difficultyObj);
+                } else if (difficultyObj instanceof String diffStr) {
+                    if (!diffStr.isBlank()) {
+                        try {
+                            difficultyLevel = DifficultyLevel.valueOf(diffStr.toUpperCase());
+                        } catch (IllegalArgumentException e) {
+                            log.warn("无效的难度等级: {}", diffStr);
+                        }
                     }
                 }
             }

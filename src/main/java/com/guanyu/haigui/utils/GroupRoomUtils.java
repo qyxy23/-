@@ -2,6 +2,7 @@ package com.guanyu.haigui.utils;
 
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,6 +29,20 @@ public class GroupRoomUtils {
     // 获取群成员列表（优先本地缓存）
     public Set<Long> getGroupMembers(String groupId) {
         return roomMembers.getOrDefault(groupId, Collections.emptySet());
+    }
+
+    /** 用数据库成员列表刷新内存缓存（服务重启后广播兜底） */
+    public void replaceMembers(String groupId, Collection<Long> memberIds) {
+        if (groupId == null || groupId.isBlank()) {
+            return;
+        }
+        if (memberIds == null || memberIds.isEmpty()) {
+            roomMembers.remove(groupId);
+            return;
+        }
+        Set<Long> synced = ConcurrentHashMap.newKeySet(memberIds.size());
+        synced.addAll(memberIds);
+        roomMembers.put(groupId, synced);
     }
 
 }

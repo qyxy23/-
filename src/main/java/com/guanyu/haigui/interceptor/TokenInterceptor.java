@@ -61,4 +61,10 @@ public class TokenInterceptor implements HandlerInterceptor {
             return false;
         }
     }
+
+    @Override
+    public void afterCompletion(@NotNull HttpServletRequest request, @NotNull HttpServletResponse response,
+                                @NotNull Object handler, Exception ex) {
+        BaseContext.removeCurrentId();
+    }
 }

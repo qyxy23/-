@@ -63,13 +63,13 @@ public class HaiGuiRankingController {
             filterParams.put("tags", soupTag);
         }
 
-        // 处理难度筛选
-        if (difficultyLevel != null) {
+        // 处理难度筛选（忽略空字符串，避免前端未传参时产生无效枚举警告）
+        if (difficultyLevel != null && !difficultyLevel.isBlank()) {
             filterParams.put("difficultyLevel", difficultyLevel);
         }
 
         // 处理人数筛选
-        if (playerCount != null) {
+        if (playerCount != null && playerCount > 0) {
             filterParams.put("playerCount", playerCount);
         }
 

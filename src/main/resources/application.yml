@@ -3,8 +3,8 @@ server:
   address: 0.0.0.0
 
 rocketmq:
-  # NameServer 地址（替换为你的服务器 IP 和端口，默认端口 9876）
-  name-server: 124.220.226.16:9876
+  # NameServer（当前未启用 RocketMQ，保留占位）
+  name-server: 127.0.0.1:9876
 
 jwt:
   # 设置jwt签名加密时使用的秘钥
@@ -26,9 +26,26 @@ spring:
   datasource:
     druid:
       driver-class-name: ${qingyou.datasource.driver-class-name}
-      url: jdbc:mysql://${qingyou.datasource.host}:${qingyou.datasource.port}/${qingyou.datasource.database}?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true
+      url: jdbc:mysql://${qingyou.datasource.host}:${qingyou.datasource.port}/${qingyou.datasource.database}?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&connectTimeout=10000&socketTimeout=60000&tcpKeepAlive=true
       username: ${qingyou.datasource.username}
       password: ${qingyou.datasource.password}
+      initial-size: 5
+      min-idle: 5
+      max-active: 20
+      max-wait: 60000
+      test-while-idle: true
+      test-on-borrow: true
+      test-on-return: false
+      validation-query: SELECT 1
+      validation-query-timeout: 3
+      # 远程 MySQL wait_timeout 较短（约 30~60s），需更频繁检测/回收空闲连接
+      time-between-eviction-runs-millis: 30000
+      min-evictable-idle-time-millis: 30000
+      max-evictable-idle-time-millis: 60000
+      keep-alive: true
+      # 必须大于 time-between-eviction-runs-millis
+      keep-alive-between-time-millis: 60000
+      phy-timeout-millis: 1800000
   sql:
     init:
       mode: never
@@ -59,6 +76,8 @@ spring:
       port: ${qingyou.redis.port}
       database: ${qingyou.redis.database}
       password: ${qingyou.redis.password}
+      timeout: 5s
+      connect-timeout: 5s
   jackson:
     serialization:
       write-dates-as-timestamps: false

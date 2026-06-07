@@ -784,11 +784,18 @@ public class GroupService {
     }
 
     private void broadcastGroupMessageToMembers(Object messageVo, String groupId, Long excludeUserId) {
-        Set<Long> groupMembers = groupRoomUtils.getGroupMembers(groupId);
-        log.info("群聊消息已发送到用户专属主题");
-        groupMembers.stream()
+        List<Long> memberIds = chatGroupMemberRepository.findMemberUserIdsByGroupId(groupId);
+        if (CollectionUtils.isEmpty(memberIds)) {
+            memberIds = new ArrayList<>(groupRoomUtils.getGroupMembers(groupId));
+        } else {
+            groupRoomUtils.replaceMembers(groupId, memberIds);
+        }
+        List<Long> targets = memberIds.stream()
+                .filter(Objects::nonNull)
                 .filter(memberId -> excludeUserId == null || !memberId.equals(excludeUserId))
-                .forEach(memberId -> pushToUserPrivateChannel(memberId, messageVo));
+                .toList();
+        log.info("群聊消息广播: groupId={}, targets={}", groupId, targets);
+        targets.forEach(memberId -> pushToUserPrivateChannel(memberId, messageVo));
     }
 
     public updateGroupNameVO updateGroupName(updateGroupNameDTO request) {

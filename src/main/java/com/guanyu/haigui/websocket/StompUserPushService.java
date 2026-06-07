@@ -24,6 +24,7 @@ public class StompUserPushService {
         }
         String topic = PRIVATE_CHAT_TOPIC_PREFIX + userId;
         simpMessagingTemplate.convertAndSend(topic, payload);
-        log.info("用户频道推送完成: userId={}, topic={}", userId, topic);
+        log.info("用户频道推送: userId={}, topic={}, payloadType={}",
+                userId, topic, payload == null ? "null" : payload.getClass().getSimpleName());
     }
 }
