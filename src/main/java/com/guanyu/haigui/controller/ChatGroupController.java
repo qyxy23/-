@@ -124,7 +124,28 @@ public class ChatGroupController {
         return groupService.getGroupMessages(groupChatHistoryDTO);
     }
 
+    @Operation(summary = "清零群聊未读数")
+    @PostMapping("/clearUnread")
+    @ResponseBody
+    public Result<String> clearGroupUnread(@RequestBody GroupChatHistoryDTO dto) {
+        groupService.clearGroupUnread(dto.getGroupId());
+        return Result.success("已读");
+    }
 
+    @Operation(summary = "增量拉取群聊消息（afterTime 之后）")
+    @PostMapping("/messagesAfter")
+    @ResponseBody
+    public Result<List<GroupMessageVO>> getGroupMessagesAfter(@RequestBody ChatMessagesAfterDTO dto) {
+        return Result.success(groupService.getGroupMessagesAfter(dto));
+    }
+
+    @Operation(summary = "清空群聊聊天记录（账号级边界）")
+    @PostMapping("/clearHistory")
+    @ResponseBody
+    public Result<String> clearGroupHistory(@RequestBody ClearChatHistoryDTO dto) {
+        groupService.clearGroupChatHistory(dto.getSessionId());
+        return Result.success("已清空");
+    }
 
     @Operation(summary = "用户申请加入群聊")
     @PostMapping("/joinGroupRoom")

@@ -6,6 +6,7 @@ import lombok.Getter;
 public enum MessageChatType {
     GROUP_MESSAGE("群消息"),
     PRIVATE_MESSAGE("私聊消息"),
+    PRIVATE_READ_RECEIPT("私聊已读回执"),
     GROUP_JOIN_REQUESTS("加入群聊申请"),
     FRIEND_JOIN_REQUESTS("好友申请"),
     GROUP_AGREE_REQUESTS("同意加入群聊申请"),
@@ -29,6 +30,7 @@ public enum MessageChatType {
     START_ROOM_ERROR("开始游戏失败"),
     START_VOTING("发起投票"),
     CONTINUE_VOTING("普通(跟风)投票"),
+    VOTE_TIMEOUT("投票超时"),
     SOUP_QUESTION("海龟汤问答"), 
     GAME_END("结束游戏"), 
     GAME_JOIN("加入游戏"),

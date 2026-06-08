@@ -513,8 +513,6 @@ public class GroupService {
             // 过滤条件：消息所属群ID等于目标群
             return cb.equal(root.get("chatGroup").get("groupId"), dto.getGroupId());
         };
-        userChatSessionService.clearGroupUnread(BaseContext.getCurrentId(), dto.getGroupId());
-
         Pageable pageable = PageRequest.of(dto.getPage(), dto.getSize());
         // 执行查询（返回GroupMessage分页）
         Page<GroupMessage> messagePage = chatGroupMessageRepository.findAll(spec, pageable);
@@ -522,6 +520,39 @@ public class GroupService {
         groupRoomUtils.addUserToGroup(dto.getGroupId(), BaseContext.getCurrentId());
         // 转换为GroupMessageVO分页
         return messagePage.map(GroupMessageVO::from);
+    }
+
+    /** 离开群聊页时清零当前用户在该群的未读数 */
+    public void clearGroupUnread(String groupId) {
+        userChatSessionService.clearGroupUnread(BaseContext.getCurrentId(), groupId);
+    }
+
+    /** 增量拉取群聊消息（afterTime 之后，升序） */
+    @Transactional(readOnly = true)
+    public List<GroupMessageVO> getGroupMessagesAfter(ChatMessagesAfterDTO dto) {
+        String groupId = dto.getGroupId();
+        if (groupId == null || groupId.isBlank()) {
+            throw new IllegalArgumentException("groupId 不能为空");
+        }
+        Long userId = BaseContext.getCurrentId();
+        int size = dto.getSize() != null ? Math.min(Math.max(dto.getSize(), 1), 100) : 50;
+        LocalDateTime afterTime = dto.getAfterTime() != null ? dto.getAfterTime() : LocalDateTime.of(1970, 1, 1, 0, 0);
+        LocalDateTime clearAt = userChatSessionService.getSession(userId, groupId, "GROUP")
+                .map(ChatSessionVO::getHistoryClearAt)
+                .orElse(null);
+        if (clearAt != null && clearAt.isAfter(afterTime)) {
+            afterTime = clearAt;
+        }
+        Pageable pageable = PageRequest.of(0, size, Sort.by(Sort.Direction.ASC, "createTime"));
+        return chatGroupMessageRepository.findMessagesAfterInGroup(groupId, afterTime, pageable)
+                .stream()
+                .map(GroupMessageVO::from)
+                .collect(Collectors.toList());
+    }
+
+    /** 清空群聊聊天记录（账号级边界） */
+    public void clearGroupChatHistory(String groupId) {
+        userChatSessionService.clearChatHistory(BaseContext.getCurrentId(), groupId, "GROUP");
     }
 
     public List<GroupMessageVO> getRecentMessages(String groupId, int limit) {

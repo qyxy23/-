@@ -25,6 +25,12 @@ public class ChatSessionVO {
     private LocalDateTime lastMessageTime;
     /** 是否置顶（前端根据此字段排序） */
     private Boolean isSticky;
-    /** 最后一条消息的发送者头像URL */
+    /** 最后一条消息的发送者昵称 */
     private String lastSenderName;
+    /** 已读游标时间 */
+    private LocalDateTime readUpToTime;
+    /** 已读游标消息 ID */
+    private String lastReadMessageId;
+    /** 清空聊天记录边界时间 */
+    private LocalDateTime historyClearAt;
 }

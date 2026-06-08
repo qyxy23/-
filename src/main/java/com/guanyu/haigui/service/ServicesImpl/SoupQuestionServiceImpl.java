@@ -17,6 +17,7 @@ import com.guanyu.haigui.pojo.vo.RoomSoupQuestionVO;
 import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
 import com.guanyu.haigui.repository.*;
 import com.guanyu.haigui.service.SoupQuestionService;
+import com.guanyu.haigui.service.VoteTimeoutService;
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
 import com.guanyu.haigui.utils.RedisStackClient;
 import com.guanyu.haigui.utils.SoupQuestionValidator;
@@ -69,6 +70,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
     private final HaiGuiVoteSessionRepository haiGuiVoteSessionRepository;
     private final HaiGuiVoteRecordRepository haiGuiVoteRecordRepository;
     private final GameSettlementBuilder gameSettlementBuilder;
+    private final VoteTimeoutService voteTimeoutService;
 
 
 
@@ -227,9 +229,8 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
 
             // 3. 检查投票是否超时
             if (LocalDateTime.now().isAfter(currentSession.getEndTime())) {
-                // 投票已超时，自动处理
-                handleVoteTimeout(game,currentSession);
-            }else{
+                voteTimeoutService.expireVoteIfOverdue(game, currentSession, VoteTimeoutService.NotifyPolicy.PASSIVE_QUERY);
+            } else {
                 roomGetClueVO.setAgreedVotes(currentSession.getAgreedVotes());
                 roomGetClueVO.setTotalVoters(currentSession.getTotalVoters());
                 roomGetClueVO.setEndTime(currentSession.getEndTime());
@@ -249,17 +250,6 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
 
         return roomGetClueVO;
     }
-
-    private void handleVoteTimeout(ChatGame chatGame,HaiGuiVoteSession session) {
-        // 标记为超时结束
-        chatGame.setStatus(RoomStatus.ACTIVE);
-        chatGame.setUpdateTime(LocalDateTime.now());
-        chatGameRepository.save(chatGame);
-        session.setStatus(HaiGuiVoteSession.VoteStatus.FAILED);
-        session.setUpdatedAt(LocalDateTime.now());
-        haiGuiVoteSessionRepository.save(session);
-    }
-
 
     // 结束游戏
     public EndGameVO endGame(String roomId) {

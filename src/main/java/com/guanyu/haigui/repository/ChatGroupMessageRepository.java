@@ -1,6 +1,10 @@
 package com.guanyu.haigui.repository;
 
 import com.guanyu.haigui.pojo.model.GroupMessage;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -41,4 +45,17 @@ public interface ChatGroupMessageRepository extends JpaRepository<GroupMessage, 
 
     @EntityGraph(value = "GroupMessage.withChatGroup", type = EntityGraph.EntityGraphType.LOAD)
     Page<GroupMessage> findAll(Specification<GroupMessage> spec, Pageable pageable);
+
+    /** 增量同步：群聊某时间点之后的消息（升序） */
+    @Query("""
+            SELECT gm FROM GroupMessage gm
+            JOIN FETCH gm.sender
+            WHERE gm.chatGroup.groupId = :groupId
+              AND gm.createTime > :afterTime
+            ORDER BY gm.createTime ASC
+            """)
+    List<GroupMessage> findMessagesAfterInGroup(
+            @Param("groupId") String groupId,
+            @Param("afterTime") LocalDateTime afterTime,
+            Pageable pageable);
 }

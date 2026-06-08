@@ -6,6 +6,7 @@ import com.guanyu.haigui.pojo.vo.ChatSessionVO;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public interface UserChatSessionService {
 
@@ -20,6 +21,9 @@ public interface UserChatSessionService {
     void clearPrivateUnread(Long userId, Long peerId);
 
     void clearGroupUnread(Long userId, String groupId);
+
+    /** 清空聊天记录（账号级边界，不删服务端消息体） */
+    void clearChatHistory(Long userId, String sessionId, String chatType);
 
     void setSticky(Long userId, String sessionId, String chatType, boolean isSticky);
 
@@ -39,4 +43,6 @@ public interface UserChatSessionService {
     void updateGroupAvatar(String groupId, String groupAvatar);
 
     Map<Long, ChatSessionVO> mapPrivateSessions(Long userId, List<Long> friendIds);
+
+    Optional<ChatSessionVO> getSession(Long userId, String sessionId, String chatType);
 }

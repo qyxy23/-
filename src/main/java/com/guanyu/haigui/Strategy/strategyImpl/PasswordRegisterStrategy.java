@@ -1,5 +1,6 @@
 package com.guanyu.haigui.Strategy.strategyImpl;
 
+import com.guanyu.haigui.Enum.UserRoleEnum;
 import com.guanyu.haigui.Exception.UserAlreadyExistsException;
 import com.guanyu.haigui.Strategy.RegisterStrategy;
 import com.guanyu.haigui.mapper.UserDetailsMapper;
@@ -55,10 +56,10 @@ public class PasswordRegisterStrategy implements RegisterStrategy {
             throw new RuntimeException("用户注册失败，请重试");
         }
 
-        // 将UserRoleEnum.USER转换为GrantedAuthority（如"ROLE_USER"）
-        //TODO:将此处的角色类型写死，只能注册为普通用户
+        // 注册只能创建普通用户，忽略请求中的 role 字段
+        UserRoleEnum registerRole = UserRoleEnum.USER;
         List<GrantedAuthority> authorities = Collections.singletonList(
-                new SimpleGrantedAuthority("ROLE_" + params.getRole())
+                new SimpleGrantedAuthority("ROLE_" + registerRole.getRoleCode())
         );
         log.info("权限已设置：{}", authorities);
         CustomUserDetails.setAuthorities(authorities); // 设置到对象中
@@ -69,7 +70,7 @@ public class PasswordRegisterStrategy implements RegisterStrategy {
         // 5. 插入用户角色中间表（关联用户ID和角色ID）
         UserRole userRole = new UserRole();
         userRole.setUserId(userId);
-        userRole.setRoleId(params.getRole().getRoleId()); // 角色ID从枚举获取
+        userRole.setRoleId(registerRole.getRoleId());
         int roleInsertCount = userDetailsMapper.insertUserRole(userRole);
         if (roleInsertCount <= 0) {
             // 可选：回滚用户插入（若需要事务）

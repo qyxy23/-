@@ -19,6 +19,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -96,19 +97,39 @@ public class UserChatSessionServiceImpl implements UserChatSessionService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void clearPrivateUnread(Long userId, Long peerId) {
-        sessionRepository.findByUserIdAndSessionIdAndChatType(userId, String.valueOf(peerId), TYPE_PRIVATE)
-                .ifPresent(row -> {
-                    row.setUnreadCount(0L);
-                    sessionRepository.save(row);
-                });
+        advanceReadCursor(userId, String.valueOf(peerId), TYPE_PRIVATE);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void clearGroupUnread(Long userId, String groupId) {
-        sessionRepository.findByUserIdAndSessionIdAndChatType(userId, groupId, TYPE_GROUP)
+        advanceReadCursor(userId, groupId, TYPE_GROUP);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void clearChatHistory(Long userId, String sessionId, String chatType) {
+        String type = chatType != null ? chatType.toUpperCase() : TYPE_PRIVATE;
+        sessionRepository.findByUserIdAndSessionIdAndChatType(userId, sessionId, type)
+                .ifPresent(row -> {
+                    LocalDateTime now = LocalDateTime.now();
+                    row.setHistoryClearAt(now);
+                    row.setHistoryClearMessageId(row.getLastReadMessageId());
+                    row.setUnreadCount(0L);
+                    if (row.getLastMessageTime() != null) {
+                        row.setReadUpToTime(row.getLastMessageTime());
+                    }
+                    sessionRepository.save(row);
+                });
+    }
+
+    private void advanceReadCursor(Long userId, String sessionId, String chatType) {
+        sessionRepository.findByUserIdAndSessionIdAndChatType(userId, sessionId, chatType)
                 .ifPresent(row -> {
                     row.setUnreadCount(0L);
+                    if (row.getLastMessageTime() != null) {
+                        row.setReadUpToTime(row.getLastMessageTime());
+                    }
                     sessionRepository.save(row);
                 });
     }
@@ -240,6 +261,14 @@ public class UserChatSessionServiceImpl implements UserChatSessionService {
         sessionRepository.save(row);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<ChatSessionVO> getSession(Long userId, String sessionId, String chatType) {
+        String type = chatType != null ? chatType.toUpperCase() : TYPE_PRIVATE;
+        return sessionRepository.findByUserIdAndSessionIdAndChatType(userId, sessionId, type)
+                .map(this::toVo);
+    }
+
     private ChatSessionVO toVo(UserChatSession s) {
         ChatSessionVO vo = new ChatSessionVO();
         vo.setSessionId(s.getSessionId());
@@ -251,6 +280,9 @@ public class UserChatSessionServiceImpl implements UserChatSessionService {
         vo.setLastMessageTime(s.getLastMessageTime());
         vo.setIsSticky(Boolean.TRUE.equals(s.getIsSticky()));
         vo.setLastSenderName(s.getLastSenderName());
+        vo.setReadUpToTime(s.getReadUpToTime());
+        vo.setLastReadMessageId(s.getLastReadMessageId());
+        vo.setHistoryClearAt(s.getHistoryClearAt());
         return vo;
     }
 

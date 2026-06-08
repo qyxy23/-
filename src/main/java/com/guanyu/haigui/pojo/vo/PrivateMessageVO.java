@@ -27,7 +27,6 @@ public class PrivateMessageVO {
     private String content;
     private MessageType messageType;
     private MessageStatus status;
-    private Boolean isRead;
     private LocalDateTime createTime;
     private MessageChatType chatType;
 
@@ -42,7 +41,6 @@ public class PrivateMessageVO {
                 .content(message.getContent())
                 .messageType(message.getMessageType())
                 .status(message.getStatus())
-                .isRead(message.getIsRead())
                 .createTime(message.getCreateTime());
         return builder.build();
     }

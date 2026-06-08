@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -90,8 +91,33 @@ public interface PrivateMessageRepository extends JpaRepository<PrivateMessage, 
     @Query("UPDATE PrivateMessage pm SET pm.isRead = true WHERE pm.messageId IN :messageIds")
     void markMessagesAsRead(@Param("messageIds") List<String> messageIds);
 
+    /** 查询发送者发给接收者的已读消息中，最新一条的时间（用于已读回执水位线） */
+    @Query("""
+            SELECT MAX(m.createTime) FROM PrivateMessage m
+            WHERE m.sender.userId = :senderId
+              AND m.receiver.userId = :receiverId
+              AND m.isRead = true
+            """)
+    Optional<LocalDateTime> findMaxReadTimeFromSenderToReceiver(
+            @Param("senderId") Long senderId,
+            @Param("receiverId") Long receiverId);
+
     // -------------------------- 可选：按消息ID查找 --------------------------
     Optional<PrivateMessage> findByMessageId(String messageId);
+
+    /** 增量同步：两用户会话中某时间点之后的消息（升序） */
+    @Query("""
+            SELECT m FROM PrivateMessage m
+            WHERE ((m.sender.userId = :userId1 AND m.receiver.userId = :userId2)
+                OR (m.sender.userId = :userId2 AND m.receiver.userId = :userId1))
+              AND m.createTime > :afterTime
+            ORDER BY m.createTime ASC
+            """)
+    List<PrivateMessage> findMessagesAfterBetweenUsers(
+            @Param("userId1") Long userId1,
+            @Param("userId2") Long userId2,
+            @Param("afterTime") LocalDateTime afterTime,
+            Pageable pageable);
 
     /** 硬删除两用户之间的全部私聊消息 */
     @Modifying

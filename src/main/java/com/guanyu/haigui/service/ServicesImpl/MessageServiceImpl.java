@@ -18,6 +18,7 @@ import com.guanyu.haigui.Exception.UnauthorizedException;
 
 import com.guanyu.haigui.context.BaseContext;
 
+import com.guanyu.haigui.pojo.dto.ChatMessagesAfterDTO;
 import com.guanyu.haigui.pojo.dto.PrivateMessageDTO;
 
 import com.guanyu.haigui.pojo.model.PrivateMessage;
@@ -29,7 +30,6 @@ import com.guanyu.haigui.pojo.vo.ChatSessionPageVO;
 import com.guanyu.haigui.pojo.vo.ChatSessionVO;
 
 import com.guanyu.haigui.pojo.vo.PrivateMessageVO;
-
 import com.guanyu.haigui.repository.ChatGroupMemberRepository;
 
 import com.guanyu.haigui.repository.FriendRelationRepository;
@@ -52,6 +52,9 @@ import lombok.RequiredArgsConstructor;
 
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 import org.springframework.data.domain.Page;
 
 import org.springframework.data.domain.PageRequest;
@@ -60,23 +63,11 @@ import org.springframework.data.domain.Pageable;
 
 import org.springframework.data.domain.Sort;
 
-import org.springframework.scheduling.annotation.Async;
-
 import org.springframework.stereotype.Service;
 
 import org.springframework.transaction.annotation.Transactional;
 
 import org.springframework.util.StringUtils;
-
-
-
-import java.time.LocalDateTime;
-
-import java.util.Collections;
-
-import java.util.List;
-
-
 
 @RequiredArgsConstructor
 
@@ -247,35 +238,53 @@ public class MessageServiceImpl implements MessageService {
 
         Page<PrivateMessage> messages = messageRepository.findHistoryMessagesBetweenUsers(userId, receiverId, pageable);
 
-        asyncMarkAsRead(userId, receiverId);
-
         return messages.map(PrivateMessageVO::fromEntity);
 
     }
 
 
 
-    @Async("taskExecutor")
-
-    public void asyncMarkAsRead(Long currentUserId, Long friendId) {
-
-        try {
-
-            userRepository.batchMarkMessagesAsRead(currentUserId, Collections.singleton(friendId));
-
-            userChatSessionService.clearPrivateUnread(currentUserId, friendId);
-
-            log.info("异步标记已读完成：用户{} -> 好友{}", currentUserId, friendId);
-
-        } catch (Exception e) {
-
-            log.error("异步标记已读失败：用户{} -> 好友{}", currentUserId, friendId, e);
-
-        }
-
+    @Override
+    public void clearPrivateSessionUnread(Long friendId) {
+        Long currentUserId = BaseContext.getCurrentId();
+        userChatSessionService.clearPrivateUnread(currentUserId, friendId);
+        redisServiceUtil.clearUnreadMsgCount(currentUserId, friendId);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<PrivateMessageVO> getPrivateMessagesAfter(ChatMessagesAfterDTO dto) {
+        Long currentUserId = BaseContext.getCurrentId();
+        Long peerId = dto.getReceiverId();
+        if (peerId == null) {
+            throw new IllegalArgumentException("receiverId 不能为空");
+        }
+        int size = dto.getSize() != null ? Math.min(Math.max(dto.getSize(), 1), 100) : 50;
+        LocalDateTime afterTime = resolveAfterTime(currentUserId, String.valueOf(peerId), "PRIVATE", dto.getAfterTime());
+        Pageable pageable = PageRequest.of(0, size, Sort.by(Sort.Direction.ASC, "createTime"));
+        return messageRepository.findMessagesAfterBetweenUsers(currentUserId, peerId, afterTime, pageable)
+                .stream()
+                .map(PrivateMessageVO::fromEntity)
+                .toList();
+    }
 
+    @Override
+    public void clearPrivateChatHistory(Long friendId) {
+        Long currentUserId = BaseContext.getCurrentId();
+        userChatSessionService.clearChatHistory(currentUserId, String.valueOf(friendId), "PRIVATE");
+        redisServiceUtil.clearUnreadMsgCount(currentUserId, friendId);
+    }
+
+    private LocalDateTime resolveAfterTime(Long userId, String sessionId, String chatType, LocalDateTime clientAfter) {
+        LocalDateTime base = clientAfter != null ? clientAfter : LocalDateTime.of(1970, 1, 1, 0, 0);
+        LocalDateTime clearAt = userChatSessionService.getSession(userId, sessionId, chatType)
+                .map(ChatSessionVO::getHistoryClearAt)
+                .orElse(null);
+        if (clearAt != null && clearAt.isAfter(base)) {
+            return clearAt;
+        }
+        return base;
+    }
 
     @Override
 

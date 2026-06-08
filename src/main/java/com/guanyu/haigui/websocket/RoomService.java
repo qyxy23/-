@@ -15,6 +15,7 @@ import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.repository.*;
 import com.guanyu.haigui.service.ServicesImpl.SoupQuestionServiceImpl;
 import com.guanyu.haigui.service.UserChatSessionService;
+import com.guanyu.haigui.service.VoteTimeoutService;
 import com.guanyu.haigui.utils.RedisServiceUtil;
 import com.guanyu.haigui.utils.SessionMapUtil;
 import lombok.AllArgsConstructor;
@@ -61,6 +62,7 @@ public class RoomService {
     private final HaiGuiVoteRecordRepository haiGuiVoteRecordRepository;
     private final HaiGuiVoteSessionRepository haiGuiVoteSessionRepository;
     private final SoupQuestionServiceImpl soupQuestionService;
+    private final VoteTimeoutService voteTimeoutService;
 
 
     /**
@@ -877,9 +879,8 @@ public class RoomService {
 
                 // 3. 检查投票是否超时
                 if (LocalDateTime.now().isAfter(currentSession.getEndTime())) {
-                    // 投票已超时，自动处理
-                    handleVoteTimeout(chatGame,currentSession);
-                }else{
+                    voteTimeoutService.expireVoteIfOverdue(chatGame, currentSession, VoteTimeoutService.NotifyPolicy.PASSIVE_QUERY);
+                } else {
                     return VoteEndGameVO.error("当前房间有正在进行中的投票");
                 }
             }
@@ -955,8 +956,7 @@ public class RoomService {
 
         // 3. 检查投票是否超时
         if (LocalDateTime.now().isAfter(currentSession.getEndTime())) {
-            // 投票已超时，自动处理
-            handleVoteTimeout(chatGame,currentSession);
+            voteTimeoutService.expireVoteIfOverdue(chatGame, currentSession, VoteTimeoutService.NotifyPolicy.PASSIVE_QUERY);
             return VoteEndGameVO.error("投票已超时，请发起新投票");
         }
 
@@ -999,18 +999,6 @@ public class RoomService {
     //     VoteCheckMessage voteCheckMessage = VoteCheckMessage.createImmediateCheck(voteSessionId);
     //     voteMQProducer.sendImmediateCheck(voteCheckMessage);
     // }
-
-    // 处理投票超时
-    private void handleVoteTimeout(ChatGame chatGame,HaiGuiVoteSession session) {
-        // 标记为超时结束
-        chatGame.setStatus(RoomStatus.ACTIVE);
-        chatGame.setUpdateTime(LocalDateTime.now());
-        chatGameRepository.save(chatGame);
-        session.setStatus(HaiGuiVoteSession.VoteStatus.FAILED);
-        session.setUpdatedAt(LocalDateTime.now());
-        haiGuiVoteSessionRepository.save(session);
-    }
-
 
     public void processTimeoutVoteCheck(VoteCheckMessage message) {
         HaiGuiVoteSession session = haiGuiVoteSessionRepository.findById(message.getVoteSessionId())

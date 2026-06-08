@@ -1,6 +1,8 @@
 package com.guanyu.haigui.controller;
 
 import com.guanyu.haigui.context.BaseContext;
+import com.guanyu.haigui.pojo.dto.ChatMessagesAfterDTO;
+import com.guanyu.haigui.pojo.dto.ClearChatHistoryDTO;
 import com.guanyu.haigui.pojo.dto.PrivateMessageDTO;
 import com.guanyu.haigui.pojo.dto.TopSessionRequest;
 import com.guanyu.haigui.pojo.dto.getPrivateHistoryMessagesDTO;
@@ -13,6 +15,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
+
+import java.util.List;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -77,5 +81,28 @@ public class ChatWithFriendController {
     Page<PrivateMessageVO> getHistoryMessages(@RequestBody getPrivateHistoryMessagesDTO message) {
         Long userId = BaseContext.getCurrentId();
         return messageService.getHistoryMessages(userId, message.getReceiverId(), message.getPage(), message.getSize());
+    }
+
+    @PostMapping("/chat/clearUnread")
+    @ResponseBody
+    @Operation(summary = "清零私聊未读数并推进游标")
+    public Result<String> clearPrivateUnread(@RequestBody getPrivateHistoryMessagesDTO message) {
+        messageService.clearPrivateSessionUnread(message.getReceiverId());
+        return Result.success("已读");
+    }
+
+    @PostMapping("/chat/messagesAfter")
+    @ResponseBody
+    @Operation(summary = "增量拉取私聊消息（afterTime 之后）")
+    public Result<List<PrivateMessageVO>> getPrivateMessagesAfter(@RequestBody ChatMessagesAfterDTO dto) {
+        return Result.success(messageService.getPrivateMessagesAfter(dto));
+    }
+
+    @PostMapping("/chat/clearHistory")
+    @ResponseBody
+    @Operation(summary = "清空私聊聊天记录（账号级边界）")
+    public Result<String> clearPrivateHistory(@RequestBody ClearChatHistoryDTO dto) {
+        messageService.clearPrivateChatHistory(Long.parseLong(dto.getSessionId()));
+        return Result.success("已清空");
     }
 }

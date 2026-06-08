@@ -58,6 +58,21 @@ public class UserChatSession {
     @Builder.Default
     private Long unreadCount = 0L;
 
+    /** 已读游标：该用户在此会话读到的最后一条消息时间 */
+    @Column(name = "read_up_to_time")
+    private LocalDateTime readUpToTime;
+
+    /** 已读游标：该用户在此会话读到的最后一条消息 ID */
+    @Column(name = "last_read_message_id", length = 36)
+    private String lastReadMessageId;
+
+    /** 清空聊天记录边界（账号级，不删服务端消息） */
+    @Column(name = "history_clear_at")
+    private LocalDateTime historyClearAt;
+
+    @Column(name = "history_clear_message_id", length = 36)
+    private String historyClearMessageId;
+
     @Column(name = "is_sticky", nullable = false)
     @Builder.Default
     private Boolean isSticky = false;
