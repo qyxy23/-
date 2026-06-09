@@ -7,10 +7,13 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
+import org.springframework.util.StringUtils;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import jakarta.annotation.Resource;
+import java.util.List;
 
 @Component
 @Slf4j
@@ -18,44 +21,54 @@ public class TokenInterceptor implements HandlerInterceptor {
     @Resource
     private JwtTokenUtil jwtTokenUtil;
 
+    private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
+
+    /** 允许匿名访问；若携带有效 Token 仍会解析并写入 BaseContext */
+    private static final List<String> OPTIONAL_AUTH_PATHS = List.of(
+            "/api/haigui/ranking/soup-list",
+            "/api/haigui/ranking/soup/**",
+            "/searchLobbies");
 
     public boolean preHandle(@NotNull HttpServletRequest request, @NotNull HttpServletResponse response, @NotNull Object handler) throws Exception {
-        //判断当前拦截到的是Controller的方法还是其他资源
         if (!(handler instanceof HandlerMethod)) {
-            //当前拦截到的不是动态方法，直接放行
             return true;
         }
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             return true;
         }
-        //1、从请求头中获取令牌
-        String token = request.getHeader( "Authorization" );
-        // 检查token是否为null
-        if (token == null) {
+
+        String requestUri = request.getRequestURI();
+        boolean optionalAuth = OPTIONAL_AUTH_PATHS.stream()
+                .anyMatch(pattern -> PATH_MATCHER.match(pattern, requestUri));
+
+        String token = request.getHeader("Authorization");
+        if (!StringUtils.hasText(token)) {
+            if (optionalAuth) {
+                return true;
+            }
             log.warn("Missing token in request header");
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             return false;
         }
 
-        // 检查token是否以"Bearer "开头
         if (!token.startsWith("Bearer ")) {
             log.warn("Invalid token format: {}", token);
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             return false;
         }
-        //去掉Bearer
+
         token = token.substring(7);
-        //2、校验令牌
         try {
             jwtTokenUtil.validateToken(token);
             Long empId = jwtTokenUtil.getUserIdFromToken(token);
             log.info("当前用户id：{}", empId);
-            //设置当前登录用户id到当前线程中
             BaseContext.setCurrentId(empId);
-            //3、通过，放行
             return true;
         } catch (Exception ex) {
-            //4、不通过，响应401状态码
+            if (optionalAuth) {
+                log.debug("Optional auth path with invalid token, treated as guest: {}", requestUri);
+                return true;
+            }
             log.error("Token validation failed", ex);
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             return false;

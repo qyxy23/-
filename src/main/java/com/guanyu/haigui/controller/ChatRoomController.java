@@ -1,6 +1,7 @@
 package com.guanyu.haigui.controller;
 
 import com.guanyu.haigui.Exception.BusinessException;
+import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.dto.*;
 import com.guanyu.haigui.pojo.model.HaiGuiVoteRecord;
 import com.guanyu.haigui.pojo.result.ChatWithAIRoomRequest;
@@ -15,6 +16,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
@@ -64,11 +66,14 @@ public class ChatRoomController {
     @PostMapping("/searchLobbies")
     @ResponseBody
     public PageImpl<LobbyListVO> searchLobbies(@RequestBody SearchLobbiesMessage message) {
-        // 解析参数
         LobbyListDTO dto = message.getDto();
         int page = message.getPage();
 
-        // 调用原分页查询方法
+        if (BaseContext.getCurrentId() == null && page > 1) {
+            int validPage = Math.max(1, page);
+            return new PageImpl<>(List.of(), PageRequest.of(validPage - 1, 10), 0);
+        }
+
         return roomService.searchLobbies(dto, page);
     }
 

@@ -1,6 +1,7 @@
 package com.guanyu.haigui.controller;
 
 import com.guanyu.haigui.Enum.SoupTag;
+import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.model.SoupListPageResponse;
 import com.guanyu.haigui.pojo.vo.SoupListItem;
 import com.guanyu.haigui.result.Result;
@@ -53,6 +54,13 @@ public class HaiGuiRankingController {
         // 参数校验
         if (page < 1) return Result.error("页码必须大于0");
         if (pageSize < 1 || pageSize > 100) return Result.error("每页大小必须在1-100之间");
+
+        if (BaseContext.getCurrentId() == null && page > 1) {
+            return Result.error("请先登录查看更多海龟汤");
+        }
+        if (BaseContext.getCurrentId() == null && pageSize > 10) {
+            pageSize = 10;
+        }
 
         // 构建筛选条件
         Map<String, Object> filterParams = new HashMap<>();

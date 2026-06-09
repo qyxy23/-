@@ -20,7 +20,8 @@ jwt:
 
 spring:
   profiles:
-    active: dev
+    # 服务器部署用 prod；本地 IDE 运行可加 VM 选项 -Dspring.profiles.active=dev
+    active: prod
   main:
     allow-circular-references: true
   datasource:

@@ -43,7 +43,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
         String requestURI = request.getRequestURI();
         // 跳过不需要认证的路径（需与SecurityConfig一致）
-        List<String> excludePaths = List.of("/ws/**", "/user/login", "/user/register");
+        List<String> excludePaths = List.of(
+                "/ws/**",
+                "/user/login",
+                "/user/register",
+                "/api/haigui/ranking/soup-list",
+                "/api/haigui/ranking/soup/**",
+                "/searchLobbies");
         boolean shouldSkip = excludePaths.stream()
                 .anyMatch(excludePath -> pathMatcher.match(excludePath, requestURI));
 
