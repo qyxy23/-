@@ -15,6 +15,8 @@ public class CheckRoomStatusVO { // 类名建议大写开头（规范）
     // 1. 成功时的业务数据字段
     // ------------------------------
     private String roomId;
+    /** 游戏会话 ID，开局后下发给前端 */
+    private String gameSessionId;
     private RoomStatus status;
     private String soupSurface;
     private MessageChatType chatType;
@@ -60,8 +62,13 @@ public class CheckRoomStatusVO { // 类名建议大写开头（规范）
      * @return 成功的VO实例
      */
     public static CheckRoomStatusVO success(String roomId, RoomStatus status, String soupSurface) {
+        return success(roomId, null, status, soupSurface);
+    }
+
+    public static CheckRoomStatusVO success(String roomId, String gameSessionId, RoomStatus status, String soupSurface) {
         CheckRoomStatusVO vo = new CheckRoomStatusVO();
         vo.setRoomId(roomId);
+        vo.setGameSessionId(gameSessionId);
         vo.setStatus(status);
         vo.setSoupSurface(soupSurface);
         vo.setBoolError(null);

@@ -18,7 +18,6 @@ import java.time.LocalDateTime;
         indexes = {
                 @Index(name = "idx_is_deleted", columnList = "is_deleted"),
                 @Index(name = "idx_created_at", columnList = "created_at"),
-                @Index(name = "idx_key_clues", columnList = "key_clues"),
                 @Index(name = "idx_generation_strategy", columnList = "task_generation_strategy"),
                 @Index(name = "idx_difficulty_level", columnList = "difficulty_level"),
                 @Index(name = "idx_estimated_duration", columnList = "estimated_duration"),
@@ -47,9 +46,6 @@ public class HaiGuiSoup {
 
     @Column(name = "ai_judge_rules", columnDefinition = "TEXT")
     private String aiJudgeRules = "";
-
-    @Column(name = "key_clues", columnDefinition = "JSON", nullable = false)
-    private String keyClues;
 
     @Column(name = "soup_avatar", columnDefinition = "VARCHAR(255)")
     private String soupAvatar = "";

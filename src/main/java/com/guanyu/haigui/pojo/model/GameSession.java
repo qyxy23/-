@@ -1,5 +1,7 @@
 package com.guanyu.haigui.pojo.model;
 
+import com.guanyu.haigui.Enum.GameEndReason;
+import com.guanyu.haigui.Enum.PlayMode;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -22,7 +24,8 @@ import java.util.UUID;
         indexes = {
                 @Index(name = "idx_soup_id", columnList = "soup_id"),
                 @Index(name = "idx_user_id", columnList = "user_id"),
-                @Index(name = "idx_chat_session_id", columnList = "chat_session_id"),
+                @Index(name = "idx_play_mode", columnList = "play_mode"),
+                @Index(name = "idx_room_id", columnList = "room_id"),
                 @Index(name = "idx_status", columnList = "status")
         })
 @EqualsAndHashCode(of = "sessionId")
@@ -38,7 +41,14 @@ public class GameSession {
     @Column(name = "user_id", columnDefinition = "BIGINT UNSIGNED", nullable = false)
     private Long userId;
 
-    @Column(name = "chat_session_id", columnDefinition = "VARCHAR(36)", nullable = false)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "play_mode", columnDefinition = "ENUM('MULTI','SOLO')", nullable = false)
+    private PlayMode playMode = PlayMode.SOLO;
+
+    @Column(name = "room_id", columnDefinition = "VARCHAR(36)")
+    private String roomId;
+
+    @Column(name = "chat_session_id", columnDefinition = "VARCHAR(36)")
     private String chatSessionId;
 
     // 新增字段：剩余问答次数
@@ -59,6 +69,10 @@ public class GameSession {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", columnDefinition = "ENUM('ONGOING','COMPLETED','CANCELED')", nullable = false)
     private GameSessionStatus status = GameSessionStatus.ONGOING;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "end_reason", columnDefinition = "ENUM('QUESTIONS_EXHAUSTED','MANUAL_GIVE_UP','VOTE_PASSED','ROOM_DISBANDED')")
+    private GameEndReason endReason;
 
     @Column(name = "is_deleted", columnDefinition = "TINYINT(1)", nullable = false)
     private Boolean isDeleted = false;

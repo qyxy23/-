@@ -24,9 +24,6 @@ public interface PrivateMessageRepository extends JpaRepository<PrivateMessage, 
     @Query("SELECT m FROM PrivateMessage m WHERE (m.sender.userId = :userId1 AND m.receiver.userId = :userId2) OR (m.sender.userId = :userId2 AND m.receiver.userId = :userId1) ORDER BY m.createTime DESC")
     Optional<PrivateMessage> findLastMessageBetweenUsers(@Param("userId1") Long userId1, @Param("userId2") Long userId2);
 
-    // 统计未读消息数（接收者为当前用户，发送者为好友）
-    long countByReceiverUserIdAndSenderUserIdAndIsReadFalse(Long receiverId, Long senderId);
-
     // 分页查询两个用户之间的历史消息
     @Query("SELECT m FROM PrivateMessage m WHERE (m.sender.userId = :userId1 AND m.receiver.userId = :userId2) OR (m.sender.userId = :userId2 AND m.receiver.userId = :userId1) ORDER BY m.createTime DESC")
     Page<PrivateMessage> findHistoryMessagesBetweenUsers(@Param("userId1") Long userId1, @Param("userId2") Long userId2, Pageable pageable);
@@ -56,19 +53,6 @@ public interface PrivateMessageRepository extends JpaRepository<PrivateMessage, 
             Pageable pageable
     );
 
-    // -------------------------- 未读消息查询 --------------------------
-    /**
-     * 根据【接收者】查找未读消息（按时间倒序）
-     * 场景：获取当前用户的未读私聊列表
-     */
-    List<PrivateMessage> findByReceiverAndIsReadFalseOrderByCreateTimeDesc(UserInfo receiver);
-
-    /**
-     * 统计【接收者】的未读消息数量
-     * 场景：显示未读消息角标（如小红点）
-     */
-    long countByReceiverAndIsReadFalse(UserInfo receiver);
-
     // -------------------------- 分页查询：按发送者/接收者 --------------------------
     /**
      * 根据【发送者】查找所有消息（分页，按时间倒序）
@@ -82,27 +66,6 @@ public interface PrivateMessageRepository extends JpaRepository<PrivateMessage, 
      */
     Page<PrivateMessage> findByReceiverOrderByCreateTimeDesc(UserInfo receiver, Pageable pageable);
 
-    // -------------------------- 辅助操作：标记已读 --------------------------
-    /**
-     * 根据消息ID标记为已读（批量或单条）
-     * 场景：用户打开聊天界面时，更新未读消息状态
-     */
-    @Modifying // 声明该方法会修改数据库
-    @Query("UPDATE PrivateMessage pm SET pm.isRead = true WHERE pm.messageId IN :messageIds")
-    void markMessagesAsRead(@Param("messageIds") List<String> messageIds);
-
-    /** 查询发送者发给接收者的已读消息中，最新一条的时间（用于已读回执水位线） */
-    @Query("""
-            SELECT MAX(m.createTime) FROM PrivateMessage m
-            WHERE m.sender.userId = :senderId
-              AND m.receiver.userId = :receiverId
-              AND m.isRead = true
-            """)
-    Optional<LocalDateTime> findMaxReadTimeFromSenderToReceiver(
-            @Param("senderId") Long senderId,
-            @Param("receiverId") Long receiverId);
-
-    // -------------------------- 可选：按消息ID查找 --------------------------
     Optional<PrivateMessage> findByMessageId(String messageId);
 
     /** 增量同步：两用户会话中某时间点之后的消息（升序） */

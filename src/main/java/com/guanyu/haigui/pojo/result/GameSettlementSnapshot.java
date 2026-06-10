@@ -10,6 +10,7 @@ import java.util.List;
 @Data
 public class GameSettlementSnapshot {
     private String roomId;
+    private String gameSessionId;
     private String soupTitle;
     private String soupBottom;
     private int finalScore;

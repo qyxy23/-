@@ -13,11 +13,9 @@ import java.util.Set;
 @Entity
 @Table(name = "hai_gui_chat_message_with_fragments",
         indexes = {
-                @Index(name = "idx_room_id", columnList = "room_id"),
-                @Index(name = "idx_user_time", columnList = "user_id,created_at"),
-                @Index(name = "idx_send_time", columnList = "created_at"),
-                @Index(name = "idx_trigger_time", columnList = "created_at"),
-                @Index(name = "idx_triggered_fragments", columnList = "triggered_fragment_ids")
+                @Index(name = "idx_game_session_id", columnList = "game_session_id"),
+                @Index(name = "idx_user_created", columnList = "user_id,created_at"),
+                @Index(name = "idx_created_at", columnList = "created_at")
         })
 @Data
 public class HaiGuiChatMessageWithFragments {
@@ -25,10 +23,10 @@ public class HaiGuiChatMessageWithFragments {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false, updatable = false)
-    private Long id;  // 自增主键（唯一标识）
+    private Long id;
 
-    @Column(name = "room_id", length = 36, nullable = false)
-    private String roomId;
+    @Column(name = "game_session_id", length = 36, nullable = false)
+    private String gameSessionId;
 
     @Column(name = "user_id", nullable = false)
     private Long userId;
@@ -37,12 +35,12 @@ public class HaiGuiChatMessageWithFragments {
     private String questionContent;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "ai_answer", columnDefinition = "ENUM('YES','NO','PARTIAL','UNIMPORTANT','UNKNOWN')", nullable = false)
+    @Column(name = "ai_answer", columnDefinition = "ENUM('YES','NO','PARTIAL','UNIMPORTANT','UNKNOWN')")
     private QuestionWithAiAnswer aiAnswer;
 
     @Column(name = "triggered_fragment_ids", columnDefinition = "JSON")
     @Convert(converter = LongSetConverter.class)
-    private Set<Long> triggeredFragmentIds; // 存储线索ID列表
+    private Set<Long> triggeredFragmentIds;
 
     @Column(name = "is_deleted", nullable = false)
     private Boolean isDeleted = false;
@@ -55,24 +53,15 @@ public class HaiGuiChatMessageWithFragments {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    // 关联关系
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "room_id", referencedColumnName = "room_id",
-            insertable = false, updatable = false)
-    private ChatGame chatGame;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", referencedColumnName = "user_id",
-            insertable = false, updatable = false)
+    @JoinColumn(name = "user_id", referencedColumnName = "user_id", insertable = false, updatable = false)
     private UserInfo userInfo;
 
-    // 获取触发线索数量
     @Transient
     public int getTriggeredFragmentCount() {
         return triggeredFragmentIds == null ? 0 : triggeredFragmentIds.size();
     }
 
-    // 检查是否触发了特定线索
     @Transient
     public boolean hasTriggeredFragment(Long fragmentId) {
         return triggeredFragmentIds != null && triggeredFragmentIds.contains(fragmentId);

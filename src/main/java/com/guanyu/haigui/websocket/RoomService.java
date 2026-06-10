@@ -16,6 +16,8 @@ import com.guanyu.haigui.repository.*;
 import com.guanyu.haigui.service.ServicesImpl.SoupQuestionServiceImpl;
 import com.guanyu.haigui.service.UserChatSessionService;
 import com.guanyu.haigui.service.VoteTimeoutService;
+import com.guanyu.haigui.utils.GameSessionResolver;
+import com.guanyu.haigui.utils.GameSessionResolver;
 import com.guanyu.haigui.utils.RedisServiceUtil;
 import com.guanyu.haigui.utils.SessionMapUtil;
 import lombok.AllArgsConstructor;
@@ -52,7 +54,7 @@ public class RoomService {
     private final ChatGameMsgRepository chatGameMsgRepository;
     private final SessionMapUtil sessionMapUtil;
     private final HaiGuiSoupRepository haiGuiSoupRepository;
-    private final HaiGuiRoomProgressRepository haiGuiRoomProgressRepository;
+    private final HaiGuiGameProgressRepository haiGuiGameProgressRepository;
     private final InferenceTaskRepository inferenceTaskRepository;
     private final AiChatSessionRepository aiChatSessionRepository;
     private final chatGameInvitationRepository chatGameInvitationRepository;
@@ -63,6 +65,7 @@ public class RoomService {
     private final HaiGuiVoteSessionRepository haiGuiVoteSessionRepository;
     private final SoupQuestionServiceImpl soupQuestionService;
     private final VoteTimeoutService voteTimeoutService;
+    private final GameSessionResolver gameSessionResolver;
 
 
     /**
@@ -104,7 +107,6 @@ public class RoomService {
                 .currentMembers(1) // 初始成员数=创建者自己
                 .status(RoomStatus.WAITING)
                 .createTime(LocalDateTime.now())
-                .needInvite(request.getIsPrivate())
                 .haiGuiSoup(soup)
                 .privacyType(request.getIsPrivate() ? ChatGame.PrivacyType.PRIVATE : ChatGame.PrivacyType.PUBLIC)
                 .build();
@@ -241,7 +243,7 @@ public class RoomService {
         // 3. 获取目标房间（验证存在性与状态）
         ChatGame room = chatGameRepository.findById(roomId)
                 .orElseThrow(() -> new RoomNotFoundException("房间不存在：ID=" + roomId));
-        if (room.getNeedInvite()) {
+        if (room.getPrivacyType() == ChatGame.PrivacyType.PRIVATE) {
             if(!chatGameInvitationRepository.existsByChatGameRoomIdAndInviteeUserIdAndStatus(roomId, BaseContext.getCurrentId(), InvitationStatus.PENDING)){
                 throw new BusinessException(405,"当前房间为私人房间,请等待邀请");
             }
@@ -674,13 +676,15 @@ public class RoomService {
         gameSession.setSessionId(UUID.randomUUID().toString());
         gameSession.setSoupId(room.getHaiGuiSoup().getSoupId());
         gameSession.setUserId(room.getCreator().getUserId());
+        gameSession.setPlayMode(PlayMode.MULTI);
+        gameSession.setRoomId(roomId);
         gameSession.setChatSessionId(session.getSessionId());
         gameSession.setStatus(GameSession.GameSessionStatus.ONGOING);
         gameSession.setRemainingQuestions(soup.getDefaultMaxQuestions());
         gameSessionRepository.saveAndFlush(gameSession);
         room.setStartTime(LocalDateTime.now());
         room.setStatus(RoomStatus.ACTIVE);
-        room.setSessionId(gameSession.getSessionId());
+        room.setGameSessionId(gameSession.getSessionId());
         chatGameRepository.save(room);
         String soupId = room.getHaiGuiSoup().getSoupId();
         List<InferenceTask> tasks = inferenceTaskRepository.findBySoupId(soupId);
@@ -689,10 +693,10 @@ public class RoomService {
         }
         chatGameMemberRepository.saveAll(members);
         // 2. 为每个任务创建进度记录
-        List<HaiGuiRoomProgress> progresses = tasks.stream()
+        List<HaiGuiGameProgress> progresses = tasks.stream()
                 .map(task -> {
-                    HaiGuiRoomProgress progress = new HaiGuiRoomProgress();
-                    progress.setRoomId(roomId);
+                    HaiGuiGameProgress progress = new HaiGuiGameProgress();
+                    progress.setGameSessionId(gameSession.getSessionId());
                     progress.setTaskId(task.getTaskId());
                     progress.setCompleted(false);
                     progress.setTriggeredFragmentIds(new HashSet<>()); // 初始空数组
@@ -702,17 +706,17 @@ public class RoomService {
                 .collect(Collectors.toList());
 
         // 3. 批量保存
-        haiGuiRoomProgressRepository.saveAll(progresses);
+        haiGuiGameProgressRepository.saveAll(progresses);
 
         log.info("房间任务初始化完成: roomId={}, soupId={}, 任务数={}",
                 roomId, soupId, tasks.size());
         log.info("房间{}已激活", roomId);
-        CheckRoomStatusVO vo = CheckRoomStatusVO.success(roomId, room.getStatus(), soup.getSoupSurface());
+        CheckRoomStatusVO vo = CheckRoomStatusVO.success(roomId, gameSession.getSessionId(), room.getStatus(), soup.getSoupSurface());
         vo.setMemberSnapshot(getAllMembersByRoomId(roomId));
         String pushRoomId = roomId;
         publishAfterCommit(() -> {
             CheckRoomStatusVO pushVo = CheckRoomStatusVO.success(
-                    pushRoomId, RoomStatus.ACTIVE, soup.getSoupSurface());
+                    pushRoomId, gameSession.getSessionId(), RoomStatus.ACTIVE, soup.getSoupSurface());
             pushVo.setMemberSnapshot(getAllMembersByRoomId(pushRoomId));
             simpMessagingTemplate.convertAndSend("/topic/memberChange" + pushRoomId, pushVo);
         });
@@ -826,7 +830,6 @@ public class RoomService {
                         .content(contentJson)  // 邀请消息内容（简化版）
                         .messageType(MessageType.INVITATION)  // 消息类型
                         .status(MessageStatus.SENT)  // 状态为已发送
-                        .isRead(false)  // 初始为未读
                         .build();
                 System.out.println("privateMessage = " + privateMessage);
 
@@ -871,8 +874,8 @@ public class RoomService {
         ChatGame chatGame = chatGameRepository.findById(roomId)
                 .orElseThrow(() -> new RoomException("房间不存在，房间ID：" + roomId));
         if(chatGame.getStatus()==RoomStatus.VOTING){
-            List<HaiGuiVoteSession> sessions = haiGuiVoteSessionRepository.findBySessionIdAndStatusOrderByCreatedAtDesc(
-                    chatGame.getSessionId(), HaiGuiVoteSession.VoteStatus.ONGOING);
+            List<HaiGuiVoteSession> sessions = haiGuiVoteSessionRepository.findByGameSessionIdAndStatusOrderByCreatedAtDesc(
+                    chatGame.getGameSessionId(), HaiGuiVoteSession.VoteStatus.ONGOING);
 
             if (!sessions.isEmpty()) {
                 HaiGuiVoteSession currentSession = sessions.get(0); // 最新创建的会话
@@ -888,14 +891,13 @@ public class RoomService {
         if(chatGame.getStatus()!=RoomStatus.ACTIVE){
             return VoteEndGameVO.error("当前房间未开始或已结束");
         }
-        GameSession gameSession = gameSessionRepository.findById(chatGame.getSessionId())
+        GameSession gameSession = gameSessionRepository.findById(chatGame.getGameSessionId())
                 .orElseThrow(() -> new RoomException("游戏会话不存在，房间ID：" + roomId));
         chatGame.setStatus(RoomStatus.VOTING);
         chatGameRepository.save(chatGame);
         HaiGuiVoteSession voteSession = new HaiGuiVoteSession();
         voteSession.setVoteSessionId(UUID.randomUUID().toString());
-        voteSession.setSessionId(gameSession.getSessionId());
-        voteSession.setRoomId(roomId);
+        voteSession.setGameSessionId(gameSession.getSessionId());
         LocalDateTime endTime = LocalDateTime.now().plusMinutes(5);
         voteSession.setEndTime(endTime);
         voteSession.setInitiatorId(currentUserId);
@@ -946,8 +948,8 @@ public class RoomService {
         }
 
         // 2. 获取当前进行中的投票会话（取最新创建的）
-        List<HaiGuiVoteSession> sessions = haiGuiVoteSessionRepository.findBySessionIdAndStatusOrderByCreatedAtDesc(
-                chatGame.getSessionId(), HaiGuiVoteSession.VoteStatus.ONGOING);
+        List<HaiGuiVoteSession> sessions = haiGuiVoteSessionRepository.findByGameSessionIdAndStatusOrderByCreatedAtDesc(
+                chatGame.getGameSessionId(), HaiGuiVoteSession.VoteStatus.ONGOING);
 
         if (sessions.isEmpty()) {
             return VoteEndGameVO.error("未找到进行中的投票会话");
@@ -1011,7 +1013,7 @@ public class RoomService {
             haiGuiVoteSessionRepository.save(session);
 
             // 恢复房间状态
-            restoreRoomStatus(session.getRoomId());
+            restoreRoomStatus(gameSessionResolver.requireRoomId(session.getGameSessionId()));
         }
     }
 
@@ -1040,7 +1042,7 @@ public class RoomService {
             haiGuiVoteSessionRepository.save(session);
 
             // 结束游戏
-            soupQuestionService.endGame(session.getRoomId());
+            soupQuestionService.endGame(gameSessionResolver.requireRoomId(session.getGameSessionId()));
         } else if (agreeCount == totalMembers) {
             // 所有成员已投票但未通过
             session.setStatus(HaiGuiVoteSession.VoteStatus.FAILED);
@@ -1048,7 +1050,7 @@ public class RoomService {
             haiGuiVoteSessionRepository.save(session);
 
             // 恢复房间状态
-            restoreRoomStatus(session.getRoomId());
+            restoreRoomStatus(gameSessionResolver.requireRoomId(session.getGameSessionId()));
         }
     }
 

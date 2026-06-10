@@ -66,11 +66,6 @@ public class AiChatMessage {
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private LocalDateTime sendTime;
 
-    /** 是否已读（0=未读，1=已读，仅用户未读AI消息有效） */
-    @Column(name = "is_read", nullable = false)
-    private Integer isRead; // 匹配数据库TINYINT(1)
-
-    // 辅助方法：获取会话ID（若需直接访问字符串ID）
     public String getSessionId() {
         return chatSession != null ? chatSession.getSessionId() : null;
     }

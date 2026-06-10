@@ -12,8 +12,9 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Data
 public class EndGameVO {
-    /** WS 路由用 */
+    /** WS 路由用（多人）；单人用 gameSessionId */
     private String roomId;
+    private String gameSessionId;
     private MessageChatType chatType;
 
     private String soupTitle;
@@ -28,6 +29,7 @@ public class EndGameVO {
     public static EndGameVO fromSnapshot(GameSettlementSnapshot snapshot) {
         EndGameVO vo = new EndGameVO();
         vo.setRoomId(snapshot.getRoomId());
+        vo.setGameSessionId(snapshot.getGameSessionId());
         vo.setChatType(MessageChatType.GAME_END);
         vo.setSoupTitle(snapshot.getSoupTitle());
         vo.setSoupBottom(snapshot.getSoupBottom());

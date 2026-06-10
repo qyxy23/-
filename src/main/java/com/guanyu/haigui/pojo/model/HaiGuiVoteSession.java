@@ -11,7 +11,6 @@ import java.time.LocalDateTime;
 @Table(name = "hai_gui_vote_session",
         indexes = {
                 @Index(name = "idx_session_id", columnList = "session_id"),
-                @Index(name = "idx_room_id", columnList = "room_id"), // 新增索引
                 @Index(name = "idx_initiator_id", columnList = "initiator_id"),
                 @Index(name = "idx_status", columnList = "status"),
                 @Index(name = "idx_created_at", columnList = "created_at"),
@@ -25,11 +24,9 @@ public class HaiGuiVoteSession {
     @Column(name = "vote_session_id", length = 36, nullable = false)
     private String voteSessionId;
 
+    /** 关联的游戏会话 ID（haigui_game_session.session_id） */
     @Column(name = "session_id", length = 36, nullable = false)
-    private String sessionId;
-
-    @Column(name = "room_id", length = 36, nullable = false) // 新增字段
-    private String roomId;
+    private String gameSessionId;
 
     @Column(name = "initiator_id", nullable = false)
     private Long initiatorId;
@@ -41,7 +38,6 @@ public class HaiGuiVoteSession {
     @Column(name = "end_time")
     private LocalDateTime endTime;
 
-    // 新增字段
     @Column(name = "total_voters", nullable = false)
     private Integer totalVoters = 0;
 
@@ -59,36 +55,25 @@ public class HaiGuiVoteSession {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    // 关联关系
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "session_id", referencedColumnName = "session_id",
-            insertable = false, updatable = false)
+    @JoinColumn(name = "session_id", referencedColumnName = "session_id", insertable = false, updatable = false)
     private GameSession gameSession;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "room_id", referencedColumnName = "room_id", // 新增关联
-            insertable = false, updatable = false)
-    private ChatGame chatGame; // 新增关联实体
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "initiator_id", referencedColumnName = "user_id",
-            insertable = false, updatable = false)
+    @JoinColumn(name = "initiator_id", referencedColumnName = "user_id", insertable = false, updatable = false)
     private UserInfo sysUser;
 
-    // 枚举定义
     public enum VoteStatus {
-        ONGOING,  // 进行中
-        PASSED,   // 通过
-        FAILED,   // 未通过
-        CANCELLED // 已取消
+        ONGOING,
+        PASSED,
+        FAILED,
+        CANCELLED
     }
 
-    // 增加同意票的方法
     public void incrementAgreedVotes() {
         this.agreedVotes++;
     }
 
-    // 减少同意票的方法（用于撤销投票）
     public void decrementAgreedVotes() {
         if (this.agreedVotes > 0) {
             this.agreedVotes--;

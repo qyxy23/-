@@ -66,7 +66,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
     private final GameSessionRepository gameSessionRepository;
     private final UserInfoRepository userRepository;
     private final HaiGuiChatMessageRepository haiGuiChatMessageRepository;
-    private final HaiGuiRoomProgressRepository haiGuiRoomProgressRepository;
+    private final HaiGuiGameProgressRepository haiGuiGameProgressRepository;
     private final HaiGuiVoteSessionRepository haiGuiVoteSessionRepository;
     private final HaiGuiVoteRecordRepository haiGuiVoteRecordRepository;
     private final GameSettlementBuilder gameSettlementBuilder;
@@ -83,91 +83,160 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
     public RoomSoupQuestionVO RoomProcessSoupQuestion(ChatWithAIRoomRequest request) {
         Long userId = BaseContext.getCurrentId();
         UserInfo user = userRepository.findById(userId).orElse(null);
-        if (user == null){
+        if (user == null) {
             return RoomSoupQuestionVO.error("用户不存在：ID=" + userId);
         }
-        ChatGame game = chatGameRepository.findById(request.getRoomId()).orElse(null);
-        if(game == null){
-            return RoomSoupQuestionVO.error("房间不存在：ID=" + request.getRoomId());
+
+        String gameSessionId = request.getGameSessionId();
+        if (gameSessionId == null || gameSessionId.isBlank()) {
+            return RoomSoupQuestionVO.error("游戏会话 ID 不能为空");
         }
-        if(!(game.getStatus() == RoomStatus.ACTIVE|| game.getStatus() == RoomStatus.VOTING)){
-            return RoomSoupQuestionVO.error("游戏未开始或已结束：ID=" + request.getRoomId());
+
+        GameSession session = gameSessionRepository.findById(gameSessionId).orElse(null);
+        if (session == null || session.getStatus() != GameSession.GameSessionStatus.ONGOING) {
+            return RoomSoupQuestionVO.error("游戏未开始或已结束：gameSessionId=" + gameSessionId);
         }
-        GameSession session = gameSessionRepository.findById(game.getSessionId()).orElse(null);
-        if(session == null|| session.getStatus() != GameSession.GameSessionStatus.ONGOING){
-            return RoomSoupQuestionVO.error("游戏未开始或已结束：ID=" + request.getRoomId());
-        }
-        if(session.getRemainingQuestions()<=0){
+        if (session.getRemainingQuestions() <= 0) {
             return RoomSoupQuestionVO.error("游戏次数已用完，可充值解锁更多机会");
-        }
-        ChatGameMember member = chatGameMemberRepository.findById(new ChatGameMemberId(BaseContext.getCurrentId(), request.getRoomId())).orElse(null);
-        if (member == null){
-            return RoomSoupQuestionVO.error("用户未加入房间：ID=" + BaseContext.getCurrentId());
-        }
-        String soupId = game.getHaiGuiSoup().getSoupId();
-        if(!(game.getStatus() == RoomStatus.ACTIVE|| game.getStatus() == RoomStatus.VOTING)){
-            return RoomSoupQuestionVO.error("游戏未开始：ID=" + request.getRoomId());
-        }
-        HaiGuiSoup soup = haiGuiSoupRepository.findById(soupId).orElse(null);
-        if(soup == null){
-            return RoomSoupQuestionVO.error("海龟汤不存在：ID=" + soupId);
         }
 
         String question = request.getQuestion() != null ? request.getQuestion().trim() : "";
+
+        if (session.getPlayMode() == PlayMode.SOLO) {
+            return processSoloSoupQuestion(session, userId, gameSessionId, question);
+        }
+
+        ChatGame game = chatGameRepository.findFirstByGameSessionId(gameSessionId).orElse(null);
+        if (game == null) {
+            return RoomSoupQuestionVO.error("未找到关联大厅，gameSessionId=" + gameSessionId);
+        }
+        String roomId = game.getRoomId();
+
+        if (!(game.getStatus() == RoomStatus.ACTIVE || game.getStatus() == RoomStatus.VOTING)) {
+            return RoomSoupQuestionVO.error("游戏未开始或已结束：roomId=" + roomId);
+        }
+
+        ChatGameMember member = chatGameMemberRepository
+                .findById(new ChatGameMemberId(userId, roomId)).orElse(null);
+        if (member == null) {
+            return RoomSoupQuestionVO.error("用户未加入房间：ID=" + userId);
+        }
+
+        String soupId = game.getHaiGuiSoup().getSoupId();
+        HaiGuiSoup soup = haiGuiSoupRepository.findById(soupId).orElse(null);
+        if (soup == null) {
+            return RoomSoupQuestionVO.error("海龟汤不存在：ID=" + soupId);
+        }
+
+        QuestionRunResult result = runQuestionPipeline(session, userId, question);
+        if (result.error() != null) {
+            return RoomSoupQuestionVO.error(result.error());
+        }
+
+        RoomSoupQuestionVO roomSoupQuestionVO = RoomSoupQuestionVO.success(
+                roomId,
+                gameSessionId,
+                question,
+                result.displayAnswer(),
+                result.totalProgress(),
+                result.progressDelta(),
+                result.remainingQuestions()
+        );
+        simpMessagingTemplate.convertAndSend("/topic/memberChange" + roomId, roomSoupQuestionVO);
+        if (result.remainingQuestions() == 0) {
+            endGame(roomId);
+        }
+        return roomSoupQuestionVO;
+    }
+
+    private RoomSoupQuestionVO processSoloSoupQuestion(
+            GameSession session, Long userId, String gameSessionId, String question) {
+        if (!Objects.equals(session.getUserId(), userId)) {
+            return RoomSoupQuestionVO.error("无权操作此游戏会话");
+        }
+
+        QuestionRunResult result = runQuestionPipeline(session, userId, question);
+        if (result.error() != null) {
+            return RoomSoupQuestionVO.error(result.error());
+        }
+
+        RoomSoupQuestionVO vo = RoomSoupQuestionVO.success(
+                null,
+                gameSessionId,
+                question,
+                result.displayAnswer(),
+                result.totalProgress(),
+                result.progressDelta(),
+                result.remainingQuestions()
+        );
+
+        if (result.remainingQuestions() == 0) {
+            endSoloGame(gameSessionId, GameEndReason.QUESTIONS_EXHAUSTED);
+        }
+        return vo;
+    }
+
+    private record QuestionRunResult(
+            String error,
+            String displayAnswer,
+            double totalProgress,
+            double progressDelta,
+            int remainingQuestions
+    ) {
+        static QuestionRunResult fail(String message) {
+            return new QuestionRunResult(message, null, 0, 0, 0);
+        }
+
+        static QuestionRunResult ok(String displayAnswer, double totalProgress,
+                                    double progressDelta, int remainingQuestions) {
+            return new QuestionRunResult(null, displayAnswer, totalProgress, progressDelta, remainingQuestions);
+        }
+    }
+
+    private QuestionRunResult runQuestionPipeline(GameSession session, Long userId, String question) {
+        String gameSessionId = session.getSessionId();
+        String soupId = session.getSoupId();
+
         Optional<String> validationError = SoupQuestionValidator.validate(question);
         if (validationError.isPresent()) {
-            return RoomSoupQuestionVO.error(validationError.get());
+            return QuestionRunResult.fail(validationError.get());
         }
 
         List<Float> questionVector = vectorizeQuestion(question);
         if (questionVector.isEmpty()) {
-            return RoomSoupQuestionVO.error("问题向量化失败");
+            return QuestionRunResult.fail("问题向量化失败");
         }
-        Map<String, List<ContextMatchResult>> relevantClues = searchRelevantClues(
-                soupId,
-                questionVector,
-                CLUE_RECALL_TOP_K,
-                CLUE_RECALL_MIN_SIMILARITY,
-                question
-        );
 
+        Map<String, List<ContextMatchResult>> relevantClues = searchRelevantClues(
+                soupId, questionVector, CLUE_RECALL_TOP_K, CLUE_RECALL_MIN_SIMILARITY, question);
         SoupInfo soupInfo = getSoupInfo(soupId);
 
-        Set<Long> triggeredFragmentIds = getCurrentTriggeredFragments(request.getRoomId());
+        Set<Long> triggeredFragmentIds = getCurrentTriggeredFragments(gameSessionId);
         List<InferenceTask> allTasks = inferenceTaskRepository.findBySoupId(soupId);
         List<InferenceTask> incompleteTasks = allTasks.stream()
-                .filter(task -> !haiGuiRoomProgressRepository.isTaskCompleted(request.getRoomId(), task.getTaskId()))
+                .filter(task -> !haiGuiGameProgressRepository.isTaskCompleted(gameSessionId, task.getTaskId()))
                 .collect(Collectors.toList());
 
         List<ContextMatchResult> candidateClues = relevantClues.getOrDefault("CLUE_FRAGMENT", List.of());
         String aiPrompt = buildAIPrompt(question, candidateClues, soupInfo);
-
         String aiResponse = generateAIResponse(aiPrompt);
         if (aiResponse == null || aiResponse.trim().isEmpty()) {
-            return RoomSoupQuestionVO.error("AI判断生成失败");
+            return QuestionRunResult.fail("AI判断生成失败");
         }
 
         AIResponse parsedResponse = parseAnswer(aiResponse);
         if (parsedResponse == null || parsedResponse.getAnswer() == null) {
-            return RoomSoupQuestionVO.error("AI响应解析失败,请联系管理员");
+            return QuestionRunResult.fail("AI响应解析失败,请联系管理员");
         }
 
         String answerText = parsedResponse.getAnswer().trim();
         if (isInvalidQuestionAnswer(answerText)) {
-            return RoomSoupQuestionVO.error("请用「是不是…」形式的封闭疑问句提问");
+            return QuestionRunResult.fail("请用「是不是…」形式的封闭疑问句提问");
         }
 
         Set<Long> confirmedFragments = confirmTriggeredFragments(
-                parsedResponse.getTriggeredFragmentIds(),
-                candidateClues,
-                triggeredFragmentIds
-        );
-        log.info("房间[{}]提问线索裁决：候选{}条，AI建议{}条，确认{}条",
-                request.getRoomId(), candidateClues.size(),
-                parsedResponse.getTriggeredFragmentIds().size(), confirmedFragments.size());
-
-        BigDecimal progressDelta = updateRoomProgress(request.getRoomId(), confirmedFragments, incompleteTasks);
-
+                parsedResponse.getTriggeredFragmentIds(), candidateClues, triggeredFragmentIds);
+        BigDecimal progressDelta = updateGameProgress(gameSessionId, confirmedFragments, incompleteTasks);
         QuestionWithAiAnswer answerEnum = mapAnswerToEnum(answerText);
 
         BigDecimal totalProgress = session.getCurrentProgress().add(progressDelta);
@@ -175,41 +244,67 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         session.setRemainingQuestions(session.getRemainingQuestions() - 1);
         gameSessionRepository.save(session);
 
-        HaiGuiChatMessageWithFragments haiGuiChatMessage = new HaiGuiChatMessageWithFragments();
-        haiGuiChatMessage.setQuestionContent(question);
-        haiGuiChatMessage.setAiAnswer(answerEnum);
-        haiGuiChatMessage.setRoomId(request.getRoomId());
-        haiGuiChatMessage.setUserId(userId);
-        haiGuiChatMessage.setIsDeleted(false);
-        haiGuiChatMessage.setTriggeredFragmentIds(new HashSet<>(confirmedFragments));
-        haiGuiChatMessageRepository.save(haiGuiChatMessage);
+        HaiGuiChatMessageWithFragments message = new HaiGuiChatMessageWithFragments();
+        message.setQuestionContent(question);
+        message.setAiAnswer(answerEnum);
+        message.setGameSessionId(gameSessionId);
+        message.setUserId(userId);
+        message.setIsDeleted(false);
+        message.setTriggeredFragmentIds(new HashSet<>(confirmedFragments));
+        haiGuiChatMessageRepository.save(message);
 
-        String displayAnswer = answerEnum.getDescription();
-        RoomSoupQuestionVO roomSoupQuestionVO = RoomSoupQuestionVO.success(
-                request.getRoomId(),
-                question,
-                displayAnswer,
+        return QuestionRunResult.ok(
+                answerEnum.getDescription(),
                 totalProgress.doubleValue(),
                 progressDelta.doubleValue(),
                 session.getRemainingQuestions()
         );
-        simpMessagingTemplate.convertAndSend("/topic/memberChange" + request.getRoomId(), roomSoupQuestionVO);
-        if(session.getRemainingQuestions()==0){
-            endGame(request.getRoomId());
+    }
+
+    public EndGameVO endSoloGame(String gameSessionId, GameEndReason endReason) {
+        GameSession gameSession = gameSessionRepository.findById(gameSessionId)
+                .orElseThrow(() -> new BusinessException(404, "游戏会话不存在"));
+        if (gameSession.getPlayMode() != PlayMode.SOLO) {
+            throw new BusinessException(400, "非单人游戏会话");
         }
-        return roomSoupQuestionVO;
+        if (!Objects.equals(gameSession.getUserId(), BaseContext.getCurrentId())) {
+            throw new BusinessException(403, "无权操作此游戏会话");
+        }
+        if (gameSession.getStatus() != GameSession.GameSessionStatus.ONGOING) {
+            throw new BusinessException(400, "游戏已结束");
+        }
+
+        GameSettlementSnapshot snapshot = gameSettlementBuilder.buildByGameSessionId(gameSessionId);
+
+        if (endReason == GameEndReason.MANUAL_GIVE_UP) {
+            gameSession.setStatus(GameSession.GameSessionStatus.CANCELED);
+        } else {
+            gameSession.setStatus(GameSession.GameSessionStatus.COMPLETED);
+        }
+        gameSession.setEndReason(endReason);
+        gameSession.setEndTime(LocalDateTime.now());
+        gameSession.setCurrentProgress(snapshot.getProgressPercent());
+        gameSession.setScore(BigDecimal.valueOf(snapshot.getFinalScore()));
+        gameSessionRepository.save(gameSession);
+
+        HaiGuiSoup soup = haiGuiSoupRepository.findById(gameSession.getSoupId())
+                .orElseThrow(() -> new BusinessException(404, "该海龟汤不存在"));
+        soup.setPlayCount(soup.getPlayCount() + 1);
+        haiGuiSoupRepository.save(soup);
+
+        return EndGameVO.fromSnapshot(snapshot);
     }
 
     @Override
     public RoomGetClueVO getClue(String roomId) {
-        List<HaiGuiChatMessageWithFragments> messages = haiGuiChatMessageRepository.findAllByRoomId(roomId);
-
         ChatGame game = chatGameRepository.findById(roomId)
                 .orElseThrow(() -> new BusinessException(404, "房间不存在"));
-        if(game.getSessionId()== null){
-            return RoomGetClueVO.error("游戏未开始",game.getStatus());
+        if (game.getGameSessionId() == null) {
+            return RoomGetClueVO.error("游戏未开始", game.getStatus());
         }
-        GameSession session = gameSessionRepository.findById(game.getSessionId()).orElse(null);
+        List<HaiGuiChatMessageWithFragments> messages =
+                haiGuiChatMessageRepository.findAllByGameSessionId(game.getGameSessionId());
+        GameSession session = gameSessionRepository.findById(game.getGameSessionId()).orElse(null);
         if (session == null) {
             return RoomGetClueVO.error("游戏会话不存在",game.getStatus());
         }
@@ -218,13 +313,14 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
             return RoomGetClueVO.error("海龟汤不存在",game.getStatus());
         }
         RoomGetClueVO roomGetClueVO = new RoomGetClueVO();
+        roomGetClueVO.setGameSessionId(game.getGameSessionId());
         roomGetClueVO.setSoupSurface(soup.getSoupSurface());
         if(game.getStatus()==RoomStatus.FINISHED){
             roomGetClueVO.setMessage("游戏已结束");
             roomGetClueVO.setSoupBottom(soup.getSoupBottom());
         }else if(game.getStatus()==RoomStatus.VOTING){
-            List<HaiGuiVoteSession> sessions = haiGuiVoteSessionRepository.findBySessionIdAndStatusOrderByCreatedAtDesc(
-                    game.getSessionId(), HaiGuiVoteSession.VoteStatus.ONGOING);
+            List<HaiGuiVoteSession> sessions = haiGuiVoteSessionRepository.findByGameSessionIdAndStatusOrderByCreatedAtDesc(
+                    game.getGameSessionId(), HaiGuiVoteSession.VoteStatus.ONGOING);
             HaiGuiVoteSession currentSession = sessions.get(0); // 最新创建的会话
 
             // 3. 检查投票是否超时
@@ -255,7 +351,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
     public EndGameVO endGame(String roomId) {
         ChatGame chatGame = chatGameRepository.findById(roomId)
                 .orElseThrow(() -> new BusinessException(404, "房间不存在"));
-        GameSession gameSession = gameSessionRepository.findById(chatGame.getSessionId())
+        GameSession gameSession = gameSessionRepository.findById(chatGame.getGameSessionId())
                 .orElseThrow(() -> new BusinessException(404, "游戏会话不存在"));
         HaiGuiSoup soup = haiGuiSoupRepository.findById(chatGame.getHaiGuiSoup().getSoupId())
                 .orElseThrow(() -> new BusinessException(404, "该海龟汤不存在"));
@@ -285,13 +381,13 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
     }
 
 
-    protected BigDecimal updateRoomProgress(String roomId, Set<Long> newFragments,
+    protected BigDecimal updateGameProgress(String gameSessionId, Set<Long> newFragments,
                                           List<InferenceTask> incompleteTasks) {
         if (newFragments == null || newFragments.isEmpty()) {
             return BigDecimal.ZERO;
         }
 
-        Map<Long, Set<Long>> taskFragmentsMap = getCurrentTaskFragments(roomId, incompleteTasks);
+        Map<Long, Set<Long>> taskFragmentsMap = getCurrentTaskFragments(gameSessionId, incompleteTasks);
         BigDecimal progress = BigDecimal.ZERO;
 
         for (InferenceTask task : incompleteTasks) {
@@ -312,13 +408,13 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
                 log.info("任务完成：ID={}，前置线索={}，已触发线索={}",
                         taskId, prerequisiteIds, updatedFragments);
                 progress = progress.add(task.getProgressWeight());
-                haiGuiRoomProgressRepository.updateTaskStatus(
-                        roomId, taskId, true, updatedFragments, LocalDateTime.now());
+                haiGuiGameProgressRepository.updateTaskStatus(
+                        gameSessionId, taskId, true, updatedFragments, LocalDateTime.now());
             } else if (!relevantNewFragments.isEmpty()) {
                 log.info("更新任务线索：ID={}，新增线索={}，总线索={}",
                         taskId, relevantNewFragments, updatedFragments);
-                haiGuiRoomProgressRepository.updateTaskFragments(
-                        roomId, taskId, updatedFragments, LocalDateTime.now());
+                haiGuiGameProgressRepository.updateTaskFragments(
+                        gameSessionId, taskId, updatedFragments, LocalDateTime.now());
             }
         }
 
@@ -443,7 +539,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
 
         return prompt.toString();
     }
-    private Map<Long, Set<Long>> getCurrentTaskFragments(String roomId, List<InferenceTask> tasks) {
+    private Map<Long, Set<Long>> getCurrentTaskFragments(String gameSessionId, List<InferenceTask> tasks) {
         List<Long> taskIds = tasks.stream()
                 .map(InferenceTask::getTaskId)
                 .collect(Collectors.toList());
@@ -452,7 +548,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
 
         if (!taskIds.isEmpty()) {
             // 调用修改后的仓库方法
-            List<Object[]> results = haiGuiRoomProgressRepository.findTaskFragmentsRaw(roomId, taskIds);
+            List<Object[]> results = haiGuiGameProgressRepository.findTaskFragmentsRaw(gameSessionId, taskIds);
 
 
             for (Object[] result : results) {
@@ -488,11 +584,10 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
     }
 
     // 辅助方法：获取当前已触发的线索
-    private Set<Long> getCurrentTriggeredFragments(String roomId) {
-        // 合并所有记录的线索
-        List<HaiGuiRoomProgress> allProgress = haiGuiRoomProgressRepository.findByRoomId(roomId);
+    private Set<Long> getCurrentTriggeredFragments(String gameSessionId) {
+        List<HaiGuiGameProgress> allProgress = haiGuiGameProgressRepository.findByGameSessionId(gameSessionId);
         Set<Long> allFragments = new HashSet<>();
-        for (HaiGuiRoomProgress progress : allProgress) {
+        for (HaiGuiGameProgress progress : allProgress) {
             allFragments.addAll(progress.getTriggeredFragmentIds());
         }
         return allFragments;

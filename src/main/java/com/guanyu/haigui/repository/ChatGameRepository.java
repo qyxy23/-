@@ -23,6 +23,8 @@ public interface ChatGameRepository extends JpaRepository<ChatGame, String> {
     @Query("SELECT r FROM ChatGame r WHERE r.roomId = :roomId")
     Optional<ChatGame> findByRoomId(@Param("roomId") String roomId);
 
+    Optional<ChatGame> findFirstByGameSessionId(String gameSessionId);
+
     List<ChatGame> findByMembers_Member_UserId(Long userId);
 
     // 新增方法：查询用户参与的、状态在指定集合中的房间

@@ -44,7 +44,7 @@ public class VoteTimeoutService {
                 .findByStatusAndEndTimeBefore(HaiGuiVoteSession.VoteStatus.ONGOING, now);
         int expired = 0;
         for (HaiGuiVoteSession session : overdueSessions) {
-            ChatGame game = chatGameRepository.findById(session.getRoomId()).orElse(null);
+            ChatGame game = chatGameRepository.findFirstByGameSessionId(session.getGameSessionId()).orElse(null);
             if (game == null || game.getStatus() != RoomStatus.VOTING) {
                 continue;
             }

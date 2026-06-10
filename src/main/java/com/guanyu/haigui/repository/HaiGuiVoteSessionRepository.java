@@ -9,7 +9,8 @@ import java.util.List;
 
 @Repository
 public interface HaiGuiVoteSessionRepository extends JpaRepository<HaiGuiVoteSession, String> {
-    List<HaiGuiVoteSession> findBySessionIdAndStatusOrderByCreatedAtDesc(String SessionId, HaiGuiVoteSession.VoteStatus voteStatus);
+    List<HaiGuiVoteSession> findByGameSessionIdAndStatusOrderByCreatedAtDesc(
+            String gameSessionId, HaiGuiVoteSession.VoteStatus voteStatus);
 
     List<HaiGuiVoteSession> findByStatusAndEndTimeBefore(HaiGuiVoteSession.VoteStatus status, LocalDateTime endTime);
 }

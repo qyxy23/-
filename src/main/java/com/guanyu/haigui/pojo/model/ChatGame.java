@@ -83,14 +83,9 @@ public class ChatGame {
     @Column(name = "privacy_type", nullable = false, columnDefinition = "ENUM('PUBLIC', 'PRIVATE')")
     private PrivacyType privacyType = PrivacyType.PUBLIC;
 
-    /** 是否需要邀请加入（对应need_invite） */
-    @Column(name = "need_invite", nullable = false)
-    @Builder.Default
-    private Boolean needInvite = false;
-
-    /** 关联的游戏会话ID（对应session_id） */
+    /** 关联的游戏会话 ID（haigui_game_session.session_id） */
     @Column(name = "session_id", length = 36)
-    private String sessionId;
+    private String gameSessionId;
 
     /** 房间成员列表（关联chat_game_members表） */
     @OneToMany(mappedBy = "chatGame", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -117,8 +112,7 @@ public class ChatGame {
                 ", startTime=" + startTime +
                 ", endTime=" + endTime +
                 ", privacyType=" + privacyType +
-                ", needInvite=" + needInvite +
-                ", sessionId='" + sessionId + '\'' +
+                ", gameSessionId='" + gameSessionId + '\'' +
                 ", memberCount=" + (members != null ? members.size() : 0) +  // 只打印成员数量，不展开集合
                 '}';
     }

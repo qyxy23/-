@@ -230,58 +230,14 @@ public interface UserInfoRepository extends JpaRepository<UserInfo, Long> {
             Pageable pageable);
 
     /**
-     * 批量标记当前用户对指定好友的未读消息为已读（数据库层面）
-     * 
-     * @param currentUserId 当前用户ID（消息接收者）
-     * @param friendIds     好友ID列表（消息发送者）
+     * 查询当前用户的所有好友（基础信息）
      */
-    @Modifying // 标记为更新操作（非查询）
-    @Transactional(rollbackFor = Exception.class) // 事务保障，异常则回滚
-    @Query(value = """
-                UPDATE chat_private_messages m
-                SET m.is_read = TRUE  -- 标记为已读（对应Boolean的true）
-                WHERE m.receiver_id = :currentUserId  -- 接收者是当前用户
-                  AND m.sender_id IN (:friendIds)     -- 发送者是指定好友
-                  AND m.is_read = FALSE               -- 仅更新未读消息
-            """, nativeQuery = true) // 原生SQL查询
-    void batchMarkMessagesAsRead(
-            @Param("currentUserId") Long currentUserId,
-            @Param("friendIds") Collection<Long> friendIds);
-
-    // 检查是否已经是好友（双向）
     @Query("SELECT COUNT(fr) > 0 FROM FriendRelation fr WHERE (fr.user.userId = :currentUserId AND fr.friend.userId = :targetUserId AND fr.status = :status) OR (fr.user.userId = :targetUserId AND fr.friend.userId = :currentUserId AND fr.status = :status)")
     boolean isAlreadyFriend(@Param("currentUserId") Long currentUserId, @Param("targetUserId") Long targetUserId,
             @Param("status") FriendStatus status);
 
-    /**
-     * 查询当前用户的所有好友（含未读消息数、最后一条消息）
-     * 
-     * @param currentUserId 当前用户ID
-     * @return 好友信息DTO列表
-     */
     @Query(nativeQuery = true, name = "UserInfo.findFriendBasicInfos")
     List<FriendBasicInfoVO> findFriendBasicInfos(@Param("currentUserId") Long currentUserId);
-
-    /**
-     * 统计当前用户对每个好友的未读消息数（仅好友发给当前用户且未读的消息）
-     * 
-     * @param currentUserId 当前用户ID
-     * @param friendIds     好友ID列表（批量查询，避免N+1）
-     * @return 数组格式：[friendId, unreadCount]
-     */
-    @Query(nativeQuery = true, value = """
-                SELECT
-                    m.receiver_id AS friendId,  -- 好友ID（接收者是当前用户）
-                    COUNT(*) AS unreadCount     -- 未读消息数
-                FROM chat_private_messages m
-                WHERE m.receiver_id = :currentUserId  -- 消息接收者是当前用户
-                  AND m.sender_id IN (:friendIds)     -- 发送者是好友
-                  AND m.is_read = 0                   -- 未读
-                GROUP BY m.receiver_id                -- 按好友分组统计
-            """)
-    List<Object[]> countUnreadMessagesByFriendIds(
-            @Param("currentUserId") Long currentUserId,
-            @Param("friendIds") List<Long> friendIds);
 
     /**
      * 获取当前用户与每个好友的最后一条消息（内容+时间）

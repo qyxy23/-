@@ -41,7 +41,6 @@ public class VectorMigrationRunner implements ApplicationRunner {
         int migrated = 0;
         int alreadyPresent = 0;
         int skipped = 0;
-        int reencoded = 0;
         Set<String> soupIds = new HashSet<>();
 
         for (ClueFragment fragment : fragments) {
@@ -57,16 +56,10 @@ public class VectorMigrationRunner implements ApplicationRunner {
                 continue;
             }
 
-            boolean needsReencode = fragment.getVectorData() == null
-                    || fragment.getVectorData().size() != properties.getDimensions();
-            List<Double> vector = resolveVector(fragment, needsReencode);
+            List<Double> vector = resolveVector(fragment);
             if (vector == null || vector.isEmpty()) {
                 skipped++;
                 continue;
-            }
-
-            if (needsReencode) {
-                reencoded++;
             }
 
             boolean stored = redisStackClient.storeClueFragmentVector(soupId, fragmentId, vector);
@@ -81,19 +74,12 @@ public class VectorMigrationRunner implements ApplicationRunner {
             log.info("线索向量检查完成: total={}, alreadyPresent={}, skipped={}, 无需补齐",
                     fragments.size(), alreadyPresent, skipped);
         } else {
-            log.info("线索向量迁移完成: total={}, migrated={}, alreadyPresent={}, reencoded={}, skipped={}, soups={}",
-                    fragments.size(), migrated, alreadyPresent, reencoded, skipped, soupIds.size());
+            log.info("线索向量迁移完成: total={}, migrated={}, alreadyPresent={}, skipped={}, soups={}",
+                    fragments.size(), migrated, alreadyPresent, skipped, soupIds.size());
         }
     }
 
-    /**
-     * 优先使用 MySQL 向量；仅在缺失或维度不匹配时通过 BGE 重新向量化
-     */
-    private List<Double> resolveVector(ClueFragment fragment, boolean needsReencode) {
-        if (!needsReencode) {
-            return fragment.getVectorData();
-        }
-
+    private List<Double> resolveVector(ClueFragment fragment) {
         try {
             SingleEncodeResponse response = BgeVectorClientUtil.encodeSingle(fragment.getFragmentContent());
             if (response.getEmbeddings() == null || response.getEmbeddings().isEmpty()) {
@@ -104,8 +90,6 @@ public class VectorMigrationRunner implements ApplicationRunner {
             for (Float value : embeddings) {
                 vector.add(value.doubleValue());
             }
-            fragment.setVectorData(vector);
-            clueFragmentRepository.save(fragment);
             return vector;
         } catch (Exception e) {
             log.warn("重新向量化失败: fragmentId={}, soupId={}", fragment.getFragmentId(), fragment.getSoupId(), e);

@@ -1,13 +1,11 @@
 package com.guanyu.haigui.pojo.model;
 
-import com.guanyu.haigui.converter.ListDoubleConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * 线索片段数据模型（精简版）
@@ -32,10 +30,6 @@ public class ClueFragment {
 
     @Column(name = "fragment_content", nullable = false, columnDefinition = "VARCHAR(500)")
     private String fragmentContent;
-
-    @Column(name = "vector_data", columnDefinition = "JSON")
-    @Convert(converter = ListDoubleConverter.class)
-    private List<Double> vectorData;  // 使用Double更精确
 
     @Column(name = "is_deleted", nullable = false, columnDefinition = "TINYINT(1)")
     private Boolean isDeleted = false;

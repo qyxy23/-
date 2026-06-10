@@ -75,7 +75,6 @@ public class CreateTurtleSoupDTO {
         haiGuiSoup.setTags(tag);
         haiGuiSoup.setEstimatedDuration(estimatedDuration);
         haiGuiSoup.setPlayerCount(playerCount);
-        haiGuiSoup.setKeyClues("[]");
         haiGuiSoup.setUploaderId(userInfo.getUserId());
         haiGuiSoup.setCreatorId(userInfo.getUserId());
         haiGuiSoup.setUploader(userInfo);

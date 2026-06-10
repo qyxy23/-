@@ -8,8 +8,11 @@ import java.time.LocalDateTime;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Data
 public class RoomSoupQuestionVO {
-    //房间id
+    /** 大厅 roomId（WebSocket 路由） */
     private String roomId;
+
+    /** 游戏会话 ID */
+    private String gameSessionId;
 
     //问题id
     // private String questionId;
@@ -43,11 +46,12 @@ public class RoomSoupQuestionVO {
 
 
     // public static RoomSoupQuestionVO success(String roomId, Long questionId,String question,String answer,Double currentProgress,int remainingQuestions){
-    public static RoomSoupQuestionVO success(String roomId, String question, String answer,
+    public static RoomSoupQuestionVO success(String roomId, String gameSessionId, String question, String answer,
                                              Double totalProgress, Double progressDelta,
                                              int remainingQuestions) {
         RoomSoupQuestionVO roomSoupQuestionVO = new RoomSoupQuestionVO();
         roomSoupQuestionVO.setRoomId(roomId);
+        roomSoupQuestionVO.setGameSessionId(gameSessionId);
         roomSoupQuestionVO.setQuestion(question);
         roomSoupQuestionVO.setAnswer(answer);
         roomSoupQuestionVO.setStatus("success");

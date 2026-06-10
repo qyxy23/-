@@ -17,10 +17,10 @@ public interface AiChatMessageRepository extends JpaRepository<AiChatMessage, Lo
     @Modifying
     @Query(value = """
                 INSERT INTO ai_chat_messages
-                (session_id, sender_type, content, send_time, is_read, sender_id)
+                (session_id, sender_type, content, send_time, sender_id)
                 VALUES
                 (:#{#msg.chatSession.sessionId}, :#{#msg.role.name()}, :#{#msg.content},
-                 :#{#msg.sendTime}, :#{#msg.isRead}, :#{#msg.senderId})
+                 :#{#msg.sendTime}, :#{#msg.senderId})
             """, nativeQuery = true)
     void insertMsg(AiChatMessage msg);
 

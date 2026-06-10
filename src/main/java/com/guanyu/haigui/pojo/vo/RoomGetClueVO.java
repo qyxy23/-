@@ -12,6 +12,8 @@ import java.util.List;
 public class RoomGetClueVO {
     //房间状态
     private RoomStatus roomStatus;
+    /** 游戏会话 ID（进行中时有值） */
+    private String gameSessionId;
     //汤面
     private String soupSurface;
     //汤底

@@ -47,7 +47,6 @@ public class ChatServicesImpl implements ChatService {
     private final ChatGameRepository chatGameRepository;
     private final HaiGuiSoupRepository haiGuiSoupRepository;
     private final GameSessionRepository gameSessionRepository;
-    private final HaiGuiRoomProgressRepository haiGuiRoomProgressRepository;
     private final HaiGuiChatMessageRepository haiGuiChatMessageRepository;
     private final InferenceTaskRepository inferenceTaskRepository;
     private final ClueFragmentRepository clueFragmentRepository;
@@ -106,7 +105,7 @@ public class ChatServicesImpl implements ChatService {
 
         // 3.2 插入系统消息（官方ChatMessage）
         AiChatMessage systemMsg = AiChatMessage.builder().chatSession(session)
-                .sendTime(LocalDateTime.now()).isRead(0).role(ChatMessageRole.SYSTEM)
+                .sendTime(LocalDateTime.now()).role(ChatMessageRole.SYSTEM)
                 .content(StatusConstant.SystemFirstPrompt).build();
         // 3.3 初始化缓存：存系统消息
         messages.add(convertSingleAiMessage(systemMsg));
@@ -114,7 +113,7 @@ public class ChatServicesImpl implements ChatService {
 
         // 4. 插入用户消息（官方ChatMessage）
         AiChatMessage userMsg = AiChatMessage.builder().chatSession(session)
-                .sendTime(LocalDateTime.now()).isRead(0).senderId(userId)
+                .sendTime(LocalDateTime.now()).senderId(userId)
                 .role(ChatMessageRole.USER).content(message).build();
         // userMsg.setRole(ChatMessageRole.USER); // 用户消息角色
         // userMsg.setContent(message);
@@ -147,7 +146,7 @@ public class ChatServicesImpl implements ChatService {
 
         // 6. 插入AI回复（官方ChatMessage，角色为ASSISTANT）
         AiChatMessage assistantMsg = AiChatMessage.builder().chatSession(session)
-                .sendTime(LocalDateTime.now()).isRead(0).role(ChatMessageRole.ASSISTANT)
+                .sendTime(LocalDateTime.now()).role(ChatMessageRole.ASSISTANT)
                 .content(soupContent).build();
         // assistantMsg.setRole(ChatMessageRole.ASSISTANT); // AI回复角色
         // assistantMsg.setContent(answer);
@@ -185,7 +184,7 @@ public class ChatServicesImpl implements ChatService {
 
         // 4. 插入用户消息（官方ChatMessage）
         AiChatMessage userMsg = AiChatMessage.builder().chatSession(Session)
-                .sendTime(LocalDateTime.now()).isRead(0).senderId(userId).build();
+                .sendTime(LocalDateTime.now()).senderId(userId).build();
         userMsg.setRole(ChatMessageRole.USER); // 用户消息角色
         userMsg.setContent(message);
         aiChatMessageRepository.save(userMsg); // 插入消息（合并原insertUserMsg）
@@ -196,7 +195,7 @@ public class ChatServicesImpl implements ChatService {
 
         // 6. 插入AI回复（官方ChatMessage，角色为ASSISTANT）
         AiChatMessage assistantMsg = AiChatMessage.builder().chatSession(Session)
-                .sendTime(LocalDateTime.now()).isRead(0).build();
+                .sendTime(LocalDateTime.now()).build();
         assistantMsg.setRole(ChatMessageRole.ASSISTANT); // AI回复角色
         assistantMsg.setContent(answer);
         aiChatMessageRepository.save(assistantMsg);// 插入消息（合并原insertAIMsg）

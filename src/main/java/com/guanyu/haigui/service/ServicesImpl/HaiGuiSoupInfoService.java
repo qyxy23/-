@@ -213,7 +213,7 @@ public class HaiGuiSoupInfoService {
             ClueFragment clueFragment = new ClueFragment();
             clueFragment.setSoupId(soup.getSoupId());
             clueFragment.setFragmentContent(fragment.getContent());
-            clueFragment.setVectorData(vectorizeFragment(fragment.getContent()));
+            List<Double> vector = vectorizeFragment(fragment.getContent());
             clueFragment.setIsDeleted(false);
             clueFragment.setCreatedAt(LocalDateTime.now());
             clueFragment.setUpdatedAt(LocalDateTime.now());
@@ -225,7 +225,7 @@ public class HaiGuiSoupInfoService {
             redisClient.storeClueFragmentVector(
                     soup.getSoupId(),
                     savedFragment.getFragmentId().toString(),
-                    savedFragment.getVectorData());
+                    vector);
 
             fragmentIdList.add(savedFragment.getFragmentId().toString());
             fragmentOrderToIdMap.put(order, savedFragment.getFragmentId()); // 使用顺序号作为键
@@ -296,12 +296,6 @@ public class HaiGuiSoupInfoService {
 
     // 更新海龟汤线索信息的辅助方法
     private void updateSoupWithClueInfo(HaiGuiSoup soup, List<ClueFragment> fragments) {
-        List<Long> fragmentIds = fragments.stream()
-                .map(ClueFragment::getFragmentId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-
-        soup.setKeyClues(new Gson().toJson(fragmentIds));
         soup.setUpdatedAt(LocalDateTime.now());
         haiGuiSoupRepository.saveAndFlush(soup);
     }

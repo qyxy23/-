@@ -7,6 +7,7 @@ import com.guanyu.haigui.pojo.result.GameHistoryQuestionView;
 import com.guanyu.haigui.pojo.result.GameHistoryTimelineItem;
 import com.guanyu.haigui.repository.ChatGameMemberRepository;
 import com.guanyu.haigui.repository.ChatGameMsgRepository;
+import com.guanyu.haigui.repository.ChatGameRepository;
 import com.guanyu.haigui.repository.ClueFragmentRepository;
 import com.guanyu.haigui.repository.HaiGuiChatMessageRepository;
 import lombok.RequiredArgsConstructor;
@@ -27,13 +28,18 @@ public class GameHistoryBuilder {
     private final ChatGameMsgRepository chatGameMsgRepository;
     private final ChatGameMemberRepository chatGameMemberRepository;
     private final ClueFragmentRepository clueFragmentRepository;
+    private final ChatGameRepository chatGameRepository;
 
     public HistoryBundle build(String roomId, String soupId) {
         Map<Long, ClueFragment> fragmentMap = clueFragmentRepository.findBySoupIdAndIsDeletedFalse(soupId).stream()
                 .collect(Collectors.toMap(ClueFragment::getFragmentId, Function.identity(), (a, b) -> a));
 
-        List<HaiGuiChatMessageWithFragments> aiMessages = haiGuiChatMessageRepository
-                .findAllByRoomIdOrderByCreatedAtAsc(roomId);
+        String gameSessionId = chatGameRepository.findById(roomId)
+                .map(ChatGame::getGameSessionId)
+                .orElse(null);
+        List<HaiGuiChatMessageWithFragments> aiMessages = gameSessionId != null
+                ? haiGuiChatMessageRepository.findAllByGameSessionIdOrderByCreatedAtAsc(gameSessionId)
+                : List.of();
         List<ChatGameMessage> lobbyMessages = chatGameMsgRepository
                 .findByChatGame_RoomIdOrderByCreateTimeAsc(roomId);
         List<ChatGameMember> members = chatGameMemberRepository.findByRoomIdWithMember(roomId);

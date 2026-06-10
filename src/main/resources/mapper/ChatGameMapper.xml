@@ -89,7 +89,7 @@
             <if test="requiredMembers != null">AND cr.required_members >= #{requiredMembers}</if>
             <if test="currentMembers != null">AND cr.current_members = #{currentMembers}</if>
             <if test="createTime != null">AND cr.create_time = #{createTime}</if>
-            <if test="excludeInvited != null and excludeInvited">AND cr.need_invite = false</if>
+            <if test="excludeInvited != null and excludeInvited">AND cr.privacy_type = 'PUBLIC'</if>
         </where>
         ORDER BY cr.create_time DESC
     </select>

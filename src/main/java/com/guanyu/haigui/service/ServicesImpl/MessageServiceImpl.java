@@ -340,8 +340,6 @@ public class MessageServiceImpl implements MessageService {
 
         privateMessage.setStatus(MessageStatus.SENT);
 
-        privateMessage.setIsRead(false);
-
         privateMessage.setCreateTime(LocalDateTime.now());
 
         messageRepository.save(privateMessage);

@@ -7,8 +7,8 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface HaiGuiChatMessageRepository extends JpaRepository<HaiGuiChatMessageWithFragments, String> {
-    List<HaiGuiChatMessageWithFragments> findAllByRoomId(String roomId);
+public interface HaiGuiChatMessageRepository extends JpaRepository<HaiGuiChatMessageWithFragments, Long> {
+    List<HaiGuiChatMessageWithFragments> findAllByGameSessionId(String gameSessionId);
 
-    List<HaiGuiChatMessageWithFragments> findAllByRoomIdOrderByCreatedAtAsc(String roomId);
+    List<HaiGuiChatMessageWithFragments> findAllByGameSessionIdOrderByCreatedAtAsc(String gameSessionId);
 }

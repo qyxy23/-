@@ -60,10 +60,6 @@ public class PrivateMessage {
     @Schema(description = "消息状态：SENT-已发送/FAILED-发送失败/RETRACTED-已撤回")
     private MessageStatus status;
 
-    @Column(name = "is_read", nullable = false)
-    @Schema(description = "是否已读（0-未读，1-已读）")
-    private Boolean isRead;
-
     @CreationTimestamp
     @Column(name = "create_time", nullable = false)
     @Schema(description = "消息发送时间")

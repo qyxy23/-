@@ -12,7 +12,6 @@
         <result property="role" column="sender_type"/>
         <result property="content" column="content"/>
         <result property="sendTime" column="send_time"/>
-        <result property="isRead" column="is_read"/>
 
         <!-- 关联 AiChatSession 对象（处理 session_id） -->
         <association
@@ -28,10 +27,10 @@
     <!-- AiChatMessageMapper.xml -->
     <insert id="insertMsg" parameterType="com.guanyu.haigui.pojo.model.AiChatMessage">
         INSERT INTO ai_chat_messages
-        (session_id, sender_type, content, send_time, is_read
+        (session_id, sender_type, content, send_time
         <if test="senderId != null">, sender_id</if>)
         VALUES
-        (#{sessionId}, #{role.name()}, #{content}, #{sendTime}, #{isRead}
+        (#{sessionId}, #{role.name()}, #{content}, #{sendTime}
         <if test="senderId != null">, #{senderId}</if>)
     </insert>
 
@@ -83,8 +82,7 @@
         sender_id,
         sender_type,
         content,
-        send_time,
-        is_read
+        send_time
         FROM
         ai_chat_messages
         WHERE

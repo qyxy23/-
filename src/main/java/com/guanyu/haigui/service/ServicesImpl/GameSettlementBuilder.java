@@ -20,10 +20,11 @@ import java.util.stream.Collectors;
 public class GameSettlementBuilder {
 
     private final ChatGameRepository chatGameRepository;
+    private final GameSessionRepository gameSessionRepository;
     private final HaiGuiSoupRepository haiGuiSoupRepository;
     private final InferenceTaskRepository inferenceTaskRepository;
     private final ClueFragmentRepository clueFragmentRepository;
-    private final HaiGuiRoomProgressRepository haiGuiRoomProgressRepository;
+    private final HaiGuiGameProgressRepository haiGuiGameProgressRepository;
 
     public GameSettlementSnapshot build(String roomId) {
         ChatGame chatGame = chatGameRepository.findById(roomId)
@@ -31,15 +32,15 @@ public class GameSettlementBuilder {
         HaiGuiSoup soup = haiGuiSoupRepository.findById(chatGame.getHaiGuiSoup().getSoupId())
                 .orElseThrow(() -> new BusinessException(404, "该海龟汤不存在"));
 
-        List<HaiGuiRoomProgress> progressList = haiGuiRoomProgressRepository.findByRoomId(roomId);
-        Map<Long, HaiGuiRoomProgress> progressMap = progressList.stream()
-                .collect(Collectors.toMap(HaiGuiRoomProgress::getTaskId, Function.identity(), (a, b) -> a));
+        List<HaiGuiGameProgress> progressList = haiGuiGameProgressRepository.findByGameSessionId(chatGame.getGameSessionId());
+        Map<Long, HaiGuiGameProgress> progressMap = progressList.stream()
+                .collect(Collectors.toMap(HaiGuiGameProgress::getTaskId, Function.identity(), (a, b) -> a));
 
         List<InferenceTask> allTasks = inferenceTaskRepository.findBySoupId(soup.getSoupId());
         List<ClueFragment> allClues = clueFragmentRepository.findBySoupIdAndIsDeletedFalse(soup.getSoupId());
 
         Set<Long> triggeredIds = new HashSet<>();
-        for (HaiGuiRoomProgress progress : progressList) {
+        for (HaiGuiGameProgress progress : progressList) {
             if (progress.getTriggeredFragmentIds() != null) {
                 triggeredIds.addAll(progress.getTriggeredFragmentIds());
             }
@@ -47,6 +48,7 @@ public class GameSettlementBuilder {
 
         GameSettlementSnapshot snapshot = new GameSettlementSnapshot();
         snapshot.setRoomId(roomId);
+        snapshot.setGameSessionId(chatGame.getGameSessionId());
         snapshot.setSoupTitle(soup.getSoupTitle());
         snapshot.setSoupBottom(soup.getSoupBottom());
 
@@ -54,7 +56,74 @@ public class GameSettlementBuilder {
         BigDecimal completedWeight = BigDecimal.ZERO;
 
         for (InferenceTask task : allTasks) {
-            HaiGuiRoomProgress progress = progressMap.get(task.getTaskId());
+            HaiGuiGameProgress progress = progressMap.get(task.getTaskId());
+            boolean isCompleted = progress != null && Boolean.TRUE.equals(progress.getCompleted());
+            SettlementTaskView taskView = toTaskView(task);
+
+            if (isCompleted) {
+                completedWeight = completedWeight.add(task.getProgressWeight());
+                snapshot.getCompletedTasks().add(taskView);
+            } else {
+                snapshot.getUncompletedTasks().add(taskView);
+            }
+            totalWeight = totalWeight.add(task.getProgressWeight());
+        }
+
+        BigDecimal progressPercent = BigDecimal.ZERO;
+        if (totalWeight.compareTo(BigDecimal.ZERO) > 0) {
+            progressPercent = completedWeight.divide(totalWeight, 4, RoundingMode.HALF_UP)
+                    .multiply(BigDecimal.valueOf(100))
+                    .setScale(2, RoundingMode.HALF_UP);
+        }
+        snapshot.setProgressPercent(progressPercent);
+        snapshot.setFinalScore(progressPercent.setScale(0, RoundingMode.HALF_UP).intValueExact());
+
+        for (ClueFragment clue : allClues) {
+            ClueSummaryView clueView = new ClueSummaryView();
+            clueView.setContent(clue.getFragmentContent());
+            if (triggeredIds.contains(clue.getFragmentId())) {
+                snapshot.getTriggeredClues().add(clueView);
+            } else {
+                snapshot.getMissedClues().add(clueView);
+            }
+        }
+
+        return snapshot;
+    }
+
+    public GameSettlementSnapshot buildByGameSessionId(String gameSessionId) {
+        GameSession gameSession = gameSessionRepository.findById(gameSessionId)
+                .orElseThrow(() -> new BusinessException(404, "游戏会话不存在"));
+        HaiGuiSoup soup = haiGuiSoupRepository.findById(gameSession.getSoupId())
+                .orElseThrow(() -> new BusinessException(404, "该海龟汤不存在"));
+
+        List<HaiGuiGameProgress> progressList =
+                haiGuiGameProgressRepository.findByGameSessionId(gameSessionId);
+        Map<Long, HaiGuiGameProgress> progressMap = progressList.stream()
+                .collect(Collectors.toMap(HaiGuiGameProgress::getTaskId, Function.identity(), (a, b) -> a));
+
+        List<InferenceTask> allTasks = inferenceTaskRepository.findBySoupId(soup.getSoupId());
+        List<ClueFragment> allClues = clueFragmentRepository.findBySoupIdAndIsDeletedFalse(soup.getSoupId());
+
+        Set<Long> triggeredIds = new HashSet<>();
+        for (HaiGuiGameProgress progress : progressList) {
+            if (progress.getTriggeredFragmentIds() != null) {
+                triggeredIds.addAll(progress.getTriggeredFragmentIds());
+            }
+        }
+
+        GameSettlementSnapshot snapshot = new GameSettlementSnapshot();
+        snapshot.setGameSessionId(gameSessionId);
+        chatGameRepository.findFirstByGameSessionId(gameSessionId)
+                .ifPresent(chatGame -> snapshot.setRoomId(chatGame.getRoomId()));
+        snapshot.setSoupTitle(soup.getSoupTitle());
+        snapshot.setSoupBottom(soup.getSoupBottom());
+
+        BigDecimal totalWeight = BigDecimal.ZERO;
+        BigDecimal completedWeight = BigDecimal.ZERO;
+
+        for (InferenceTask task : allTasks) {
+            HaiGuiGameProgress progress = progressMap.get(task.getTaskId());
             boolean isCompleted = progress != null && Boolean.TRUE.equals(progress.getCompleted());
             SettlementTaskView taskView = toTaskView(task);
 

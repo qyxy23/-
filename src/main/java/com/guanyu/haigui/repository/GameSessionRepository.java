@@ -153,4 +153,15 @@ public interface GameSessionRepository extends JpaRepository<GameSession, String
     List<GameSession> findRecentActiveSessions(@Param("userId") Long userId, @Param("since") LocalDateTime since);
 
     List<GameSession> findBySoupIdAndUserIdAndIsDeletedFalseOrderByStartTimeDesc(String soupId, Long currentId);
+
+    Optional<GameSession> findFirstByUserIdAndSoupIdAndPlayModeAndStatusAndIsDeletedFalseOrderByStartTimeDesc(
+            Long userId,
+            String soupId,
+            com.guanyu.haigui.Enum.PlayMode playMode,
+            GameSession.GameSessionStatus status);
+
+    List<GameSession> findByUserIdAndPlayModeAndStatusAndIsDeletedFalseOrderByStartTimeDesc(
+            Long userId,
+            com.guanyu.haigui.Enum.PlayMode playMode,
+            GameSession.GameSessionStatus status);
 }

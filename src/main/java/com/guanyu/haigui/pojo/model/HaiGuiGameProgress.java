@@ -11,48 +11,48 @@ import org.hibernate.annotations.Where;
 import java.time.LocalDateTime;
 import java.util.Set;
 
+/** 游戏会话任务进度（映射 hai_gui_room_progress 表） */
 @Data
 @Entity
 @Table(name = "hai_gui_room_progress",
         uniqueConstraints = {
-                @UniqueConstraint(columnNames = {"room_id", "task_id"}, name = "uk_room_task")
+                @UniqueConstraint(columnNames = {"game_session_id", "task_id"}, name = "uk_session_task")
         },
         indexes = {
-                @Index(columnList = "room_id,soup_id", name = "idx_room_soup")
+                @Index(columnList = "game_session_id", name = "idx_game_session_id")
         })
-@SQLDelete(sql = "UPDATE hai_gui_room_progress SET is_deleted = 1 WHERE progress_id = ?") // 逻辑删除
-@Where(clause = "is_deleted = 0") // 查询时过滤已删除数据
-public class HaiGuiRoomProgress {
+@SQLDelete(sql = "UPDATE hai_gui_room_progress SET is_deleted = 1 WHERE progress_id = ?")
+@Where(clause = "is_deleted = 0")
+public class HaiGuiGameProgress {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long progressId; // 自增主键
+    private Long progressId;
 
-    @Column(nullable = false, length = 36)
-    private String roomId; // 关联 chat_games.room_id
-
-
-    @Column(nullable = false)
-    private Long taskId; // 关联 hai_gui_soup_inference_task.task_id
+    @Column(name = "game_session_id", nullable = false, length = 36)
+    private String gameSessionId;
 
     @Column(nullable = false)
-    private Boolean completed = false; // 默认未完成
+    private Long taskId;
 
-    @Column(nullable = false, columnDefinition = "JSON")
+    @Column(nullable = false)
+    private Boolean completed = false;
+
+    @Column(name = "triggered_fragment_ids", nullable = false, columnDefinition = "JSON")
     @Convert(converter = LongSetConverter.class)
-    private Set<Long> triggeredFragmentIds; // 已触发线索 ID 列表（JSON 格式）
+    private Set<Long> triggeredFragmentIds;
 
     @Column(columnDefinition = "DATETIME(6)")
-    private LocalDateTime completionTime; // 完成时间
+    private LocalDateTime completionTime;
 
     @Column(nullable = false, columnDefinition = "TINYINT(1) DEFAULT 0")
-    private Boolean isDeleted = false; // 逻辑删除标记（默认未删除）
+    private Boolean isDeleted = false;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false, columnDefinition = "DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6)")
-    private LocalDateTime createdAt; // 创建时间（自动填充）
+    private LocalDateTime createdAt;
 
     @UpdateTimestamp
     @Column(nullable = false, columnDefinition = "DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)")
-    private LocalDateTime updatedAt; // 更新时间（自动维护）
+    private LocalDateTime updatedAt;
 }
