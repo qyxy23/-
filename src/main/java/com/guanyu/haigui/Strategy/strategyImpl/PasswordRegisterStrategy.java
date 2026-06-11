@@ -9,6 +9,7 @@ import com.guanyu.haigui.pojo.model.UserInfo;
 import com.guanyu.haigui.pojo.model.UserRole;
 import com.guanyu.haigui.pojo.vo.CustomUserDetails;
 import com.guanyu.haigui.pojo.vo.LogVO;
+import com.guanyu.haigui.service.PlayQuotaService;
 import com.guanyu.haigui.utils.JwtTokenUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +33,8 @@ public class PasswordRegisterStrategy implements RegisterStrategy {
     private UserDetailsMapper userDetailsMapper;
     @Resource
     private BCryptPasswordEncoder passwordEncoder; // 注入密码编码器
+    @Resource
+    private PlayQuotaService playQuotaService;
 
     @Override
     public LogVO register(RegisterRequest params) {
@@ -76,6 +79,7 @@ public class PasswordRegisterStrategy implements RegisterStrategy {
             // 可选：回滚用户插入（若需要事务）
             throw new RuntimeException("用户角色关联失败");
         }
+        playQuotaService.initForNewUser(userId);
         // 生成【带角色信息】的 JWT Token
         String token = jwtUtil.generateToken(CustomUserDetails);
         CustomUserDetails.setToken(token);

@@ -31,12 +31,16 @@ public class GameHistoryBuilder {
     private final ChatGameRepository chatGameRepository;
 
     public HistoryBundle build(String roomId, String soupId) {
-        Map<Long, ClueFragment> fragmentMap = clueFragmentRepository.findBySoupIdAndIsDeletedFalse(soupId).stream()
-                .collect(Collectors.toMap(ClueFragment::getFragmentId, Function.identity(), (a, b) -> a));
-
         String gameSessionId = chatGameRepository.findById(roomId)
                 .map(ChatGame::getGameSessionId)
                 .orElse(null);
+        return buildForSession(roomId, soupId, gameSessionId);
+    }
+
+    public HistoryBundle buildForSession(String roomId, String soupId, String gameSessionId) {
+        Map<Long, ClueFragment> fragmentMap = clueFragmentRepository.findBySoupIdAndIsDeletedFalse(soupId).stream()
+                .collect(Collectors.toMap(ClueFragment::getFragmentId, Function.identity(), (a, b) -> a));
+
         List<HaiGuiChatMessageWithFragments> aiMessages = gameSessionId != null
                 ? haiGuiChatMessageRepository.findAllByGameSessionIdOrderByCreatedAtAsc(gameSessionId)
                 : List.of();
@@ -67,6 +71,63 @@ public class GameHistoryBuilder {
         bundle.setTimeline(timeline);
         bundle.setMvpUserId(mvpUserId);
         return bundle;
+    }
+
+    /** 单人游玩复盘：仅 AI 问答，无大厅聊天与 MVP 竞争 */
+    public HistoryBundle buildSolo(String gameSessionId, String soupId, UserInfo player) {
+        Map<Long, ClueFragment> fragmentMap = clueFragmentRepository.findBySoupIdAndIsDeletedFalse(soupId).stream()
+                .collect(Collectors.toMap(ClueFragment::getFragmentId, Function.identity(), (a, b) -> a));
+
+        List<HaiGuiChatMessageWithFragments> aiMessages =
+                haiGuiChatMessageRepository.findAllByGameSessionIdOrderByCreatedAtAsc(gameSessionId);
+
+        Map<Long, UserInfo> userMap = new HashMap<>();
+        if (player != null) {
+            userMap.put(player.getUserId(), player);
+        }
+
+        List<GameHistoryQuestionView> questions = buildQuestions(aiMessages, fragmentMap, userMap);
+        List<GameHistoryMemberView> members = buildSoloMemberScores(player, aiMessages, fragmentMap);
+        List<GameHistoryTimelineItem> timeline = buildTimeline(List.of(), questions);
+
+        HistoryBundle bundle = new HistoryBundle();
+        bundle.setQuestions(questions);
+        bundle.setMembers(members);
+        bundle.setTimeline(timeline);
+        bundle.setMvpUserId(player != null ? player.getUserId() : null);
+        return bundle;
+    }
+
+    private List<GameHistoryMemberView> buildSoloMemberScores(
+            UserInfo player,
+            List<HaiGuiChatMessageWithFragments> aiMessages,
+            Map<Long, ClueFragment> fragmentMap) {
+        if (player == null) {
+            return List.of();
+        }
+        int questionCount = aiMessages.size();
+        Set<Long> attributedFragments = new HashSet<>();
+        int score = 0;
+        for (HaiGuiChatMessageWithFragments message : aiMessages) {
+            if (message.getTriggeredFragmentIds() == null) {
+                continue;
+            }
+            for (Long fragmentId : message.getTriggeredFragmentIds()) {
+                if (!fragmentMap.containsKey(fragmentId) || attributedFragments.contains(fragmentId)) {
+                    continue;
+                }
+                attributedFragments.add(fragmentId);
+                score++;
+            }
+        }
+        GameHistoryMemberView view = new GameHistoryMemberView();
+        view.setUserId(player.getUserId());
+        view.setUsername(player.getUsername());
+        view.setAvatar(player.getAvatar());
+        view.setScore(score);
+        view.setQuestionCount(questionCount);
+        view.setMvp(true);
+        return List.of(view);
     }
 
     private List<GameHistoryQuestionView> buildQuestions(

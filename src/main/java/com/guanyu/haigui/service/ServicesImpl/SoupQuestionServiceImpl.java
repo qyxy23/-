@@ -6,6 +6,7 @@ import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.manager.AIManager;
 import com.guanyu.haigui.pojo.Info.SoupInfo;
+import com.guanyu.haigui.pojo.dto.ReplayBuildHints;
 import com.guanyu.haigui.pojo.model.*;
 import com.guanyu.haigui.pojo.response.AIResponse;
 import com.guanyu.haigui.pojo.result.ChatWithAIRoomRequest;
@@ -16,6 +17,8 @@ import com.guanyu.haigui.pojo.vo.RoomGetClueVO;
 import com.guanyu.haigui.pojo.vo.RoomSoupQuestionVO;
 import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
 import com.guanyu.haigui.repository.*;
+import com.guanyu.haigui.service.GameReplayService;
+import com.guanyu.haigui.service.PlayQuotaService;
 import com.guanyu.haigui.service.SoupQuestionService;
 import com.guanyu.haigui.service.VoteTimeoutService;
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
@@ -71,6 +74,8 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
     private final HaiGuiVoteRecordRepository haiGuiVoteRecordRepository;
     private final GameSettlementBuilder gameSettlementBuilder;
     private final VoteTimeoutService voteTimeoutService;
+    private final PlayQuotaService playQuotaService;
+    private final GameReplayService gameReplayService;
 
 
 
@@ -213,9 +218,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
 
         Set<Long> triggeredFragmentIds = getCurrentTriggeredFragments(gameSessionId);
         List<InferenceTask> allTasks = inferenceTaskRepository.findBySoupId(soupId);
-        List<InferenceTask> incompleteTasks = allTasks.stream()
-                .filter(task -> !haiGuiGameProgressRepository.isTaskCompleted(gameSessionId, task.getTaskId()))
-                .collect(Collectors.toList());
+        List<InferenceTask> incompleteTasks = filterIncompleteTasks(gameSessionId, allTasks);
 
         List<ContextMatchResult> candidateClues = relevantClues.getOrDefault("CLUE_FRAGMENT", List.of());
         String aiPrompt = buildAIPrompt(question, candidateClues, soupInfo);
@@ -292,7 +295,17 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         soup.setPlayCount(soup.getPlayCount() + 1);
         haiGuiSoupRepository.save(soup);
 
-        return EndGameVO.fromSnapshot(snapshot);
+        playQuotaService.chargeOnSettlement(gameSessionId);
+
+        EndGameVO endGameVO = EndGameVO.fromSnapshot(snapshot);
+        ReplayBuildHints replayHints = new ReplayBuildHints();
+        replayHints.setSnapshot(snapshot);
+        replayHints.setSoupId(soup.getSoupId());
+        replayHints.setSoupSurface(soup.getSoupSurface());
+        replayHints.setEndTime(gameSession.getEndTime());
+        gameReplayService.attachReplayAtEnd(
+                endGameVO, gameSessionId, null, gameSession.getUserId(), replayHints);
+        return endGameVO;
     }
 
     @Override
@@ -375,7 +388,16 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         chatGameMember.forEach(member -> member.setStatus(MemberStatus.ONLINE));
         chatGameMemberRepository.saveAll(chatGameMember);
 
+        playQuotaService.chargeOnSettlement(chatGame.getGameSessionId());
+
         EndGameVO endGameVO = EndGameVO.fromSnapshot(snapshot);
+        ReplayBuildHints replayHints = new ReplayBuildHints();
+        replayHints.setSnapshot(snapshot);
+        replayHints.setSoupId(soup.getSoupId());
+        replayHints.setSoupSurface(soup.getSoupSurface());
+        replayHints.setEndTime(chatGame.getEndTime());
+        gameReplayService.attachReplayAtEnd(
+                endGameVO, chatGame.getGameSessionId(), roomId, null, replayHints);
         simpMessagingTemplate.convertAndSend("/topic/memberChange" + roomId, endGameVO);
         return endGameVO;
     }
@@ -539,6 +561,20 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
 
         return prompt.toString();
     }
+
+    private List<InferenceTask> filterIncompleteTasks(String gameSessionId, List<InferenceTask> allTasks) {
+        if (allTasks == null || allTasks.isEmpty()) {
+            return List.of();
+        }
+        Set<Long> completedTaskIds = haiGuiGameProgressRepository.findByGameSessionId(gameSessionId).stream()
+                .filter(HaiGuiGameProgress::getCompleted)
+                .map(HaiGuiGameProgress::getTaskId)
+                .collect(Collectors.toSet());
+        return allTasks.stream()
+                .filter(task -> !completedTaskIds.contains(task.getTaskId()))
+                .collect(Collectors.toList());
+    }
+
     private Map<Long, Set<Long>> getCurrentTaskFragments(String gameSessionId, List<InferenceTask> tasks) {
         List<Long> taskIds = tasks.stream()
                 .map(InferenceTask::getTaskId)
@@ -636,6 +672,8 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
             // 获取片段详细信息并转换为ContextMatchResult
             Map<String, List<ContextMatchResult>> results = new HashMap<>();
             List<ContextMatchResult> fragmentMatchResults = new ArrayList<>();
+            List<Long> candidateFragmentIds = new ArrayList<>();
+            Map<String, Double> candidateSimilarities = new HashMap<>();
 
             for (Map.Entry<String, Double> entry : fragmentResults.entrySet()) {
                 String fragmentId = entry.getKey();
@@ -647,20 +685,33 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
                 }
 
                 try {
-                    Long fragId = Long.parseLong(fragmentId);
-                    ClueFragment fragment = clueFragmentRepository.findById(fragId).orElse(null);
-                    if (fragment != null) {
-                        // 创建ContextMatchResult
-                        ContextMatchResult result = new ContextMatchResult(
-                                fragmentId,
-                                fragment.getFragmentContent(),
-                                similarity,
-                                VectorType.CLUE
-                        );
-                        fragmentMatchResults.add(result);
-                    }
+                    candidateFragmentIds.add(Long.parseLong(fragmentId));
+                    candidateSimilarities.put(fragmentId, similarity);
                 } catch (NumberFormatException e) {
                     log.warn("无法解析片段ID: {}", fragmentId);
+                }
+            }
+
+            if (!candidateFragmentIds.isEmpty()) {
+                Map<Long, ClueFragment> fragmentMap = clueFragmentRepository
+                        .findByFragmentIdInAndIsDeletedFalse(candidateFragmentIds).stream()
+                        .collect(Collectors.toMap(ClueFragment::getFragmentId, f -> f, (a, b) -> a));
+
+                for (Long fragId : candidateFragmentIds) {
+                    ClueFragment fragment = fragmentMap.get(fragId);
+                    if (fragment == null) {
+                        continue;
+                    }
+                    Double similarity = candidateSimilarities.get(String.valueOf(fragId));
+                    if (similarity == null) {
+                        continue;
+                    }
+                    fragmentMatchResults.add(new ContextMatchResult(
+                            String.valueOf(fragId),
+                            fragment.getFragmentContent(),
+                            similarity,
+                            VectorType.CLUE
+                    ));
                 }
             }
 

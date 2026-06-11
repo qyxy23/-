@@ -25,7 +25,7 @@ public interface ChatService {
 
     List<ChatListVO> getAIChatList(Long currentId);
 
-    getAIChatListDetailVO getAIChatListDetail(String roomId);
+    getAIChatListDetailVO getAIChatListDetail(String roomId, String gameSessionId);
 
     // ChatRoomListDetailVO getAIChatRoomListDetail(String sessionId);
 }

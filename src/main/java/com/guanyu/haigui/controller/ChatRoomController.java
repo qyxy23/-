@@ -8,6 +8,7 @@ import com.guanyu.haigui.pojo.result.ChatWithAIRoomRequest;
 import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.service.ServicesImpl.SoupQuestionServiceImpl;
+import com.guanyu.haigui.service.SoloGameService;
 import com.guanyu.haigui.service.SoupQuestionService;
 import com.guanyu.haigui.websocket.RoomService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,6 +30,7 @@ import java.util.List;
 @Controller
 public class ChatRoomController {
     private final RoomService roomService;
+    private final SoloGameService soloGameService;
     private final SoupQuestionService soupQuestionService;
     private final SoupQuestionServiceImpl soupQuestionServiceImpl;
 
@@ -55,6 +57,16 @@ public class ChatRoomController {
     public Result<List<ChatGameDTO>> getMineLobbies() {
         // 获取当前用户创建的大厅
         return Result.success(roomService.getMineLobbies());
+    }
+
+    @Operation(summary = "我的大厅聚合（已加入大厅 + 进行中单人游戏）")
+    @GetMapping("/mineLobbyHub")
+    @ResponseBody
+    public Result<MyLobbyHubVO> getMyLobbyHub() {
+        MyLobbyHubVO hub = new MyLobbyHubVO();
+        hub.setLobbies(roomService.getMineLobbies());
+        hub.setOngoingSoloGames(soloGameService.listOngoing());
+        return Result.success(hub);
     }
 
     /**

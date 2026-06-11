@@ -2,6 +2,7 @@ package com.guanyu.haigui.service.ServicesImpl;
 
 import cn.hutool.core.lang.UUID;
 import com.guanyu.haigui.Enum.ChatContextType;
+import com.guanyu.haigui.Enum.PlayMode;
 import com.guanyu.haigui.Enum.ChatMessageRole;
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.Exception.NoBeginRequest;
@@ -16,6 +17,7 @@ import com.guanyu.haigui.pojo.vo.RoomGetClueVO;
 import com.guanyu.haigui.pojo.vo.getAIChatListDetailVO;
 import com.guanyu.haigui.repository.*;
 import com.guanyu.haigui.service.ChatService;
+import com.guanyu.haigui.service.GameReplayService;
 import com.guanyu.haigui.utils.RedisServiceUtil;
 import com.volcengine.ark.runtime.model.completion.chat.ChatMessage;
 import io.micrometer.common.util.StringUtils;
@@ -50,8 +52,7 @@ public class ChatServicesImpl implements ChatService {
     private final HaiGuiChatMessageRepository haiGuiChatMessageRepository;
     private final InferenceTaskRepository inferenceTaskRepository;
     private final ClueFragmentRepository clueFragmentRepository;
-    private final GameSettlementBuilder gameSettlementBuilder;
-    private final GameHistoryBuilder gameHistoryBuilder;
+    private final GameReplayService gameReplayService;
 
 
 
@@ -244,40 +245,77 @@ public class ChatServicesImpl implements ChatService {
 
     @Override
     public List<ChatListVO> getAIChatList(Long userId) {
-        // 执行原生SQL查询
-        List<Object[]> results = chatGameMemberRepository.findUserGameRooms(userId);
-
-        // 转换结果为VO列表
         List<ChatListVO> vos = new ArrayList<>();
-        for (Object[] row : results) {
+
+        List<Object[]> multiResults = chatGameMemberRepository.findUserGameRooms(userId);
+        for (Object[] row : multiResults) {
             ChatListVO vo = new ChatListVO();
-
-            // 设置房间ID
+            vo.setPlayMode(PlayMode.MULTI.name());
             vo.setRoomId((String) row[0]);
-
-            // 设置房间标题
             vo.setTitle((String) row[1]);
-
-            // 设置汤面内容
             vo.setSoupContent((String) row[2]);
             vo.setEndTime(parseDateTime(row[3]));
             vo.setCreateTime(vo.getEndTime());
-            if (row[4] != null) {
-                if (row[4] instanceof Number) {
-                    vo.setFinalScore(((Number) row[4]).intValue());
-                } else {
-                    try {
-                        vo.setFinalScore(new java.math.BigDecimal(row[4].toString()).intValue());
-                    } catch (Exception ignored) {
-                        vo.setFinalScore(0);
-                    }
-                }
-            }
-
+            vo.setFinalScore(parseFinalScore(row[4]));
             vos.add(vo);
         }
 
+        List<GameSession.GameSessionStatus> endedStatuses = List.of(
+                GameSession.GameSessionStatus.COMPLETED,
+                GameSession.GameSessionStatus.CANCELED);
+        List<GameSession> soloSessions = gameSessionRepository
+                .findByUserIdAndPlayModeAndStatusInAndIsDeletedFalseOrderByEndTimeDesc(
+                        userId, PlayMode.SOLO, endedStatuses);
+
+        Set<String> soloSoupIds = soloSessions.stream()
+                .map(GameSession::getSoupId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<String, HaiGuiSoup> soloSoupMap = soloSoupIds.isEmpty()
+                ? Map.of()
+                : haiGuiSoupRepository.findAllById(soloSoupIds).stream()
+                        .collect(Collectors.toMap(HaiGuiSoup::getSoupId, s -> s, (a, b) -> a));
+
+        for (GameSession session : soloSessions) {
+            HaiGuiSoup soup = soloSoupMap.get(session.getSoupId());
+            if (soup == null) {
+                continue;
+            }
+            ChatListVO vo = new ChatListVO();
+            vo.setPlayMode(PlayMode.SOLO.name());
+            vo.setGameSessionId(session.getSessionId());
+            vo.setTitle(soup.getSoupTitle());
+            vo.setSoupContent(soup.getSoupSurface());
+            vo.setEndTime(session.getEndTime() != null ? session.getEndTime() : session.getStartTime());
+            vo.setCreateTime(vo.getEndTime());
+            if (session.getScore() != null) {
+                vo.setFinalScore(session.getScore().intValue());
+            } else if (session.getCurrentProgress() != null) {
+                vo.setFinalScore(session.getCurrentProgress().intValue());
+            } else {
+                vo.setFinalScore(0);
+            }
+            vos.add(vo);
+        }
+
+        vos.sort(Comparator.comparing(
+                ChatListVO::getEndTime,
+                Comparator.nullsLast(Comparator.reverseOrder())));
         return vos;
+    }
+
+    private static Integer parseFinalScore(Object value) {
+        if (value == null) {
+            return 0;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        try {
+            return new java.math.BigDecimal(value.toString()).intValue();
+        } catch (Exception ignored) {
+            return 0;
+        }
     }
 
     private static LocalDateTime parseDateTime(Object value) {
@@ -298,26 +336,8 @@ public class ChatServicesImpl implements ChatService {
     }
 
     @Override
-    public getAIChatListDetailVO getAIChatListDetail(String roomId) {
-        Long userId = BaseContext.getCurrentId();
-        chatGameMemberRepository.findByRoomIdAndUserId(roomId, userId)
-                .orElseThrow(() -> new BusinessException(403, "无权查看该对局"));
-
-        ChatGame chatGame = chatGameRepository.findById(roomId)
-                .orElseThrow(() -> new BusinessException(404, "房间不存在"));
-        HaiGuiSoup soup = haiGuiSoupRepository.findById(chatGame.getHaiGuiSoup().getSoupId())
-                .orElseThrow(() -> new BusinessException(404, "该海龟汤不存在"));
-
-        getAIChatListDetailVO detail = getAIChatListDetailVO.fromSnapshot(gameSettlementBuilder.build(roomId));
-        detail.setSoupSurface(soup.getSoupSurface());
-        detail.setEndTime(chatGame.getEndTime());
-
-        GameHistoryBuilder.HistoryBundle history = gameHistoryBuilder.build(roomId, soup.getSoupId());
-        detail.setQuestions(history.getQuestions());
-        detail.setMembers(history.getMembers());
-        detail.setTimeline(history.getTimeline());
-        detail.setMvpUserId(history.getMvpUserId());
-        return detail;
+    public getAIChatListDetailVO getAIChatListDetail(String roomId, String gameSessionId) {
+        return gameReplayService.getDetailForUser(roomId, gameSessionId, BaseContext.getCurrentId());
     }
 
     // 辅助方法：从消息中提取问题

@@ -120,6 +120,11 @@ public class GlobalExceptionHandler {
         return Result.error(e.getMessage());
     }
 
+    @ExceptionHandler(PlayQuotaException.class)
+    public Result<String> handlePlayQuotaException(PlayQuotaException e) {
+        return Result.error(e.getCode(), e.getMessage());
+    }
+
     @ExceptionHandler(UnauthorizedException.class)
     public Result<String> handleUnauthorizedException(UnauthorizedException e) {
         return Result.error(e.getMessage());

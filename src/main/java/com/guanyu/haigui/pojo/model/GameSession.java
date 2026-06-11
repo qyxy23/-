@@ -80,6 +80,9 @@ public class GameSession {
     @Column(name = "score", columnDefinition = "DECIMAL(5,2)")
     private BigDecimal score = BigDecimal.ZERO;
 
+    @Column(name = "quota_charged", columnDefinition = "TINYINT(1)", nullable = false)
+    private Boolean quotaCharged = false;
+
     // 关联的海龟汤实体
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "soup_id", referencedColumnName = "soup_id",

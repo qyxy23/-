@@ -159,3 +159,9 @@ haiqutang:
     key-prefix: "hai_gui:vec:clue:"
     dimensions: 512
     auto-migrate: true
+  play-quota:
+    register-grant: 2
+    approval-grant: 5
+    reject-cooldown-days: 7
+  replay-cache:
+    ttl-days: 3

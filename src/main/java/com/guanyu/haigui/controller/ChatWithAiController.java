@@ -52,7 +52,9 @@ public class ChatWithAiController {
     @Operation(summary = "获取某个聊天室内容")
     @PostMapping("/ChatRoomListDetail")
     public Result<getAIChatListDetailVO> getChatRoomListDetail(@RequestBody ChatRoomListDetailDto chatRoomListDetailDto) {
-        return Result.success(chatService.getAIChatListDetail(chatRoomListDetailDto.getRoomId()));
+        return Result.success(chatService.getAIChatListDetail(
+                chatRoomListDetailDto.getRoomId(),
+                chatRoomListDetailDto.getGameSessionId()));
     }
 
     @Operation(summary = "获取海龟汤游玩列表接口")

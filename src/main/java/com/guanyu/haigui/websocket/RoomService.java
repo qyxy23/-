@@ -13,6 +13,7 @@ import com.guanyu.haigui.pojo.dto.*;
 import com.guanyu.haigui.pojo.model.*;
 import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.repository.*;
+import com.guanyu.haigui.service.PlayQuotaService;
 import com.guanyu.haigui.service.ServicesImpl.SoupQuestionServiceImpl;
 import com.guanyu.haigui.service.UserChatSessionService;
 import com.guanyu.haigui.service.VoteTimeoutService;
@@ -66,6 +67,7 @@ public class RoomService {
     private final SoupQuestionServiceImpl soupQuestionService;
     private final VoteTimeoutService voteTimeoutService;
     private final GameSessionResolver gameSessionResolver;
+    private final PlayQuotaService playQuotaService;
 
 
     /**
@@ -517,15 +519,17 @@ public class RoomService {
 
 
     public searchAllLobbyMemberVO getAllMembersByRoomId(String roomId) {
-        // 查询房间下的所有成员关联数据
-        List<ChatGameMember> members = chatGameMemberRepository.findByIdRoomId(roomId);
-        ChatGame room = chatGameRepository.findById(roomId)
-                .orElseThrow(() -> new RoomNotFoundException("房间不存在：ID=" + roomId));
-        searchAllLobbyMemberVO lobbyMemberVO = new searchAllLobbyMemberVO();
+        List<ChatGameMember> members = chatGameMemberRepository.findByRoomIdWithMemberAndGame(roomId);
+        ChatGame room = members.stream()
+                .map(ChatGameMember::getChatGame)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElseGet(() -> chatGameRepository.findById(roomId)
+                        .orElseThrow(() -> new RoomNotFoundException("房间不存在：ID=" + roomId)));
 
-        // 转换为LobbyMemberVO
+        searchAllLobbyMemberVO lobbyMemberVO = new searchAllLobbyMemberVO();
         List<LobbyMemberVO> memberList = members.stream()
-                .map(this::convertToLobbyMemberVO)
+                .map(member -> convertToLobbyMemberVO(member, room))
                 .collect(Collectors.toList());
         lobbyMemberVO.setMemberList(memberList);
         lobbyMemberVO.setMemberNum(memberList.size());
@@ -537,17 +541,15 @@ public class RoomService {
     /**
      * 将ChatGameMember转换为LobbyMemberVO
      */
-    private LobbyMemberVO convertToLobbyMemberVO(ChatGameMember member) {
+    private LobbyMemberVO convertToLobbyMemberVO(ChatGameMember member, ChatGame room) {
         LobbyMemberVO vo = new LobbyMemberVO();
-        // 成员基础信息（来自关联的UserInfo）
         vo.setUserId(member.getMember().getUserId());
         vo.setUsername(member.getMember().getUsername());
         vo.setAvatar(member.getMember().getAvatar());
-        // 加入时间（来自ChatGameMember）
         vo.setStatus(member.getStatus());
         vo.setJoinTime(member.getJoinTime());
-        // 是否是房间创建者（对比成员ID和房间创建者ID）
-        vo.setIsCreator(member.getChatGame().getCreator().getUserId().equals(member.getMember().getUserId()));
+        Long creatorId = room.getCreator() != null ? room.getCreator().getUserId() : null;
+        vo.setIsCreator(creatorId != null && creatorId.equals(member.getMember().getUserId()));
         return vo;
     }
 
@@ -664,6 +666,7 @@ public class RoomService {
                 return vo;
             }
         }
+        playQuotaService.assertCanStartNewGame(room.getCreator().getUserId());
         HaiGuiSoup soup = haiGuiSoupRepository.findById(room.getHaiGuiSoup().getSoupId()).orElseThrow(() -> new RoomException("汤不存在"));
         AiChatSession session = new AiChatSession();
         session.setSessionId(UUID.randomUUID().toString());

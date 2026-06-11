@@ -26,6 +26,13 @@ public interface ChatGameMemberRepository extends JpaRepository<ChatGameMember, 
     @Query("SELECT cm FROM ChatGameMember cm JOIN FETCH cm.member WHERE cm.id.roomId = :roomId")
     List<ChatGameMember> findByRoomIdWithMember(@Param("roomId") String roomId);
 
+    @Query("SELECT cm FROM ChatGameMember cm "
+            + "JOIN FETCH cm.member "
+            + "JOIN FETCH cm.chatGame cg "
+            + "JOIN FETCH cg.creator "
+            + "WHERE cm.id.roomId = :roomId")
+    List<ChatGameMember> findByRoomIdWithMemberAndGame(@Param("roomId") String roomId);
+
     @Query("SELECT cm FROM ChatGameMember cm WHERE cm.chatGame.roomId = :roomId AND cm.member.userId = :userId")
     Optional<ChatGameMember> findByRoomIdAndUserId(@Param("roomId") String roomId, @Param("userId") Long userId);
 

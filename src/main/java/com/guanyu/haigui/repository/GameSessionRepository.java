@@ -164,4 +164,27 @@ public interface GameSessionRepository extends JpaRepository<GameSession, String
             Long userId,
             com.guanyu.haigui.Enum.PlayMode playMode,
             GameSession.GameSessionStatus status);
+
+    Long countByUserIdAndStatusAndQuotaChargedFalseAndIsDeletedFalse(
+            Long userId, GameSession.GameSessionStatus status);
+
+    List<GameSession> findByUserIdAndPlayModeAndStatusInAndIsDeletedFalseOrderByEndTimeDesc(
+            Long userId,
+            com.guanyu.haigui.Enum.PlayMode playMode,
+            Collection<GameSession.GameSessionStatus> statuses);
+
+    @Query("""
+            SELECT COUNT(gs) FROM GameSession gs
+            WHERE gs.userId = :userId AND gs.isDeleted = false
+              AND (gs.quotaCharged = true OR gs.status IN ('COMPLETED', 'CANCELED'))
+            """)
+    Long countChargedOrEndedByUserId(@Param("userId") Long userId);
+
+    @Query("""
+            SELECT gs.userId, COUNT(gs) FROM GameSession gs
+            WHERE gs.userId IN :userIds AND gs.isDeleted = false
+              AND (gs.quotaCharged = true OR gs.status IN ('COMPLETED', 'CANCELED'))
+            GROUP BY gs.userId
+            """)
+    List<Object[]> countChargedOrEndedByUserIds(@Param("userIds") Collection<Long> userIds);
 }

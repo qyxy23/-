@@ -5,12 +5,16 @@ import com.guanyu.haigui.Enum.GameEndReason;
 import com.guanyu.haigui.Enum.PlayMode;
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.context.BaseContext;
+import com.guanyu.haigui.pojo.dto.ReplayBuildHints;
 import com.guanyu.haigui.pojo.model.*;
+import com.guanyu.haigui.pojo.result.GameSettlementSnapshot;
 import com.guanyu.haigui.pojo.vo.EndGameVO;
 import com.guanyu.haigui.pojo.vo.OngoingSoloVO;
 import com.guanyu.haigui.pojo.vo.RoomGetClueVO;
 import com.guanyu.haigui.pojo.vo.StartSoloVO;
 import com.guanyu.haigui.repository.*;
+import com.guanyu.haigui.service.GameReplayService;
+import com.guanyu.haigui.service.PlayQuotaService;
 import com.guanyu.haigui.service.SoloGameService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,7 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -35,6 +41,8 @@ public class SoloGameServiceImpl implements SoloGameService {
     private final HaiGuiChatMessageRepository haiGuiChatMessageRepository;
     private final SoupQuestionServiceImpl soupQuestionService;
     private final GameSettlementBuilder gameSettlementBuilder;
+    private final PlayQuotaService playQuotaService;
+    private final GameReplayService gameReplayService;
 
     @Override
     public StartSoloVO startSolo(String soupId) {
@@ -48,6 +56,8 @@ public class SoloGameServiceImpl implements SoloGameService {
         if (ongoing.isPresent()) {
             return toStartSoloVO(ongoing.get(), soup, true);
         }
+
+        playQuotaService.assertCanStartNewGame(userId);
 
         String gameSessionId = UUID.randomUUID().toString();
 
@@ -82,8 +92,16 @@ public class SoloGameServiceImpl implements SoloGameService {
         List<GameSession> sessions = gameSessionRepository
                 .findByUserIdAndPlayModeAndStatusAndIsDeletedFalseOrderByStartTimeDesc(
                         userId, PlayMode.SOLO, GameSession.GameSessionStatus.ONGOING);
+        Set<String> soupIds = sessions.stream()
+                .map(GameSession::getSoupId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<String, HaiGuiSoup> soupMap = soupIds.isEmpty()
+                ? Map.of()
+                : haiGuiSoupRepository.findAllById(soupIds).stream()
+                        .collect(Collectors.toMap(HaiGuiSoup::getSoupId, s -> s, (a, b) -> a));
         return sessions.stream()
-                .map(this::toOngoingSoloVO)
+                .map(session -> toOngoingSoloVO(session, soupMap.get(session.getSoupId())))
                 .collect(Collectors.toList());
     }
 
@@ -130,7 +148,18 @@ public class SoloGameServiceImpl implements SoloGameService {
         if (session.getStatus() == GameSession.GameSessionStatus.ONGOING) {
             throw new BusinessException(400, "游戏尚未结束");
         }
-        return EndGameVO.fromSnapshot(gameSettlementBuilder.buildByGameSessionId(gameSessionId));
+        GameSettlementSnapshot snapshot = gameSettlementBuilder.buildByGameSessionId(gameSessionId);
+        HaiGuiSoup soup = haiGuiSoupRepository.findById(session.getSoupId())
+                .orElseThrow(() -> new BusinessException(404, "海龟汤不存在"));
+        EndGameVO vo = EndGameVO.fromSnapshot(snapshot);
+        ReplayBuildHints replayHints = new ReplayBuildHints();
+        replayHints.setSnapshot(snapshot);
+        replayHints.setSoupId(soup.getSoupId());
+        replayHints.setSoupSurface(soup.getSoupSurface());
+        replayHints.setEndTime(session.getEndTime());
+        vo.setReplayDetail(gameReplayService.getOrBuildAndCache(
+                gameSessionId, null, BaseContext.getCurrentId(), replayHints));
+        return vo;
     }
 
     private GameSession requireSoloSession(String gameSessionId) {
@@ -161,8 +190,7 @@ public class SoloGameServiceImpl implements SoloGameService {
         haiGuiGameProgressRepository.saveAll(progresses);
     }
 
-    private OngoingSoloVO toOngoingSoloVO(GameSession session) {
-        HaiGuiSoup soup = haiGuiSoupRepository.findById(session.getSoupId()).orElse(null);
+    private OngoingSoloVO toOngoingSoloVO(GameSession session, HaiGuiSoup soup) {
         OngoingSoloVO vo = new OngoingSoloVO();
         vo.setGameSessionId(session.getSessionId());
         vo.setSoupId(session.getSoupId());
