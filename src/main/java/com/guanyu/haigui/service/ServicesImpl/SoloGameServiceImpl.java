@@ -43,19 +43,22 @@ public class SoloGameServiceImpl implements SoloGameService {
     private final GameSettlementBuilder gameSettlementBuilder;
     private final PlayQuotaService playQuotaService;
     private final GameReplayService gameReplayService;
+    private final SoupPlayabilityService soupPlayabilityService;
 
     @Override
     public StartSoloVO startSolo(String soupId) {
         Long userId = BaseContext.getCurrentId();
-        HaiGuiSoup soup = haiGuiSoupRepository.findById(soupId)
-                .orElseThrow(() -> new BusinessException(404, "海龟汤不存在"));
 
         var ongoing = gameSessionRepository
                 .findFirstByUserIdAndSoupIdAndPlayModeAndStatusAndIsDeletedFalseOrderByStartTimeDesc(
                         userId, soupId, PlayMode.SOLO, GameSession.GameSessionStatus.ONGOING);
         if (ongoing.isPresent()) {
-            return toStartSoloVO(ongoing.get(), soup, true);
+            HaiGuiSoup existingSoup = haiGuiSoupRepository.findById(soupId)
+                    .orElseThrow(() -> new BusinessException(404, "海龟汤不存在"));
+            return toStartSoloVO(ongoing.get(), existingSoup, true);
         }
+
+        HaiGuiSoup soup = soupPlayabilityService.requirePlayableSoup(soupId);
 
         playQuotaService.assertCanStartNewGame(userId);
 

@@ -1,6 +1,7 @@
 package com.guanyu.haigui.pojo.result;
 
 import com.guanyu.haigui.Enum.AiGenStatus;
+import com.guanyu.haigui.Enum.CoverAuditStatus;
 import com.guanyu.haigui.Enum.PublishStatus;
 import com.guanyu.haigui.Enum.DifficultyLevel;
 import com.guanyu.haigui.Enum.SoupTag;
@@ -62,6 +63,12 @@ public class HaiGuiDetailResult{
 
     /** 海龟汤封面图 URL */
     private String soupAvatar;
+
+    /** 待人工复核的封面 URL */
+    private String pendingCoverUrl;
+
+    /** 封面上传审核状态 */
+    private CoverAuditStatus coverAuditStatus = CoverAuditStatus.NONE;
 
     public static HaiGuiDetailResult fromHaiGuiSoupAudit(HaiGuiSoupAudit audit, HaiGuiInfoResult haiGuiInfoResult) {
         HaiGuiDetailResult result = new HaiGuiDetailResult();

@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@EnableConfigurationProperties(CosClientProperties.class)
+@EnableConfigurationProperties({CosClientProperties.class, CosAuditProperties.class})
 public class CosConfig {
 
     @Bean(destroyMethod = "shutdown")

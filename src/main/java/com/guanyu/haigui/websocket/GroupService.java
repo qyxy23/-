@@ -11,6 +11,7 @@ import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.repository.*;
 import com.guanyu.haigui.service.UserChatSessionService;
 import com.guanyu.haigui.utils.GroupRoomUtils;
+import com.guanyu.haigui.utils.CiImageAuditService;
 import com.guanyu.haigui.utils.CosUtil;
 import io.micrometer.common.util.StringUtils;
 import jakarta.persistence.EntityManager;
@@ -53,6 +54,7 @@ public class GroupService {
     // private static final int LATEST_MESSAGES_LIMIT = 20;
     private final GroupRoomUtils groupRoomUtils;
     private final CosUtil cosUtil;
+    private final CiImageAuditService ciImageAuditService;
     @PersistenceContext
     private EntityManager entityManager;
     private final ChatGroupAdminRepository chatGroupAdminRepository;
@@ -786,7 +788,15 @@ public class GroupService {
             }
         }
         String oldAvatarUrl = group.getGroupAvatar();
-        String avatarUrl = cosUtil.uploadImage(avatarFile);
+        CosUtil.UploadedImage uploaded = cosUtil.uploadGroupAvatar(avatarFile, groupId);
+        ImageAuditVerdict verdict = ciImageAuditService.auditAvatar(uploaded.objectKey(), uploaded.sizeBytes());
+        if (verdict != ImageAuditVerdict.PASS) {
+            cosUtil.deleteByUrl(uploaded.url());
+            throw new BusinessException(400, verdict == ImageAuditVerdict.REJECT
+                    ? "群头像含有违规内容，请更换图片"
+                    : "群头像未通过安全审核，请更换图片");
+        }
+        String avatarUrl = uploaded.url();
         if (StringUtils.isNotBlank(oldAvatarUrl)) {
             cosUtil.deleteByUrl(oldAvatarUrl);
             log.info("群头像删除成功 → 群ID: {}, 旧URL: {}", groupId, oldAvatarUrl);

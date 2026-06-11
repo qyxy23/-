@@ -1,6 +1,7 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
 import com.guanyu.haigui.Enum.AiGenStatus;
+import com.guanyu.haigui.Enum.CoverAuditStatus;
 import com.guanyu.haigui.Enum.PublishStatus;
 import com.guanyu.haigui.Enum.UserRoleEnum;
 import com.guanyu.haigui.Exception.BusinessException;
@@ -306,6 +307,9 @@ public class AuditService {
             haiGuiSoupRepository.findById(audit.getOriginalSoupId())
                     .ifPresent(soup -> {
                         result.setSoupAvatar(soup.getSoupAvatar());
+                        result.setPendingCoverUrl(soup.getPendingCoverUrl());
+                        result.setCoverAuditStatus(soup.getCoverAuditStatus() != null
+                                ? soup.getCoverAuditStatus() : CoverAuditStatus.NONE);
                         if (audit.getAuditStatus() == HaiGuiSoupAudit.AuditStatus.APPROVED) {
                             result.setPlayerCount(soup.getPlayerCount());
                             result.setDefaultMaxQuestions(soup.getDefaultMaxQuestions());

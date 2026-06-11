@@ -114,6 +114,10 @@ cos:
     secret-key: ${qingyou.cos.secret-key}
     region: ${qingyou.cos.region}
     bucket: ${qingyou.cos.bucket}
+  audit:
+    enabled: true
+    avatar-biz-type: d5280d58654e11f1af7b525400fd5e04
+    cover-biz-type: c303dce4655111f19808525400141ffd
 
 BgeVector:
   host: ${qingyou.BgeVector.host}

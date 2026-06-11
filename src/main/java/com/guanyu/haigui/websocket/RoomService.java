@@ -14,6 +14,7 @@ import com.guanyu.haigui.pojo.model.*;
 import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.repository.*;
 import com.guanyu.haigui.service.PlayQuotaService;
+import com.guanyu.haigui.service.ServicesImpl.SoupPlayabilityService;
 import com.guanyu.haigui.service.ServicesImpl.SoupQuestionServiceImpl;
 import com.guanyu.haigui.service.UserChatSessionService;
 import com.guanyu.haigui.service.VoteTimeoutService;
@@ -68,6 +69,7 @@ public class RoomService {
     private final VoteTimeoutService voteTimeoutService;
     private final GameSessionResolver gameSessionResolver;
     private final PlayQuotaService playQuotaService;
+    private final SoupPlayabilityService soupPlayabilityService;
 
 
     /**
@@ -91,11 +93,7 @@ public class RoomService {
                     return new RuntimeException("创建者不存在");
                 });
 
-        HaiGuiSoup soup = haiGuiSoupRepository.findById(request.getSoupId())
-                .orElseThrow(() -> {
-                    log.error("汤ID[{}]未找到对应汤", request.getSoupId());
-                    return new RuntimeException("汤不存在");
-                });
+        HaiGuiSoup soup = soupPlayabilityService.requirePlayableSoup(request.getSoupId());
 
         // 4. 生成唯一房间ID
         String roomId = UUID.randomUUID().toString();
@@ -249,6 +247,9 @@ public class RoomService {
             if(!chatGameInvitationRepository.existsByChatGameRoomIdAndInviteeUserIdAndStatus(roomId, BaseContext.getCurrentId(), InvitationStatus.PENDING)){
                 throw new BusinessException(405,"当前房间为私人房间,请等待邀请");
             }
+        }
+        if (room.getStatus() == RoomStatus.WAITING) {
+            soupPlayabilityService.assertCanJoinWaitingRoom(room.getHaiGuiSoup());
         }
         if(!(room.getStatus()==RoomStatus.WAITING||room.getStatus()==RoomStatus.ACTIVE||room.getStatus()==RoomStatus.VOTING)){
             throw new BusinessException(403, "房间已结束或取消，无法操作");

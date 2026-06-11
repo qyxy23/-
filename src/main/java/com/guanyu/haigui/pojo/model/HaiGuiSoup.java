@@ -1,5 +1,6 @@
 package com.guanyu.haigui.pojo.model;
 
+import com.guanyu.haigui.Enum.CoverAuditStatus;
 import com.guanyu.haigui.Enum.DifficultyLevel;
 import com.guanyu.haigui.Enum.SoupTag;
 import com.guanyu.haigui.converter.SoupTagConverter;
@@ -49,6 +50,13 @@ public class HaiGuiSoup {
 
     @Column(name = "soup_avatar", columnDefinition = "VARCHAR(255)")
     private String soupAvatar = "";
+
+    @Column(name = "pending_cover_url", columnDefinition = "VARCHAR(512)")
+    private String pendingCoverUrl;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "cover_audit_status", columnDefinition = "VARCHAR(20)", nullable = false)
+    private CoverAuditStatus coverAuditStatus = CoverAuditStatus.NONE;
 
     @Column(name = "default_max_questions", columnDefinition = "INT")
     private Integer defaultMaxQuestions = 30;

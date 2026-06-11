@@ -34,4 +34,6 @@ public interface ChatGameRepository extends JpaRepository<ChatGame, String> {
             @Param("userId") Long userId,
             @Param("statuses") Collection<RoomStatus> statuses
     );
+
+    List<ChatGame> findByHaiGuiSoup_SoupIdAndStatus(String soupId, RoomStatus status);
 }

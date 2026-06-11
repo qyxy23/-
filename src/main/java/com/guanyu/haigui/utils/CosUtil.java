@@ -27,15 +27,40 @@ public class CosUtil {
     private final COSClient cosClient;
     private final CosClientProperties cosProps;
 
-    /**
-     * 上传图片并返回公网访问 URL
-     */
-    public String uploadImage(MultipartFile file) {
-        validateImage(file);
-
+    /** 用户头像：avatars/user/{userId}/ */
+    public UploadedImage uploadUserAvatar(MultipartFile file) {
         Long userId = BaseContext.getCurrentId();
         String ext = resolveExt(file.getOriginalFilename());
-        String objectKey = String.format("avatars/%d/%s.%s", userId, UUID.randomUUID(), ext);
+        String objectKey = String.format("avatars/user/%d/%s.%s", userId, UUID.randomUUID(), ext);
+        return uploadImage(file, objectKey);
+    }
+
+    /** 群头像：avatars/group/{groupId}/ */
+    public UploadedImage uploadGroupAvatar(MultipartFile file, String groupId) {
+        String ext = resolveExt(file.getOriginalFilename());
+        String objectKey = String.format("avatars/group/%s/%s.%s", groupId, UUID.randomUUID(), ext);
+        return uploadImage(file, objectKey);
+    }
+
+    /** 审核员封面：covers/official/{soupId}/ */
+    public UploadedImage uploadSoupCoverOfficial(MultipartFile file, String soupId) {
+        String ext = resolveExt(file.getOriginalFilename());
+        String objectKey = String.format("covers/official/%s/%s.%s", soupId, UUID.randomUUID(), ext);
+        return uploadImage(file, objectKey);
+    }
+
+    /** 上传者封面：covers/pending/{soupId}/ */
+    public UploadedImage uploadSoupCoverPending(MultipartFile file, String soupId) {
+        String ext = resolveExt(file.getOriginalFilename());
+        String objectKey = String.format("covers/pending/%s/%s.%s", soupId, UUID.randomUUID(), ext);
+        return uploadImage(file, objectKey);
+    }
+
+    /**
+     * 上传图片并返回 objectKey 与公网 URL
+     */
+    public UploadedImage uploadImage(MultipartFile file, String objectKey) {
+        validateImage(file);
 
         try (InputStream inputStream = file.getInputStream()) {
             ObjectMetadata metadata = new ObjectMetadata();
@@ -49,13 +74,13 @@ public class CosUtil {
                     metadata
             );
             cosClient.putObject(request);
-            log.info("COS 上传成功 → 用户ID: {}, key: {}", userId, objectKey);
+            log.info("COS 上传成功 → key: {}", objectKey);
         } catch (Exception e) {
-            log.error("COS 上传失败 → 用户ID: {}", userId, e);
+            log.error("COS 上传失败 → key: {}", objectKey, e);
             throw new RuntimeException("图片上传失败，请重试", e);
         }
 
-        return buildPublicUrl(objectKey);
+        return new UploadedImage(objectKey, buildPublicUrl(objectKey), file.getSize());
     }
 
     /**
@@ -75,6 +100,19 @@ public class CosUtil {
             log.info("COS 删除成功 → key: {}", objectKey);
         } catch (Exception e) {
             log.warn("COS 删除失败 → key: {}", objectKey, e);
+        }
+    }
+
+    public String parseObjectKey(String fileUrl) {
+        try {
+            String path = new URL(fileUrl).getPath();
+            if (path.startsWith("/")) {
+                path = path.substring(1);
+            }
+            return path;
+        } catch (Exception e) {
+            log.error("URL 解析失败: {}", fileUrl, e);
+            return null;
         }
     }
 
@@ -107,16 +145,6 @@ public class CosUtil {
         return host + "/" + objectKey;
     }
 
-    private String parseObjectKey(String fileUrl) {
-        try {
-            String path = new URL(fileUrl).getPath();
-            if (path.startsWith("/")) {
-                path = path.substring(1);
-            }
-            return path;
-        } catch (Exception e) {
-            log.error("URL 解析失败: {}", fileUrl, e);
-            return null;
-        }
+    public record UploadedImage(String objectKey, String url, long sizeBytes) {
     }
 }

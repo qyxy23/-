@@ -70,22 +70,26 @@ public class AuditPublishService {
                 auditDraftService.markPublishFailed(auditId, "缺少审核员信息");
                 return;
             }
-
-            UserInfo auditor = userInfoRepository.findById(audit.getAuditorId()).orElse(null);
-            if (auditor == null) {
-                auditDraftService.markPublishFailed(auditId, "审核员不存在");
+            if (audit.getUploaderId() == null) {
+                auditDraftService.markPublishFailed(auditId, "缺少上传者信息");
+                return;
+            }
+            UserInfo uploader = userInfoRepository.findById(audit.getUploaderId()).orElse(null);
+            if (uploader == null) {
+                auditDraftService.markPublishFailed(auditId, "上传者不存在");
                 return;
             }
 
             CreateTurtleSoupDTO dto = buildPublishDto(audit);
             AuditDraftValidator.validateTaskPrerequisites(dto.getFragments(), dto.getInferenceTasks());
 
-            log.info("开始异步发布 auditId={}, fragments={}, tasks={}",
+            log.info("开始异步发布 auditId={}, uploaderId={}, fragments={}, tasks={}",
                     auditId,
+                    uploader.getUserId(),
                     dto.getFragments() != null ? dto.getFragments().size() : 0,
                     dto.getInferenceTasks() != null ? dto.getInferenceTasks().size() : 0);
 
-            HaiGuiSoup soup = dto.fromToHaiGuiSoup(auditor);
+            HaiGuiSoup soup = dto.fromToHaiGuiSoup(uploader);
             createdSoupId = soup.getSoupId();
             haiGuiSoupRepository.save(soup);
 

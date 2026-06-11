@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 海龟汤榜单服务
@@ -28,6 +29,7 @@ import java.util.Map;
 public class HaiGuiRankingService {
 
     private final HaiGuiSoupRepository haiGuiSoupRepository;
+    private final SoupCoverVisibilityService soupCoverVisibilityService;
 
 
 
@@ -86,9 +88,11 @@ public class HaiGuiRankingService {
             // 查询分页数据
             Page<SoupProjectionDTO> soupPage = haiGuiSoupRepository.findSoupsWithPagination(
                     pageable, tags, difficultyLevel, playerCountParam, minDuration, maxDuration);
+            Set<String> maskedCoverKeys = soupCoverVisibilityService.findMaskedCoverKeys(
+                    soupPage.getContent().stream().map(SoupProjectionDTO::getSoupId).toList());
             // 转换为VO列表
             List<SoupListItem> soupList = soupPage.getContent().stream()
-                    .map(this::convertToSoupListItem)
+                    .map(p -> convertToSoupListItem(p, maskedCoverKeys))
                     .toList();
 
             // 构建分页响应
@@ -123,11 +127,15 @@ public class HaiGuiRankingService {
             throw new BusinessException(400, "海龟汤 ID 不能为空");
         }
         return haiGuiSoupRepository.findPublishedSoupBriefById(soupId.trim())
-                .map(this::convertToSoupListItem)
+                .map(p -> convertToSoupListItem(p, soupCoverVisibilityService.findMaskedCoverKeys(List.of(soupId))))
                 .orElseThrow(() -> new BusinessException(404, "海龟汤不存在或未发布"));
     }
 
     private SoupListItem convertToSoupListItem(SoupProjectionDTO projection) {
+        return convertToSoupListItem(projection, Set.of());
+    }
+
+    private SoupListItem convertToSoupListItem(SoupProjectionDTO projection, Set<String> maskedCoverKeys) {
         try {
             return SoupListItem.builder()
                     .soupId(projection.getSoupId())
@@ -140,7 +148,8 @@ public class HaiGuiRankingService {
                     .difficultyLevel(projection.getDifficultyLevel())
                     .playerCount(projection.getPlayerCount())
                     .tag(projection.getTag() != null ? projection.getTag().getDescription() : "未知标签")
-                    .soupAvatar(projection.getSoupAvatar())
+                    .soupAvatar(soupCoverVisibilityService.maskIfReported(
+                            projection.getSoupId(), projection.getSoupAvatar(), maskedCoverKeys))
                     .estimatedDuration(projection.getEstimatedDuration())
                     .defaultMaxQuestions(projection.getDefaultMaxQuestions())
                     .build();

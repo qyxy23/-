@@ -1,6 +1,7 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
 import com.guanyu.haigui.Enum.FriendStatus;
+import com.guanyu.haigui.Enum.ImageAuditVerdict;
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.mapper.UserDetailsMapper;
@@ -11,6 +12,7 @@ import com.guanyu.haigui.repository.FriendRelationRepository;
 import com.guanyu.haigui.repository.UserInfoRepository;
 import com.guanyu.haigui.service.UserService;
 import com.guanyu.haigui.utils.JwtTokenUtil;
+import com.guanyu.haigui.utils.CiImageAuditService;
 import com.guanyu.haigui.utils.CosUtil;
 import com.guanyu.haigui.utils.RedisServiceUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +42,8 @@ public class UserServiceImpl implements UserService {
     @Resource
     private CosUtil cosUtil;
     @Resource
+    private CiImageAuditService ciImageAuditService;
+    @Resource
     private UserInfoRepository userInfoRepository; // 用户信息DAO（需自己实现）
     @Resource
     private FriendRelationRepository friendRelationRepository;
@@ -53,21 +57,27 @@ public class UserServiceImpl implements UserService {
      * @return 头像的访问URL（前端可直接使用）
      */
     public String uploadUserAvatar(MultipartFile avatarFile) {
-        String avatarUrl = cosUtil.uploadImage(avatarFile);
         Long userId = BaseContext.getCurrentId();
-        // -------------------------- 5. 更新用户头像到数据库 --------------------------
+        CosUtil.UploadedImage uploaded = cosUtil.uploadUserAvatar(avatarFile);
+        ImageAuditVerdict verdict = ciImageAuditService.auditAvatar(uploaded.objectKey(), uploaded.sizeBytes());
+        if (verdict != ImageAuditVerdict.PASS) {
+            cosUtil.deleteByUrl(uploaded.url());
+            throw new BusinessException(400, verdict == ImageAuditVerdict.REJECT
+                    ? "头像含有违规内容，请更换图片"
+                    : "头像未通过安全审核，请更换图片");
+        }
+
         UserInfo userInfo = userInfoRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
-        // 若用户已有头像，先删除旧文件（避免占用空间）
         if (StringUtils.hasText(userInfo.getAvatar())) {
             deleteAvatar(userInfo.getAvatar());
             log.info("用户头像删除成功 → 用户ID: {}, 旧URL: {}", userId, userInfo.getAvatar());
         }
-        userInfo.setAvatar(avatarUrl);
+        userInfo.setAvatar(uploaded.url());
         userInfoRepository.save(userInfo);
-        log.info("用户头像更新成功 → 用户ID: {}, URL: {}", userId, avatarUrl);
+        log.info("用户头像更新成功 → 用户ID: {}, URL: {}", userId, uploaded.url());
 
-        return avatarUrl;
+        return uploaded.url();
     }
 
     @Override

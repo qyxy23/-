@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Repository
 public interface HaiGuiSoupAuditRepository extends JpaRepository<HaiGuiSoupAudit, Long> {
@@ -66,4 +67,6 @@ public interface HaiGuiSoupAuditRepository extends JpaRepository<HaiGuiSoupAudit
               AND a.publishStatus <> com.guanyu.haigui.Enum.PublishStatus.PUBLISHING
             """)
     int markPublishingIfNot(@Param("auditId") Long auditId, @Param("time") LocalDateTime time);
+
+    Optional<HaiGuiSoupAudit> findFirstByOriginalSoupId(String originalSoupId);
 }
