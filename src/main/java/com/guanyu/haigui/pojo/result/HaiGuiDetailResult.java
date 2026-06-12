@@ -1,9 +1,11 @@
 package com.guanyu.haigui.pojo.result;
 
 import com.guanyu.haigui.Enum.AiGenStatus;
+import com.guanyu.haigui.Enum.ContentTone;
 import com.guanyu.haigui.Enum.CoverAuditStatus;
 import com.guanyu.haigui.Enum.PublishStatus;
 import com.guanyu.haigui.Enum.DifficultyLevel;
+import com.guanyu.haigui.Enum.LogicMode;
 import com.guanyu.haigui.Enum.SoupTag;
 import com.guanyu.haigui.pojo.Info.ClueFragmentInfo;
 import com.guanyu.haigui.pojo.Info.InferenceTaskInfo;
@@ -47,6 +49,10 @@ public class HaiGuiDetailResult{
     private String manual;
     /** AI 判题规则 */
     private String aiJudgeRules;
+    /** 本格/变格（审核后台可见） */
+    private LogicMode logicMode;
+    /** 清汤/红汤/黑汤（审核后台可见） */
+    private ContentTone contentTone;
     private List<ClueFragmentInfo> fragments;
     private List<InferenceTaskInfo> inferenceTasks;
 
@@ -89,6 +95,8 @@ public class HaiGuiDetailResult{
         HaiGuiInfoUtil.DraftManualContent draftManual = HaiGuiInfoUtil.parseDraftManual(audit.getDraftManual());
         result.setManual(firstNonBlank(haiGuiInfoResult.getManual(), draftManual.getHostManual()));
         result.setAiJudgeRules(firstNonBlank(haiGuiInfoResult.getAiJudgeRules(), draftManual.getAiJudgeRules()));
+        result.setLogicMode(firstNonNull(haiGuiInfoResult.getLogicMode(), draftManual.getLogicMode()));
+        result.setContentTone(firstNonNull(haiGuiInfoResult.getContentTone(), draftManual.getContentTone()));
         result.setFragments(haiGuiInfoResult.getFragments());
         result.setInferenceTasks(haiGuiInfoResult.getInferenceTasks());
         result.setAiGenStatus(audit.getAiGenStatus() != null ? audit.getAiGenStatus() : AiGenStatus.IDLE);
@@ -106,5 +114,9 @@ public class HaiGuiDetailResult{
             return primary;
         }
         return fallback != null ? fallback : "";
+    }
+
+    private static <T> T firstNonNull(T primary, T fallback) {
+        return primary != null ? primary : fallback;
     }
 }

@@ -1,6 +1,8 @@
 package com.guanyu.haigui.pojo.dto;
 
+import com.guanyu.haigui.Enum.ContentTone;
 import com.guanyu.haigui.Enum.DifficultyLevel;
+import com.guanyu.haigui.Enum.LogicMode;
 import com.guanyu.haigui.Enum.SoupTag;
 import com.guanyu.haigui.pojo.Info.ClueFragmentInfo;
 import com.guanyu.haigui.pojo.Info.InferenceTaskInfo;
@@ -42,6 +44,12 @@ public class UpdateHaiGuiAuditDTO {
 
     // AI 判题规则
     private String draftAiJudgeRules;
+
+    /** 本格/变格 */
+    private LogicMode draftLogicMode;
+
+    /** 清汤/红汤/黑汤 */
+    private ContentTone draftContentTone;
 
     // 汤线索
     private List<ClueFragmentInfo> draftFragments;

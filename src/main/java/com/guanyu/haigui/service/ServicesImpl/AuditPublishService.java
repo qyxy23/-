@@ -81,6 +81,7 @@ public class AuditPublishService {
             }
 
             CreateTurtleSoupDTO dto = buildPublishDto(audit);
+            AuditDraftValidator.validateSoupMeta(dto.getLogicMode(), dto.getContentTone());
             AuditDraftValidator.validateTaskPrerequisites(dto.getFragments(), dto.getInferenceTasks());
 
             log.info("开始异步发布 auditId={}, uploaderId={}, fragments={}, tasks={}",
@@ -135,6 +136,8 @@ public class AuditPublishService {
         dto.setSoupBottom(audit.getBottom());
         dto.setManual(firstNonBlank(info.getManual(), draftManual.getHostManual()));
         dto.setAiJudgeRules(firstNonBlank(info.getAiJudgeRules(), draftManual.getAiJudgeRules()));
+        dto.setLogicMode(firstNonNull(info.getLogicMode(), draftManual.getLogicMode()));
+        dto.setContentTone(firstNonNull(info.getContentTone(), draftManual.getContentTone()));
         dto.setFragments(info.getFragments());
         dto.setInferenceTasks(info.getInferenceTasks());
         dto.setEstimatedDuration(audit.getEstimatedDuration());
@@ -150,5 +153,9 @@ public class AuditPublishService {
             return primary;
         }
         return fallback != null ? fallback : "";
+    }
+
+    private static <T> T firstNonNull(T primary, T fallback) {
+        return primary != null ? primary : fallback;
     }
 }

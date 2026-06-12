@@ -156,6 +156,7 @@ public class GameProgressEnricher {
         Set<Long> triggeredIds = new HashSet<>();
         int completedTaskCount = 0;
         List<InferenceTask> completedTasks = new ArrayList<>();
+        List<InferenceTask> incompleteTasks = new ArrayList<>();
 
         for (InferenceTask task : allTasks) {
             HaiGuiGameProgress progress = progressMap.get(task.getTaskId());
@@ -165,6 +166,8 @@ public class GameProgressEnricher {
             if (progress != null && Boolean.TRUE.equals(progress.getCompleted())) {
                 completedTaskCount++;
                 completedTasks.add(task);
+            } else {
+                incompleteTasks.add(task);
             }
         }
 
@@ -174,6 +177,7 @@ public class GameProgressEnricher {
         return new InGameProgressSnapshot(
                 triggeredIds,
                 completedTasks,
+                incompleteTasks,
                 completedTaskCount,
                 questionCount,
                 formalUsed,
@@ -184,6 +188,7 @@ public class GameProgressEnricher {
     public record InGameProgressSnapshot(
             Set<Long> triggeredFragmentIds,
             List<InferenceTask> completedTasks,
+            List<InferenceTask> incompleteTasks,
             int completedTaskCount,
             int questionCount,
             long formalAttemptsUsed,

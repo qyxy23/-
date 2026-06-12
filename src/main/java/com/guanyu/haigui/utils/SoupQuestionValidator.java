@@ -14,7 +14,7 @@ public final class SoupQuestionValidator {
     );
 
     private static final Pattern QUESTION_MARKER = Pattern.compile(
-            "(是不是|是否|有没有|有无|能否|会不会|可不可以|算不算|对吗|么[?？]?|吗[?？]?|[?？])"
+            "(是不是|是否|有没有|有无|能否|会不会|可不可以|算不算|对吗|还是|么[?？]?|吗[?？]?|[?？])"
                     + "|(什么|谁|哪里|哪儿|为何|为什么|怎么|怎样|多少)"
     );
 

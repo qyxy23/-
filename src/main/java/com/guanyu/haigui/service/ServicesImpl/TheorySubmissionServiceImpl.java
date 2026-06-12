@@ -2,6 +2,7 @@ package com.guanyu.haigui.service.ServicesImpl;
 
 import com.guanyu.haigui.Enum.GameEndReason;
 import com.guanyu.haigui.Enum.PlayMode;
+import com.guanyu.haigui.Enum.TheoryPartialReason;
 import com.guanyu.haigui.Enum.TheorySubmissionStatus;
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.config.TheorySubmissionProperties;
@@ -11,6 +12,7 @@ import com.guanyu.haigui.pojo.model.ChatGameMemberId;
 import com.guanyu.haigui.pojo.model.GameSession;
 import com.guanyu.haigui.pojo.model.HaiGuiTheorySubmission;
 import com.guanyu.haigui.pojo.model.InferenceTask;
+import com.guanyu.haigui.pojo.vo.BatchEncodeResponse;
 import com.guanyu.haigui.pojo.vo.EndGameVO;
 import com.guanyu.haigui.pojo.vo.SubmitTheoryVO;
 import com.guanyu.haigui.pojo.vo.TheoryUnlockVO;
@@ -21,8 +23,8 @@ import com.guanyu.haigui.repository.HaiGuiTheorySubmissionRepository;
 import com.guanyu.haigui.service.AchievementService;
 import com.guanyu.haigui.service.TheorySubmissionService;
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
+import com.guanyu.haigui.utils.TheorySubmissionHintBuilder;
 import com.guanyu.haigui.utils.VectorSimilarityUtil;
-import com.guanyu.haigui.pojo.vo.BatchEncodeResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -76,6 +78,9 @@ public class TheorySubmissionServiceImpl implements TheorySubmissionService {
                     TheorySubmissionStatus.LOCKED,
                     null,
                     List.of(),
+                    null,
+                    null,
+                    null,
                     unlock.getLockReason() != null ? unlock.getLockReason() : "暂不可提交推理",
                     unlock,
                     null);
@@ -106,15 +111,17 @@ public class TheorySubmissionServiceImpl implements TheorySubmissionService {
                     TheorySubmissionStatus.REJECTED,
                     evaluation.coverageScore(),
                     evaluation.missingTaskNames(),
+                    null,
+                    TheoryPartialReason.COVERAGE_GAP,
+                    null,
                     message,
                     refreshed,
                     null);
         }
 
-        record.setFormalAttempt(true);
-
         if (evaluation.coverageScore() >= properties.getCoverageWin()
                 && progress >= properties.getWinProgress()) {
+            record.setFormalAttempt(true);
             record.setVerdict(TheorySubmissionStatus.WIN);
             record.setQuestionDeducted(false);
             haiGuiTheorySubmissionRepository.save(record);
@@ -125,6 +132,9 @@ public class TheorySubmissionServiceImpl implements TheorySubmissionService {
                     TheorySubmissionStatus.WIN,
                     evaluation.coverageScore(),
                     List.of(),
+                    null,
+                    null,
+                    null,
                     "推理正确，恭喜通关！",
                     refreshed,
                     endGame);
@@ -132,6 +142,57 @@ public class TheorySubmissionServiceImpl implements TheorySubmissionService {
             return vo;
         }
 
+        if (isProgressGuidanceZone(progress, evaluation.coverageScore())) {
+            return saveProgressGuidance(session, snapshot, record, evaluation, progress);
+        }
+
+        return saveFormalPartial(session, snapshot, record, evaluation, progress);
+    }
+
+    /** 60%～80% 且 coverage 已够：指引型提交，不扣问次、不占正式配额 */
+    private boolean isProgressGuidanceZone(double progress, double coverageScore) {
+        return progress >= properties.getUnlockProgress()
+                && progress < properties.getWinProgress()
+                && coverageScore >= properties.getCoverageWin();
+    }
+
+    private SubmitTheoryVO saveProgressGuidance(
+            GameSession session,
+            GameProgressEnricher.InGameProgressSnapshot snapshot,
+            HaiGuiTheorySubmission record,
+            CoverageEvaluation evaluation,
+            double progress) {
+        record.setVerdict(TheorySubmissionStatus.PARTIAL);
+        record.setFormalAttempt(false);
+        record.setQuestionDeducted(false);
+        haiGuiTheorySubmissionRepository.save(record);
+
+        double progressGap = roundGap(properties.getWinProgress() - progress);
+        List<String> hints = TheorySubmissionHintBuilder.buildFromIncompleteTasks(
+                snapshot.incompleteTasks(), properties.getMaxProgressHints());
+
+        String message = buildProgressGuidanceMessage(progress, progressGap, hints);
+        TheoryUnlockVO refreshed = refreshUnlock(session, snapshot.formalAttemptsUsed());
+
+        return buildResponse(
+                TheorySubmissionStatus.PARTIAL,
+                evaluation.coverageScore(),
+                null,
+                hints.isEmpty() ? null : hints,
+                TheoryPartialReason.PROGRESS_GAP,
+                progressGap,
+                message,
+                refreshed,
+                null);
+    }
+
+    private SubmitTheoryVO saveFormalPartial(
+            GameSession session,
+            GameProgressEnricher.InGameProgressSnapshot snapshot,
+            HaiGuiTheorySubmission record,
+            CoverageEvaluation evaluation,
+            double progress) {
+        record.setFormalAttempt(true);
         record.setVerdict(TheorySubmissionStatus.PARTIAL);
         record.setQuestionDeducted(true);
         haiGuiTheorySubmissionRepository.save(record);
@@ -142,15 +203,23 @@ public class TheorySubmissionServiceImpl implements TheorySubmissionService {
         }
 
         TheoryUnlockVO refreshed = refreshUnlock(session, snapshot.formalAttemptsUsed() + 1);
-        String message = evaluation.missingTaskNames().isEmpty()
-                ? "方向接近，但还不足以宣告通关，请继续完善推理"
-                : "部分正确，仍需解释：" + String.join("、", evaluation.missingTaskNames());
+        TheoryPartialReason reason = progress < properties.getWinProgress()
+                ? TheoryPartialReason.PROGRESS_GAP
+                : TheoryPartialReason.COVERAGE_GAP;
+
+        String message = buildFormalPartialMessage(evaluation, progress, reason);
+
         if (session.getRemainingQuestions() <= 0 && session.getPlayMode() == PlayMode.SOLO) {
-            EndGameVO endGame = soupQuestionService.endSoloGame(gameSessionId, GameEndReason.QUESTIONS_EXHAUSTED);
+            EndGameVO endGame = soupQuestionService.endSoloGame(
+                    session.getSessionId(), GameEndReason.QUESTIONS_EXHAUSTED);
             SubmitTheoryVO vo = buildResponse(
                     TheorySubmissionStatus.PARTIAL,
                     evaluation.coverageScore(),
                     evaluation.missingTaskNames(),
+                    null,
+                    reason,
+                    progress < properties.getWinProgress()
+                            ? roundGap(properties.getWinProgress() - progress) : null,
                     message + "；提问次数已用尽，本局结束",
                     refreshed,
                     endGame);
@@ -158,7 +227,7 @@ public class TheorySubmissionServiceImpl implements TheorySubmissionService {
             return vo;
         }
         if (session.getRemainingQuestions() <= 0 && session.getPlayMode() == PlayMode.MULTI) {
-            String roomId = chatGameRepository.findFirstByGameSessionId(gameSessionId)
+            String roomId = chatGameRepository.findFirstByGameSessionId(session.getSessionId())
                     .map(game -> game.getRoomId())
                     .orElse(null);
             if (roomId != null) {
@@ -167,6 +236,10 @@ public class TheorySubmissionServiceImpl implements TheorySubmissionService {
                         TheorySubmissionStatus.PARTIAL,
                         evaluation.coverageScore(),
                         evaluation.missingTaskNames(),
+                        null,
+                        reason,
+                        progress < properties.getWinProgress()
+                                ? roundGap(properties.getWinProgress() - progress) : null,
                         message + "；提问次数已用尽，本局结束",
                         refreshed,
                         endGame);
@@ -179,11 +252,50 @@ public class TheorySubmissionServiceImpl implements TheorySubmissionService {
                 TheorySubmissionStatus.PARTIAL,
                 evaluation.coverageScore(),
                 evaluation.missingTaskNames(),
+                null,
+                reason,
+                progress < properties.getWinProgress()
+                        ? roundGap(properties.getWinProgress() - progress) : null,
                 message + "（已消耗 1 次提问机会）",
                 refreshed,
                 null);
         vo.setRemainingFormalAttempts(refreshed.getRemainingFormalAttempts());
         return vo;
+    }
+
+    private String buildProgressGuidanceMessage(double progress, double progressGap, List<String> hints) {
+        if (hints == null || hints.isEmpty()) {
+            return String.format(
+                    "主线推理较完整，还差约 %.0f%% 进度可通关（当前 %.0f%%）。请继续提问。",
+                    progressGap, progress);
+        }
+        return String.format(
+                "主线推理较完整，还差约 %.0f%% 可通关。请按指引用「提问」继续盘（不扣问次）。",
+                progressGap);
+    }
+
+    private String buildFormalPartialMessage(
+            CoverageEvaluation evaluation, double progress, TheoryPartialReason reason) {
+        if (reason == TheoryPartialReason.PROGRESS_GAP) {
+            double gap = roundGap(properties.getWinProgress() - progress);
+            if (evaluation.missingTaskNames().isEmpty()) {
+                return String.format(
+                        "推理方向接近，但通关还需进度 %.0f%%（当前 %.0f%%，还差约 %.0f%%），请继续提问解锁任务",
+                        properties.getWinProgress(), progress, gap);
+            }
+            return String.format(
+                    "部分正确，仍需解释：%s；且通关还需进度 %.0f%%（还差约 %.0f%%）",
+                    String.join("、", evaluation.missingTaskNames()),
+                    properties.getWinProgress(), gap);
+        }
+        if (evaluation.missingTaskNames().isEmpty()) {
+            return "方向接近，但还不足以宣告通关，请继续完善推理";
+        }
+        return "部分正确，仍需解释：" + String.join("、", evaluation.missingTaskNames());
+    }
+
+    private static double roundGap(double gap) {
+        return Math.max(0, Math.ceil(gap));
     }
 
     private EndGameVO finishWithGuessCorrect(GameSession session) {
@@ -286,6 +398,9 @@ public class TheorySubmissionServiceImpl implements TheorySubmissionService {
             TheorySubmissionStatus status,
             Double coverageScore,
             List<String> missingTasks,
+            List<String> hints,
+            TheoryPartialReason partialReason,
+            Double progressGap,
             String message,
             TheoryUnlockVO unlock,
             EndGameVO endGame) {
@@ -295,6 +410,9 @@ public class TheorySubmissionServiceImpl implements TheorySubmissionService {
                 ? BigDecimal.valueOf(coverageScore).setScale(2, RoundingMode.HALF_UP).doubleValue()
                 : null);
         vo.setMissingTasks(missingTasks == null || missingTasks.isEmpty() ? null : missingTasks);
+        vo.setHints(hints == null || hints.isEmpty() ? null : hints);
+        vo.setPartialReason(partialReason);
+        vo.setProgressGap(progressGap);
         vo.setMessage(message);
         vo.setTheoryUnlock(unlock);
         vo.setRemainingFormalAttempts(unlock != null ? unlock.getRemainingFormalAttempts() : null);

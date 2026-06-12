@@ -1,7 +1,9 @@
 package com.guanyu.haigui.pojo.model;
 
+import com.guanyu.haigui.Enum.ContentTone;
 import com.guanyu.haigui.Enum.CoverAuditStatus;
 import com.guanyu.haigui.Enum.DifficultyLevel;
+import com.guanyu.haigui.Enum.LogicMode;
 import com.guanyu.haigui.Enum.SoupTag;
 import com.guanyu.haigui.converter.SoupTagConverter;
 import jakarta.persistence.*;
@@ -47,6 +49,16 @@ public class HaiGuiSoup {
 
     @Column(name = "ai_judge_rules", columnDefinition = "TEXT")
     private String aiJudgeRules = "";
+
+    /** 本格/变格，仅元问题判题，不对玩家选汤 API 暴露 */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "logic_mode", columnDefinition = "ENUM('ORTHODOX','VARIANT')")
+    private LogicMode logicMode;
+
+    /** 清汤/红汤/黑汤倾向，仅元问题判题，不对玩家选汤 API 暴露 */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "content_tone", columnDefinition = "ENUM('CLEAR','RED','BLACK')")
+    private ContentTone contentTone;
 
     @Column(name = "soup_avatar", columnDefinition = "VARCHAR(255)")
     private String soupAvatar = "";

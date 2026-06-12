@@ -182,6 +182,7 @@ public class AuditService {
             return PublishResponseVO.publishing();
         }
 
+        AuditDraftValidator.validateSoupMeta(dto.getLogicMode(), dto.getContentTone());
         AuditDraftValidator.validateTaskPrerequisites(dto.getFragments(), dto.getInferenceTasks());
         applyPublishDtoToAudit(dto, audit);
         audit.setAuditorId(BaseContext.getCurrentId());
@@ -206,6 +207,7 @@ public class AuditService {
         audit.setTags(dto.getTag());
         audit.setDefaultMaxQuestions(dto.getMaxRounds());
         auditDraftService.writeDraft(audit, dto.getManual(), dto.getAiJudgeRules(),
+                dto.getLogicMode(), dto.getContentTone(),
                 dto.getFragments(), dto.getInferenceTasks());
     }
 
@@ -363,7 +365,9 @@ public class AuditService {
         }
 
         return new HaiGuiInfoResult(
-                draftInfo.getManual(), draftInfo.getAiJudgeRules(), fragments, tasks);
+                draftInfo.getManual(), draftInfo.getAiJudgeRules(),
+                draftInfo.getLogicMode(), draftInfo.getContentTone(),
+                fragments, tasks);
     }
 
     /**
@@ -549,6 +553,7 @@ public class AuditService {
         audit.setAuditorId(BaseContext.getCurrentId());
 
         auditDraftService.writeDraft(audit, dto.getDraftManual(), dto.getDraftAiJudgeRules(),
+                dto.getDraftLogicMode(), dto.getDraftContentTone(),
                 dto.getDraftFragments(), dto.getDraftTasks());
 
         // 8. 保存更新

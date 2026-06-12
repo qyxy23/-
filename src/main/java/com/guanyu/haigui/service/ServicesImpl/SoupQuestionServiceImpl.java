@@ -26,6 +26,8 @@ import com.guanyu.haigui.service.SoupQuestionService;
 import com.guanyu.haigui.service.VoteTimeoutService;
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
 import com.guanyu.haigui.utils.RedisStackClient;
+import com.guanyu.haigui.utils.SoupMetaQuestionGuide;
+import com.guanyu.haigui.utils.SoupMetaQuestionMatcher;
 import com.guanyu.haigui.utils.SoupQuestionValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -214,6 +216,17 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
             return QuestionRunResult.fail(validationError.get());
         }
 
+        SoupInfo soupInfo = getSoupInfo(soupId);
+        if (soupInfo == null) {
+            return QuestionRunResult.fail("海龟汤不存在");
+        }
+
+        Optional<QuestionWithAiAnswer> metaAnswer = SoupMetaQuestionMatcher.tryResolve(
+                question, soupInfo.getLogicMode(), soupInfo.getContentTone());
+        if (metaAnswer.isPresent()) {
+            return persistQuestionResult(session, userId, question, metaAnswer.get(), Set.of(), soupId);
+        }
+
         List<Float> questionVector = vectorizeQuestion(question);
         if (questionVector.isEmpty()) {
             return QuestionRunResult.fail("问题向量化失败");
@@ -221,7 +234,6 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
 
         Map<String, List<ContextMatchResult>> relevantClues = searchRelevantClues(
                 soupId, questionVector, CLUE_RECALL_TOP_K, CLUE_RECALL_MIN_SIMILARITY, question);
-        SoupInfo soupInfo = getSoupInfo(soupId);
 
         Set<Long> triggeredFragmentIds = getCurrentTriggeredFragments(gameSessionId);
         List<InferenceTask> allTasks = inferenceTaskRepository.findBySoupId(soupId);
@@ -246,8 +258,18 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
 
         Set<Long> confirmedFragments = confirmTriggeredFragments(
                 parsedResponse.getTriggeredFragmentIds(), candidateClues, triggeredFragmentIds);
-        BigDecimal progressDelta = updateGameProgress(gameSessionId, confirmedFragments, incompleteTasks);
         QuestionWithAiAnswer answerEnum = mapAnswerToEnum(answerText);
+        return persistQuestionResult(session, userId, question, answerEnum, confirmedFragments, soupId);
+    }
+
+    /** 扣减提问次数、落库问答记录（元问题快路径与 AI 判题共用） */
+    private QuestionRunResult persistQuestionResult(
+            GameSession session, Long userId, String question,
+            QuestionWithAiAnswer answerEnum, Set<Long> confirmedFragments, String soupId) {
+        String gameSessionId = session.getSessionId();
+        List<InferenceTask> allTasks = inferenceTaskRepository.findBySoupId(soupId);
+        List<InferenceTask> incompleteTasks = filterIncompleteTasks(gameSessionId, allTasks);
+        BigDecimal progressDelta = updateGameProgress(gameSessionId, confirmedFragments, incompleteTasks);
 
         BigDecimal totalProgress = session.getCurrentProgress().add(progressDelta);
         session.updateProgress(totalProgress);
@@ -575,7 +597,9 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         prompt.append("2. 判断玩家是否真正问到了某条候选线索的核心信息；仅语义明确相关才触发。\n");
         prompt.append("3. 向量误匹配、无关、吐槽、非疑问句 → TRIGGERED 留空。\n");
         prompt.append("4. 问旅行地点/方式等规则规定「不重要」的问题 → ANSWER 答「不重要」，TRIGGERED 通常留空。\n");
-        prompt.append("5. TRIGGERED 只能填写候选中的 [F编号]，不得编造 ID。\n\n");
+        prompt.append("5. TRIGGERED 只能填写候选中的 [F编号]，不得编造 ID。\n");
+        prompt.append(SoupMetaQuestionGuide.userPromptTaskSection());
+        prompt.append("\n");
 
         prompt.append("=== 回答要求 ===\n");
         prompt.append("请严格按以下格式返回：\n");
@@ -797,7 +821,8 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
             String systemPrompt = "你是海龟汤游戏的AI主持人，根据汤底和判题规则回答玩家的封闭问题，"
                     + "并裁决是否触发候选线索。"
                     + "判题只能回答「是」「不是」「是或不是」「不重要」「无效提问」之一；"
-                    + "触发线索只能从候选 [F编号] 中选择，无关问题必须 TRIGGERED: []。";
+                    + "触发线索只能从候选 [F编号] 中选择，无关问题必须 TRIGGERED: []。"
+                    + SoupMetaQuestionGuide.systemPromptSection();
 
             String response = aiManager.doChat(systemPrompt, prompt);
 
@@ -876,6 +901,8 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
                     soup.getSoupSurface(),
                     soup.getSoupBottom(),
                     soup.getAiJudgeRules(),
+                    soup.getLogicMode(),
+                    soup.getContentTone(),
                     null
             );
 

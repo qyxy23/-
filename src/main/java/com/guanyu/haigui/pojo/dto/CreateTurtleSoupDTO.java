@@ -1,6 +1,8 @@
 package com.guanyu.haigui.pojo.dto;
 
+import com.guanyu.haigui.Enum.ContentTone;
 import com.guanyu.haigui.Enum.DifficultyLevel;
+import com.guanyu.haigui.Enum.LogicMode;
 import com.guanyu.haigui.Enum.SoupTag;
 import com.guanyu.haigui.pojo.Info.ClueFragmentInfo;
 import com.guanyu.haigui.pojo.Info.InferenceTaskInfo;
@@ -33,6 +35,12 @@ public class CreateTurtleSoupDTO {
 
     // AI 判题规则
     private String aiJudgeRules;
+
+    /** 本格/变格（仅判题，不对玩家展示） */
+    private LogicMode logicMode;
+
+    /** 清汤/红汤/黑汤（仅判题，不对玩家展示） */
+    private ContentTone contentTone;
 
     //线索
     private List<ClueFragmentInfo> fragments;
@@ -68,6 +76,8 @@ public class CreateTurtleSoupDTO {
         haiGuiSoup.setSoupBottom(soupBottom);
         haiGuiSoup.setHostManual(manual != null ? manual : "");
         haiGuiSoup.setAiJudgeRules(aiJudgeRules != null ? aiJudgeRules : "");
+        haiGuiSoup.setLogicMode(logicMode);
+        haiGuiSoup.setContentTone(contentTone);
         haiGuiSoup.setDefaultMaxQuestions(maxRounds);
         haiGuiSoup.setTaskGenerationStrategy("HYBRID");
         haiGuiSoup.setVectorMatchThreshold(new BigDecimal("0.7"));

@@ -19,6 +19,7 @@ import com.guanyu.haigui.repository.HaiGuiSoupRepository;
 import com.guanyu.haigui.repository.InferenceTaskRepository;
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
 import com.guanyu.haigui.utils.HaiGuiInfoUtil;
+import com.guanyu.haigui.utils.SoupMetaQuestionGuide;
 import com.guanyu.haigui.utils.RedisStackClient;
 import com.guanyu.haigui.utils.SoupGenerationPlanner;
 import com.guanyu.haigui.utils.SoupGenerationPlanner.Plan;
@@ -74,11 +75,18 @@ public class HaiGuiSoupInfoService {
         - 密度提示：%s
         
         # 输出要求
-        请严格按以下JSON格式输出，包含四个顶级字段：
+        请严格按以下JSON格式输出，包含六个顶级字段：
         1. hostManual（主持人手册，供真人主持参考）
         2. aiJudgeRules（AI判题规则，供线上AI判题使用）
-        3. fragments（线索数组）
-        4. tasks（任务数组）
+        3. logicMode（本格/变格，枚举字符串 ORTHODOX 或 VARIANT）
+        4. contentTone（清汤/红汤/黑汤，枚举字符串 CLEAR、RED 或 BLACK）
+        5. fragments（线索数组）
+        6. tasks（任务数组）
+        
+        ## 汤属性枚举(logicMode / contentTone)规范
+        - logicMode：ORTHODOX=本格（现实可解释），VARIANT=变格（超自然/科幻/灵异等）
+        - contentTone：CLEAR=清汤（通常无死亡、恐怖低），RED=红汤（死亡或强悬疑），BLACK=黑汤（重口/极高恐怖或极难）
+        - 各选一个最接近的值；与 aiJudgeRules 中「元问题判题」须一致
         
         ## 主持人手册(hostManual)规范
         - 包含游戏简介、主持流程、控场技巧、时间管理建议
@@ -89,6 +97,7 @@ public class HaiGuiSoupInfoService {
         - 写明：什么答「是」、什么答「不是」、什么答「不重要」
         - 写明：哪些信息不能主动透露、易混淆点如何处理
         - 不要写控场、计时、复盘等给人看的内容
+        %s
         
         ## 线索(fragments)规范
         - 数量必须在 %d~%d 条之间，优先接近 %d 条
@@ -103,8 +112,8 @@ public class HaiGuiSoupInfoService {
         - 所有任务progressWeight总和=100
         - 字段说明：
           • taskName: 任务名称（10字内）
-          • taskDescription: 任务描述（50字内，含玩家需推理到的要点）
-          • reasoningGoal: 推理目标（20字内）
+          • taskDescription: 盘汤指引问句（30~50字，必须是玩家可向AI提问的封闭疑问句方向，如「父母为什么在旅行出事回家后立刻打算要二胎？」；不写答案、不写审核说明体）
+          • reasoningGoal: 推理目标（20字内，供系统评分，可与 taskDescription 语义一致但不必相同）
           • progressWeight: 进度权重（总和100）
           • taskOrder: 顺序号(从1开始)
           • prerequisiteFragmentIds: 前置线索序号数组（整数数组，表示需要哪些线索）
@@ -122,6 +131,8 @@ public class HaiGuiSoupInfoService {
         {
           "hostManual": "### 主持指南...",
           "aiJudgeRules": "判题边界规则...",
+          "logicMode": "ORTHODOX",
+          "contentTone": "RED",
           "fragments": [
             {
               "content": "线索片段内容"
@@ -152,6 +163,7 @@ public class HaiGuiSoupInfoService {
                 plan.getTaskMax(),
                 plan.getTaskTarget(),
                 plan.getDensityHint(),
+                SoupMetaQuestionGuide.ugcRulesRequirement(),
                 plan.getFragmentMin(),
                 plan.getFragmentMax(),
                 plan.getFragmentTarget(),

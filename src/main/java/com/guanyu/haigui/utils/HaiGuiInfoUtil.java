@@ -7,6 +7,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.guanyu.haigui.Enum.ContentTone;
+import com.guanyu.haigui.Enum.LogicMode;
 import com.guanyu.haigui.pojo.Info.ClueFragmentInfo;
 import com.guanyu.haigui.pojo.Info.InferenceTaskInfo;
 import com.guanyu.haigui.pojo.result.HaiGuiInfoResult;
@@ -26,7 +28,7 @@ public class HaiGuiInfoUtil {
     public static HaiGuiInfoResult getHaiGuiInfo(JsonNode draftFragments, JsonNode draftTasks) {
         List<ClueFragmentInfo> fragments = parseFragments(draftFragments);
         List<InferenceTaskInfo> tasks = parseTasks(draftTasks);
-        return new HaiGuiInfoResult(null, null, fragments, tasks);
+        return new HaiGuiInfoResult(null, null, null, null, fragments, tasks);
     }
 
     public HaiGuiInfoResult parserHaiGuiInfo(String aiResponse) {
@@ -44,11 +46,13 @@ public class HaiGuiInfoUtil {
 
             String hostManual = extractHostManual(rootNode);
             String aiJudgeRules = extractAiJudgeRules(rootNode);
+            LogicMode logicMode = parseEnum(rootNode, "logicMode", LogicMode.class);
+            ContentTone contentTone = parseEnum(rootNode, "contentTone", ContentTone.class);
             List<ClueFragmentInfo> fragments = parseFragments(rootNode.path("fragments"));
             List<InferenceTaskInfo> tasks = parseTasks(rootNode.path("tasks"));
 
             log.info("成功解析响应：{}个线索片段，{}个任务", fragments.size(), tasks.size());
-            return new HaiGuiInfoResult(hostManual, aiJudgeRules, fragments, tasks);
+            return new HaiGuiInfoResult(hostManual, aiJudgeRules, logicMode, contentTone, fragments, tasks);
 
         } catch (Exception e) {
             log.error("解析AI响应失败：{}", e.getMessage(), e);
@@ -69,18 +73,27 @@ public class HaiGuiInfoUtil {
                     getText(node, "content")
             ));
             content.setAiJudgeRules(getText(node, "aiJudgeRules"));
+            content.setLogicMode(parseEnum(node, "logicMode", LogicMode.class));
+            content.setContentTone(parseEnum(node, "contentTone", ContentTone.class));
         } catch (Exception e) {
             content.setHostManual(raw);
         }
         return content;
     }
 
-    public static String serializeDraftManual(String hostManual, String aiJudgeRules) {
+    public static String serializeDraftManual(String hostManual, String aiJudgeRules,
+                                              LogicMode logicMode, ContentTone contentTone) {
         try {
             ObjectNode node = new ObjectMapper().createObjectNode();
             node.put("hostManual", hostManual != null ? hostManual : "");
             node.put("aiJudgeRules", aiJudgeRules != null ? aiJudgeRules : "");
             node.put("content", hostManual != null ? hostManual : "");
+            if (logicMode != null) {
+                node.put("logicMode", logicMode.name());
+            }
+            if (contentTone != null) {
+                node.put("contentTone", contentTone.name());
+            }
             return new ObjectMapper().writeValueAsString(node);
         } catch (Exception e) {
             throw new RuntimeException("草稿手册序列化失败", e);
@@ -220,9 +233,24 @@ public class HaiGuiInfoUtil {
         return "";
     }
 
+    private static <E extends Enum<E>> E parseEnum(JsonNode node, String field, Class<E> enumType) {
+        String text = getText(node, field);
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        try {
+            return Enum.valueOf(enumType, text.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            log.warn("无法解析枚举 {}={}", field, text);
+            return null;
+        }
+    }
+
     @lombok.Data
     public static class DraftManualContent {
         private String hostManual = "";
         private String aiJudgeRules = "";
+        private LogicMode logicMode;
+        private ContentTone contentTone;
     }
 }

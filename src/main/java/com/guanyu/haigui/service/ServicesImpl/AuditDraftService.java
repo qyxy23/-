@@ -3,6 +3,8 @@ package com.guanyu.haigui.service.ServicesImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.guanyu.haigui.Enum.AiGenStatus;
+import com.guanyu.haigui.Enum.ContentTone;
+import com.guanyu.haigui.Enum.LogicMode;
 import com.guanyu.haigui.Enum.PublishStatus;
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.pojo.Info.ClueFragmentInfo;
@@ -32,9 +34,11 @@ public class AuditDraftService {
     private final AchievementService achievementService;
 
     public void writeDraft(HaiGuiSoupAudit audit, String hostManual, String aiJudgeRules,
+                           LogicMode logicMode, ContentTone contentTone,
                            List<ClueFragmentInfo> fragments, List<InferenceTaskInfo> tasks) {
         try {
-            audit.setDraftManual(HaiGuiInfoUtil.serializeDraftManual(hostManual, aiJudgeRules));
+            audit.setDraftManual(HaiGuiInfoUtil.serializeDraftManual(
+                    hostManual, aiJudgeRules, logicMode, contentTone));
             String fragmentsStr = objectMapper.writeValueAsString(fragments);
             audit.setDraftFragments(objectMapper.readTree(fragmentsStr));
             String tasksStr = objectMapper.writeValueAsString(tasks);
@@ -49,6 +53,7 @@ public class AuditDraftService {
         HaiGuiSoupAudit audit = haiGuiSoupAuditRepository.findById(auditId)
                 .orElseThrow(() -> new BusinessException(404, "审核记录不存在"));
         writeDraft(audit, result.getManual(), result.getAiJudgeRules(),
+                result.getLogicMode(), result.getContentTone(),
                 result.getFragments(), result.getInferenceTasks());
         audit.setAiGenStatus(AiGenStatus.SUCCESS);
         audit.setAiGenError(null);

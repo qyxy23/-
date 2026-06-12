@@ -35,4 +35,7 @@ public class TheorySubmissionProperties {
 
     /** 单任务 reasoningGoal 与推理文本的相似度阈值 */
     private double taskSimilarityThreshold = 0.45;
+
+    /** 灰区进度指引：最多返回几条「建议追问」 */
+    private int maxProgressHints = 2;
 }

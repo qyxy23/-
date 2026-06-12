@@ -1,5 +1,7 @@
 package com.guanyu.haigui.utils;
 
+import com.guanyu.haigui.Enum.ContentTone;
+import com.guanyu.haigui.Enum.LogicMode;
 import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.pojo.Info.ClueFragmentInfo;
 import com.guanyu.haigui.pojo.Info.InferenceTaskInfo;
@@ -17,6 +19,16 @@ import java.util.stream.Collectors;
 public final class AuditDraftValidator {
 
     private AuditDraftValidator() {
+    }
+
+    /** 发布前须填写汤的逻辑框架与内容气质（元问题快路径判题） */
+    public static void validateSoupMeta(LogicMode logicMode, ContentTone contentTone) {
+        if (logicMode == null) {
+            throw new BusinessException(400, "请选择本格/变格");
+        }
+        if (contentTone == null) {
+            throw new BusinessException(400, "请选择清汤/红汤/黑汤");
+        }
     }
 
     /**
