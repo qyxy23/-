@@ -12,11 +12,14 @@ import com.guanyu.haigui.pojo.response.AIResponse;
 import com.guanyu.haigui.pojo.result.ChatWithAIRoomRequest;
 import com.guanyu.haigui.pojo.result.ContextMatchResult;
 import com.guanyu.haigui.pojo.result.GameSettlementSnapshot;
+import com.guanyu.haigui.pojo.vo.AchievementView;
 import com.guanyu.haigui.pojo.vo.EndGameVO;
+import com.guanyu.haigui.pojo.vo.MemberContributionView;
 import com.guanyu.haigui.pojo.vo.RoomGetClueVO;
 import com.guanyu.haigui.pojo.vo.RoomSoupQuestionVO;
 import com.guanyu.haigui.pojo.vo.SingleEncodeResponse;
 import com.guanyu.haigui.repository.*;
+import com.guanyu.haigui.service.AchievementService;
 import com.guanyu.haigui.service.GameReplayService;
 import com.guanyu.haigui.service.PlayQuotaService;
 import com.guanyu.haigui.service.SoupQuestionService;
@@ -76,6 +79,9 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
     private final VoteTimeoutService voteTimeoutService;
     private final PlayQuotaService playQuotaService;
     private final GameReplayService gameReplayService;
+    private final GameProgressEnricher gameProgressEnricher;
+    private final MemberContributionAggregator memberContributionAggregator;
+    private final AchievementService achievementService;
 
 
 
@@ -147,9 +153,10 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
                 result.progressDelta(),
                 result.remainingQuestions()
         );
+        attachMemberContributions(roomSoupQuestionVO, session);
         simpMessagingTemplate.convertAndSend("/topic/memberChange" + roomId, roomSoupQuestionVO);
         if (result.remainingQuestions() == 0) {
-            endGame(roomId);
+            endGame(roomId, GameEndReason.QUESTIONS_EXHAUSTED);
         }
         return roomSoupQuestionVO;
     }
@@ -255,6 +262,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         message.setIsDeleted(false);
         message.setTriggeredFragmentIds(new HashSet<>(confirmedFragments));
         haiGuiChatMessageRepository.save(message);
+        achievementService.checkAfterQuestion(userId, gameSessionId);
 
         return QuestionRunResult.ok(
                 answerEnum.getDescription(),
@@ -287,7 +295,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         gameSession.setEndReason(endReason);
         gameSession.setEndTime(LocalDateTime.now());
         gameSession.setCurrentProgress(snapshot.getProgressPercent());
-        gameSession.setScore(BigDecimal.valueOf(snapshot.getFinalScore()));
+        gameSession.setScore(BigDecimal.valueOf(resolveFinalScore(snapshot, endReason)));
         gameSessionRepository.save(gameSession);
 
         HaiGuiSoup soup = haiGuiSoupRepository.findById(gameSession.getSoupId())
@@ -305,6 +313,13 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         replayHints.setEndTime(gameSession.getEndTime());
         gameReplayService.attachReplayAtEnd(
                 endGameVO, gameSessionId, null, gameSession.getUserId(), replayHints);
+        if (endReason == GameEndReason.MANUAL_GIVE_UP) {
+            List<AchievementView> giveUpUnlocked =
+                    achievementService.onManualGiveUp(gameSession.getUserId(), gameSessionId);
+            endGameVO.setNewlyUnlockedAchievements(giveUpUnlocked);
+        } else {
+            applySettlementAchievements(gameSession, null, snapshot, endGameVO);
+        }
         return endGameVO;
     }
 
@@ -356,12 +371,19 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         roomGetClueVO.setProgress(session.getCurrentProgress().doubleValue());
         roomGetClueVO.setRemainingQuestions(session.getRemainingQuestions());
         roomGetClueVO.setQuestion(ChatServicesImpl.getQuestions(messages));
+        if (game.getStatus() == RoomStatus.ACTIVE || game.getStatus() == RoomStatus.VOTING) {
+            gameProgressEnricher.enrichInGameProgress(roomGetClueVO, session);
+        }
 
         return roomGetClueVO;
     }
 
-    // 结束游戏
     public EndGameVO endGame(String roomId) {
+        return endGame(roomId, GameEndReason.QUESTIONS_EXHAUSTED);
+    }
+
+    // 结束游戏
+    public EndGameVO endGame(String roomId, GameEndReason endReason) {
         ChatGame chatGame = chatGameRepository.findById(roomId)
                 .orElseThrow(() -> new BusinessException(404, "房间不存在"));
         GameSession gameSession = gameSessionRepository.findById(chatGame.getGameSessionId())
@@ -372,9 +394,10 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         GameSettlementSnapshot snapshot = gameSettlementBuilder.build(roomId);
 
         gameSession.setStatus(GameSession.GameSessionStatus.COMPLETED);
+        gameSession.setEndReason(endReason);
         gameSession.setEndTime(LocalDateTime.now());
         gameSession.setCurrentProgress(snapshot.getProgressPercent());
-        gameSession.setScore(BigDecimal.valueOf(snapshot.getFinalScore()));
+        gameSession.setScore(BigDecimal.valueOf(resolveFinalScore(snapshot, endReason)));
         gameSessionRepository.save(gameSession);
 
         soup.setPlayCount(soup.getPlayCount() + 1);
@@ -398,6 +421,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         replayHints.setEndTime(chatGame.getEndTime());
         gameReplayService.attachReplayAtEnd(
                 endGameVO, chatGame.getGameSessionId(), roomId, null, replayHints);
+        applySettlementAchievements(gameSession, roomId, snapshot, endGameVO);
         simpMessagingTemplate.convertAndSend("/topic/memberChange" + roomId, endGameVO);
         return endGameVO;
     }
@@ -861,5 +885,50 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         }
     }
 
+    private static int resolveFinalScore(GameSettlementSnapshot snapshot, GameEndReason endReason) {
+        int score = snapshot.getFinalScore();
+        if (endReason == GameEndReason.GUESS_CORRECT) {
+            return Math.min(100, Math.max(score, 85) + 5);
+        }
+        return score;
+    }
+
+    private void attachMemberContributions(RoomSoupQuestionVO vo, GameSession session) {
+        if (vo == null || session == null || session.getPlayMode() != PlayMode.MULTI) {
+            return;
+        }
+        List<MemberContributionView> contributions = memberContributionAggregator.buildForGameSession(session);
+        if (!contributions.isEmpty()) {
+            vo.setMemberContributions(contributions);
+        }
+    }
+
+    private void applySettlementAchievements(GameSession gameSession, String roomId,
+                                             GameSettlementSnapshot snapshot, EndGameVO endGameVO) {
+        Long currentUserId = BaseContext.getCurrentId();
+        List<AchievementView> forCurrent = new ArrayList<>();
+        for (Long userId : resolveParticipantUserIds(gameSession, roomId)) {
+            List<AchievementView> unlocked =
+                    achievementService.evaluateSettlement(userId, gameSession, roomId, snapshot);
+            if (Objects.equals(userId, currentUserId)) {
+                forCurrent.addAll(unlocked);
+            }
+        }
+        endGameVO.setNewlyUnlockedAchievements(forCurrent);
+    }
+
+    private List<Long> resolveParticipantUserIds(GameSession session, String roomId) {
+        if (session.getPlayMode() == PlayMode.SOLO) {
+            return List.of(session.getUserId());
+        }
+        if (roomId == null) {
+            return List.of();
+        }
+        return chatGameMemberRepository.findByIdRoomId(roomId).stream()
+                .map(member -> member.getMember() != null ? member.getMember().getUserId() : null)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+    }
 
 }

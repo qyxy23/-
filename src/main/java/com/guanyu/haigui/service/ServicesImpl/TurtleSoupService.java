@@ -14,6 +14,7 @@ import com.guanyu.haigui.repository.HaiGuiSoupAuditRepository;
 import com.guanyu.haigui.repository.HaiGuiSoupRepository;
 import com.guanyu.haigui.repository.SysUserRoleRepository;
 import com.guanyu.haigui.utils.CiImageAuditService;
+import com.guanyu.haigui.service.AchievementService;
 import com.guanyu.haigui.utils.CosUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +38,7 @@ public class TurtleSoupService {
     private final CiImageAuditService ciImageAuditService;
     private final HaiGuiSoupAuditRepository haiGuiSoupAuditRepository;
     private final SysUserRoleRepository sysUserRoleRepository;
+    private final AchievementService achievementService;
 
     /**
      * 上传/更换海龟汤封面：审核员直传生效；上传者走机器审（疑似进人工）
@@ -179,6 +181,7 @@ public class TurtleSoupService {
     public String uploadTurtleSoup(UploadHaiGuiSoupDTO soup) {
         HaiGuiSoupAudit audit = UploadHaiGuiSoupDTO.from(soup);
         haiGuiSoupAuditRepository.save(audit);
+        achievementService.onSoupUploaded(BaseContext.getCurrentId());
         return "上传成功,请等待审核";
     }
 

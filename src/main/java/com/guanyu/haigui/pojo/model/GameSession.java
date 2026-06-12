@@ -71,7 +71,7 @@ public class GameSession {
     private GameSessionStatus status = GameSessionStatus.ONGOING;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "end_reason", columnDefinition = "ENUM('QUESTIONS_EXHAUSTED','MANUAL_GIVE_UP','VOTE_PASSED','ROOM_DISBANDED')")
+    @Column(name = "end_reason", columnDefinition = "ENUM('QUESTIONS_EXHAUSTED','MANUAL_GIVE_UP','VOTE_PASSED','ROOM_DISBANDED','GUESS_CORRECT')")
     private GameEndReason endReason;
 
     @Column(name = "is_deleted", columnDefinition = "TINYINT(1)", nullable = false)

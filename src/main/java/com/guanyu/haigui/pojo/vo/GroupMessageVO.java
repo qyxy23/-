@@ -16,6 +16,8 @@ import java.time.LocalDateTime;
 public class GroupMessageVO {
     @Schema(description = "消息唯一ID")
     private String messageId;
+    @Schema(description = "客户端消息ID")
+    private String clientMsgId;
     @Schema(description = "所属群聊ID")
     private String roomId;
     @Schema(description = "发送者用户名")
@@ -38,6 +40,7 @@ public class GroupMessageVO {
     public static GroupMessageVO from(GroupMessage message) {
         GroupMessageVO vo = new GroupMessageVO();
         vo.setMessageId(message.getMessageId());
+        vo.setClientMsgId(message.getClientMsgId());
         vo.setRoomId(message.getChatGroup().getGroupId()); // 直接取群聊ID（无需代理）
         vo.setContent(message.getContent());
         vo.setMessageType(message.getMessageType());

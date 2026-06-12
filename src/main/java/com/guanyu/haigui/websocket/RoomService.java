@@ -1046,7 +1046,8 @@ public class RoomService {
             haiGuiVoteSessionRepository.save(session);
 
             // 结束游戏
-            soupQuestionService.endGame(gameSessionResolver.requireRoomId(session.getGameSessionId()));
+            soupQuestionService.endGame(gameSessionResolver.requireRoomId(session.getGameSessionId()),
+                    GameEndReason.VOTE_PASSED);
         } else if (agreeCount == totalMembers) {
             // 所有成员已投票但未通过
             session.setStatus(HaiGuiVoteSession.VoteStatus.FAILED);

@@ -42,6 +42,7 @@ Cors配置
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final AppCorsProperties appCorsProperties;
 
     // 全局配置 BCrypt 密码编码器
     @Bean
@@ -126,9 +127,8 @@ public class SecurityConfig {
         // 1. 创建 CORS 配置对象
         CorsConfiguration config = new CorsConfiguration();
 
-        // 2. 允许的前端域名（替换为你的前端地址，如 http://localhost:5173、https://your-frontend.com）
-        // 生产环境应限制具体域名，开发测试环境可使用通配符
-        config.setAllowedOriginPatterns(Arrays.asList("*"));
+        // 2. 允许的前端域名（生产环境在 application-prod.yml 中配置具体域名）
+        config.setAllowedOriginPatterns(appCorsProperties.getAllowedOriginPatterns());
 
         // 3. 允许的请求方法（GET/POST/PUT/DELETE/OPTIONS）
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));

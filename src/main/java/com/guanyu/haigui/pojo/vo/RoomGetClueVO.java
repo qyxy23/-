@@ -1,7 +1,10 @@
 package com.guanyu.haigui.pojo.vo;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.guanyu.haigui.pojo.result.ClueSummaryView;
+import com.guanyu.haigui.pojo.result.SettlementTaskView;
 import com.guanyu.haigui.Enum.RoomStatus;
+import com.guanyu.haigui.pojo.vo.MemberContributionView;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -36,6 +39,18 @@ public class RoomGetClueVO {
     private LocalDateTime endTime;
     //是否同意
     private Boolean agreed;
+
+    /** 对局内已触发线索卡片（P2） */
+    private List<ClueSummaryView> triggeredClues;
+
+    /** 已完成推理任务摘要（P2） */
+    private List<SettlementTaskView> completedTasks;
+
+    /** 提交推理解锁状态（P1） */
+    private TheoryUnlockVO theoryUnlock;
+
+    /** 成员实时贡献（P3，仅多人进行中） */
+    private List<MemberContributionView> memberContributions;
 
 
     @Data

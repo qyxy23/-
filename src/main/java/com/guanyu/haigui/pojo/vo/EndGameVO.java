@@ -27,6 +27,8 @@ public class EndGameVO {
     private List<ClueSummaryView> missedClues;
     /** 完整复盘（对局结束时预计算，Redis 缓存 3 天） */
     private getAIChatListDetailVO replayDetail;
+    /** 本局新解锁成就（当前用户） */
+    private List<AchievementView> newlyUnlockedAchievements;
 
     public static EndGameVO fromSnapshot(GameSettlementSnapshot snapshot) {
         EndGameVO vo = new EndGameVO();

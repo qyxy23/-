@@ -4,6 +4,7 @@ import com.guanyu.haigui.interceptor.JwtWebSocketInterceptor;
 import com.guanyu.haigui.interceptor.WebSocketSecurityInterceptor;
 import com.guanyu.haigui.pojo.vo.CustomUserDetails;
 import jakarta.annotation.Resource;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
@@ -20,7 +21,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Configuration
 @EnableWebSocketMessageBroker
+@RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+    private final AppCorsProperties appCorsProperties;
 
     @Resource
     private JwtWebSocketInterceptor jwtWebSocketInterceptor;
@@ -48,9 +52,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
      */
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/ws") // 前端连接的URL
-                .setAllowedOriginPatterns("*") // 允许跨域
-                .addInterceptors(jwtWebSocketInterceptor); // 注册JWT拦截器进行身份验证
+        registry.addEndpoint("/ws")
+                .setAllowedOriginPatterns(appCorsProperties.getAllowedOriginPatterns().toArray(new String[0]))
+                .addInterceptors(jwtWebSocketInterceptor);
         // 移除.withSockJS()以支持原生WebSocket连接（兼容移动端和小程序）
     }
 

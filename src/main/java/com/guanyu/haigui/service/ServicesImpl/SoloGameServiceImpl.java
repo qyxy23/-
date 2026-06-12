@@ -44,6 +44,7 @@ public class SoloGameServiceImpl implements SoloGameService {
     private final PlayQuotaService playQuotaService;
     private final GameReplayService gameReplayService;
     private final SoupPlayabilityService soupPlayabilityService;
+    private final GameProgressEnricher gameProgressEnricher;
 
     @Override
     public StartSoloVO startSolo(String soupId) {
@@ -123,6 +124,10 @@ public class SoloGameServiceImpl implements SoloGameService {
         vo.setProgress(session.getCurrentProgress().doubleValue());
         vo.setRemainingQuestions(session.getRemainingQuestions());
         vo.setQuestion(ChatServicesImpl.getQuestions(messages));
+
+        if (session.getStatus() == GameSession.GameSessionStatus.ONGOING) {
+            gameProgressEnricher.enrichInGameProgress(vo, session);
+        }
 
         if (session.getStatus() == GameSession.GameSessionStatus.COMPLETED
                 || session.getStatus() == GameSession.GameSessionStatus.CANCELED) {

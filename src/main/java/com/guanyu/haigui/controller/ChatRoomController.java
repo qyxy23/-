@@ -10,6 +10,7 @@ import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.service.ServicesImpl.SoupQuestionServiceImpl;
 import com.guanyu.haigui.service.SoloGameService;
 import com.guanyu.haigui.service.SoupQuestionService;
+import com.guanyu.haigui.service.TheorySubmissionService;
 import com.guanyu.haigui.websocket.RoomService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -33,6 +34,7 @@ public class ChatRoomController {
     private final SoloGameService soloGameService;
     private final SoupQuestionService soupQuestionService;
     private final SoupQuestionServiceImpl soupQuestionServiceImpl;
+    private final TheorySubmissionService theorySubmissionService;
 
 
     /**
@@ -234,6 +236,21 @@ public class ChatRoomController {
     @ResponseBody
     public Result<RoomGetClueVO> getClue(@PathVariable String roomId) {
         return Result.success(soupQuestionService.getClue(roomId));
+    }
+
+    @Operation(summary = "提交汤底推理（P1 MVP：规则层评分，0 LLM）")
+    @PostMapping("/submitTheory")
+    @ResponseBody
+    public Result<SubmitTheoryVO> submitTheory(@RequestBody SubmitTheoryRequest request) {
+        if (request == null || request.getGameSessionId() == null || request.getGameSessionId().isBlank()) {
+            return Result.error("游戏会话 ID 不能为空");
+        }
+        if (request.getTheory() == null || request.getTheory().isBlank()) {
+            return Result.error("推理内容不能为空");
+        }
+        return Result.success(theorySubmissionService.submitTheory(
+                request.getGameSessionId().trim(),
+                request.getTheory()));
     }
 
     @Operation(summary = "继续投票")

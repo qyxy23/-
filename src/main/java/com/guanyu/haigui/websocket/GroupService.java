@@ -9,6 +9,8 @@ import com.guanyu.haigui.pojo.dto.*;
 import com.guanyu.haigui.pojo.model.*;
 import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.repository.*;
+import com.guanyu.haigui.service.ChatMessageRetentionService;
+import com.guanyu.haigui.service.ChatSendIdempotencyService;
 import com.guanyu.haigui.service.UserChatSessionService;
 import com.guanyu.haigui.utils.GroupRoomUtils;
 import com.guanyu.haigui.utils.CiImageAuditService;
@@ -22,6 +24,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.modelmapper.ModelMapper;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -58,6 +61,8 @@ public class GroupService {
     @PersistenceContext
     private EntityManager entityManager;
     private final ChatGroupAdminRepository chatGroupAdminRepository;
+    private final ChatMessageRetentionService chatMessageRetentionService;
+    private final ChatSendIdempotencyService chatSendIdempotencyService;
 
 
     // /**
@@ -584,24 +589,55 @@ public class GroupService {
         UserInfo sender = userInfoRepository.findById(userID)
                 .orElseThrow(() -> new BusinessException(403, "用户不存在"));
 
+        String clientMsgId = chatSendIdempotencyService.normalizeClientMsgId(request.getClientMsgId());
+        if (clientMsgId != null) {
+            var existing = chatSendIdempotencyService.findExistingGroup(
+                    request.getGroupId(), userID, clientMsgId);
+            if (existing.isPresent()) {
+                return toGroupMessageResponse(existing.get(), request.getGroupId(), userID, false);
+            }
+        }
+
         // 3. 创建并保存消息
         GroupMessage message = new GroupMessage();
         message.setChatGroup(group);
         message.setSender(sender);
+        message.setClientMsgId(clientMsgId);
         message.setContent(request.getContent());
         message.setMessageType(request.getMessageType());
         message.setCreateTime(LocalDateTime.now());
         message.setStatus(MessageStatus.SENT);
-        chatGroupMessageRepository.save(message);
+        try {
+            chatGroupMessageRepository.save(message);
+        } catch (DataIntegrityViolationException ex) {
+            if (clientMsgId == null) {
+                throw ex;
+            }
+            GroupMessage duplicate = chatSendIdempotencyService
+                    .findExistingGroup(request.getGroupId(), userID, clientMsgId)
+                    .orElseThrow(() -> ex);
+            return toGroupMessageResponse(duplicate, request.getGroupId(), userID, false);
+        }
+        chatMessageRetentionService.trimGroupConversation(request.getGroupId());
         userChatSessionService.onGroupMessageSent(
                 request.getGroupId(),
                 userID,
                 message.getContent(),
                 message.getCreateTime(),
                 sender.getUsername());
+        return toGroupMessageResponse(message, request.getGroupId(), userID, true);
+    }
+
+    private GroupMessageVO toGroupMessageResponse(
+            GroupMessage message,
+            String groupId,
+            Long senderUserId,
+            boolean broadcast) {
         GroupMessageVO vo = GroupMessageVO.from(message);
         vo.setChatType(MessageChatType.GROUP_MESSAGE);
-        broadcastGroupMessageToMembers(vo, request.getGroupId(), userID);
+        if (broadcast) {
+            broadcastGroupMessageToMembers(vo, groupId, senderUserId);
+        }
         return vo;
     }
 

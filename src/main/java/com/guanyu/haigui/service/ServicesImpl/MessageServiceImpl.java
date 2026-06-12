@@ -38,6 +38,8 @@ import com.guanyu.haigui.repository.PrivateMessageRepository;
 
 import com.guanyu.haigui.repository.UserInfoRepository;
 
+import com.guanyu.haigui.service.ChatMessageRetentionService;
+import com.guanyu.haigui.service.ChatSendIdempotencyService;
 import com.guanyu.haigui.service.MessageService;
 
 import com.guanyu.haigui.service.UserChatSessionService;
@@ -63,6 +65,7 @@ import org.springframework.data.domain.Pageable;
 
 import org.springframework.data.domain.Sort;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import org.springframework.transaction.annotation.Transactional;
@@ -92,6 +95,10 @@ public class MessageServiceImpl implements MessageService {
     private final ChatGroupMemberRepository chatGameMemberRepository;
 
     private final RedisServiceUtil redisServiceUtil;
+
+    private final ChatMessageRetentionService chatMessageRetentionService;
+
+    private final ChatSendIdempotencyService chatSendIdempotencyService;
 
 
 
@@ -312,10 +319,6 @@ public class MessageServiceImpl implements MessageService {
 
     private PrivateMessageVO doSendMessage(PrivateMessageDTO message, Long senderId) {
 
-        PrivateMessage privateMessage = new PrivateMessage();
-
-        privateMessage.setMessageId(UUID.randomUUID().toString());
-
         UserInfo sender = userRepository.findById(senderId)
 
                 .orElseThrow(() -> new RuntimeException("发送者不存在"));
@@ -330,6 +333,21 @@ public class MessageServiceImpl implements MessageService {
 
         }
 
+        String clientMsgId = chatSendIdempotencyService.normalizeClientMsgId(message.getClientMsgId());
+        if (clientMsgId != null) {
+            var existing = chatSendIdempotencyService.findExistingPrivate(
+                    senderId, receiver.getUserId(), clientMsgId);
+            if (existing.isPresent()) {
+                return toPrivateMessageResponse(existing.get(), false);
+            }
+        }
+
+        PrivateMessage privateMessage = new PrivateMessage();
+
+        privateMessage.setMessageId(UUID.randomUUID().toString());
+
+        privateMessage.setClientMsgId(clientMsgId);
+
         privateMessage.setSender(sender);
 
         privateMessage.setReceiver(receiver);
@@ -342,9 +360,19 @@ public class MessageServiceImpl implements MessageService {
 
         privateMessage.setCreateTime(LocalDateTime.now());
 
-        messageRepository.save(privateMessage);
+        try {
+            messageRepository.save(privateMessage);
+        } catch (DataIntegrityViolationException ex) {
+            if (clientMsgId == null) {
+                throw ex;
+            }
+            PrivateMessage duplicate = chatSendIdempotencyService
+                    .findExistingPrivate(senderId, receiver.getUserId(), clientMsgId)
+                    .orElseThrow(() -> ex);
+            return toPrivateMessageResponse(duplicate, false);
+        }
 
-
+        chatMessageRetentionService.trimPrivateConversation(senderId, receiver.getUserId());
 
         userChatSessionService.onPrivateMessageSent(
 
@@ -358,13 +386,19 @@ public class MessageServiceImpl implements MessageService {
 
                 sender.getUsername());
 
+        return toPrivateMessageResponse(privateMessage, true);
 
+    }
+
+    private PrivateMessageVO toPrivateMessageResponse(PrivateMessage privateMessage, boolean pushToReceiver) {
 
         PrivateMessageVO messageVO = PrivateMessageVO.fromEntity(privateMessage);
 
         messageVO.setChatType(MessageChatType.PRIVATE_MESSAGE);
 
-        sendToUserPrivateTopic(messageVO);
+        if (pushToReceiver) {
+            sendToUserPrivateTopic(messageVO);
+        }
 
         return messageVO;
 

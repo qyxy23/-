@@ -14,6 +14,7 @@ import com.guanyu.haigui.pojo.result.GameSettlementSnapshot;
 import com.guanyu.haigui.pojo.vo.EndGameVO;
 import com.guanyu.haigui.pojo.vo.getAIChatListDetailVO;
 import com.guanyu.haigui.repository.ChatGameMemberRepository;
+import com.guanyu.haigui.repository.ChatGameMsgRepository;
 import com.guanyu.haigui.repository.ChatGameRepository;
 import com.guanyu.haigui.repository.GameSessionRepository;
 import com.guanyu.haigui.repository.HaiGuiSoupRepository;
@@ -23,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -46,6 +48,7 @@ public class GameReplayServiceImpl implements GameReplayService {
     private final UserInfoRepository userInfoRepository;
     private final GameSettlementBuilder gameSettlementBuilder;
     private final GameHistoryBuilder gameHistoryBuilder;
+    private final ChatGameMsgRepository chatGameMsgRepository;
 
     @Override
     public getAIChatListDetailVO getDetailForUser(String roomId, String gameSessionId, Long userId) {
@@ -65,10 +68,21 @@ public class GameReplayServiceImpl implements GameReplayService {
     }
 
     @Override
+    @Transactional
     public void attachReplayAtEnd(EndGameVO endGameVO, String gameSessionId, String roomId, Long soloUserId,
                                   ReplayBuildHints hints) {
         getAIChatListDetailVO replay = getOrBuildAndCache(gameSessionId, roomId, soloUserId, hints);
         endGameVO.setReplayDetail(replay);
+        purgeLobbyMessagesAfterReplay(roomId);
+    }
+
+    /** 复盘已写入 Redis 后删除大厅原始消息（服务端仅短期保留） */
+    private void purgeLobbyMessagesAfterReplay(String roomId) {
+        if (roomId == null || roomId.isBlank()) {
+            return;
+        }
+        int deleted = chatGameMsgRepository.deleteByChatGameRoomId(roomId);
+        log.info("对局结束已清理大厅聊天记录 roomId={}, deleted={}", roomId, deleted);
     }
 
     @Override

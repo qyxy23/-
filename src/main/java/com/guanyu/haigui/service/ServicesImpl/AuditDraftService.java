@@ -10,6 +10,7 @@ import com.guanyu.haigui.pojo.Info.InferenceTaskInfo;
 import com.guanyu.haigui.pojo.model.HaiGuiSoupAudit;
 import com.guanyu.haigui.pojo.result.HaiGuiInfoResult;
 import com.guanyu.haigui.repository.HaiGuiSoupAuditRepository;
+import com.guanyu.haigui.service.AchievementService;
 import com.guanyu.haigui.utils.HaiGuiInfoUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,7 @@ public class AuditDraftService {
 
     private final HaiGuiSoupAuditRepository haiGuiSoupAuditRepository;
     private final ObjectMapper objectMapper;
+    private final AchievementService achievementService;
 
     public void writeDraft(HaiGuiSoupAudit audit, String hostManual, String aiJudgeRules,
                            List<ClueFragmentInfo> fragments, List<InferenceTaskInfo> tasks) {
@@ -77,6 +79,9 @@ public class AuditDraftService {
         audit.setPublishError(null);
         audit.setPublishUpdatedAt(LocalDateTime.now());
         haiGuiSoupAuditRepository.save(audit);
+        if (audit.getUploaderId() != null) {
+            achievementService.onSoupPublishApproved(audit.getUploaderId(), soupId);
+        }
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)

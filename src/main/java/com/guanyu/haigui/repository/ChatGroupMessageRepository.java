@@ -4,12 +4,14 @@ import com.guanyu.haigui.pojo.model.GroupMessage;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -58,4 +60,55 @@ public interface ChatGroupMessageRepository extends JpaRepository<GroupMessage, 
             @Param("groupId") String groupId,
             @Param("afterTime") LocalDateTime afterTime,
             Pageable pageable);
+
+    @Query("""
+            SELECT gm FROM GroupMessage gm
+            JOIN FETCH gm.chatGroup
+            JOIN FETCH gm.sender
+            WHERE gm.chatGroup.groupId = :groupId
+              AND gm.sender.userId = :senderId
+              AND gm.clientMsgId = :clientMsgId
+            """)
+    Optional<GroupMessage> findByGroupAndSenderAndClientMsgId(
+            @Param("groupId") String groupId,
+            @Param("senderId") Long senderId,
+            @Param("clientMsgId") String clientMsgId);
+
+    /** 删除早于 cutoff 的群消息（全局时间窗） */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = "DELETE FROM chat_group_messages WHERE create_time < :cutoff", nativeQuery = true)
+    int deleteOlderThan(@Param("cutoff") LocalDateTime cutoff);
+
+    /** 每个群仅保留最新 maxMessages 条（条数滑动窗） */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            DELETE gm FROM chat_group_messages gm
+            INNER JOIN (
+                SELECT message_id FROM (
+                    SELECT message_id,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY group_id
+                               ORDER BY create_time DESC, message_id DESC
+                           ) AS rn
+                    FROM chat_group_messages
+                ) ranked
+                WHERE rn > :maxMessages
+            ) doomed ON gm.message_id = doomed.message_id
+            """, nativeQuery = true)
+    int deleteExceedingMaxPerGroup(@Param("maxMessages") int maxMessages);
+
+    /** 单群发送后裁剪：删除最新 maxMessages 条之外的旧消息 */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            DELETE FROM chat_group_messages
+            WHERE message_id IN (
+                SELECT message_id FROM (
+                    SELECT message_id FROM chat_group_messages
+                    WHERE group_id = :groupId
+                    ORDER BY create_time ASC, message_id ASC
+                    LIMIT 1000000 OFFSET :maxMessages
+                ) overflow
+            )
+            """, nativeQuery = true)
+    int trimGroupBeyondMax(@Param("groupId") String groupId, @Param("maxMessages") int maxMessages);
 }

@@ -5,6 +5,7 @@ import com.guanyu.haigui.Enum.MessageChatType;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Data
 public class RoomSoupQuestionVO {
@@ -43,6 +44,9 @@ public class RoomSoupQuestionVO {
 
     //发送时间
     private LocalDateTime sendTime;
+
+    /** 成员实时贡献（P3，多人进行中） */
+    private List<MemberContributionView> memberContributions;
 
 
     // public static RoomSoupQuestionVO success(String roomId, Long questionId,String question,String answer,Double currentProgress,int remainingQuestions){

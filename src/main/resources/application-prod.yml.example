@@ -1,0 +1,57 @@
+# 生产环境配置模板
+# 1. 复制本文件为 application-prod.yml（同目录）
+# 2. 填写下方占位符；application-prod.yml 已在 .gitignore，不会提交到 Git
+# 3. 服务器启动：java -jar HaiGuiTang.jar --spring.profiles.active=prod
+# 4. 敏感项也可改用环境变量，例如 QINGYOU_DATASOURCE_PASSWORD、JWT_ADMIN_SECRET_KEY
+
+qingyou:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    host: 127.0.0.1
+    port: 3306
+    database: haiguitang
+    username: YOUR_DB_USER
+    password: YOUR_DB_PASSWORD
+  redis:
+    host: 127.0.0.1
+    port: 6379
+    database: 0
+    password: YOUR_REDIS_PASSWORD
+  wechat:
+    appid: YOUR_WECHAT_APPID
+    secret: YOUR_WECHAT_SECRET
+  rabbitmq:
+    host: YOUR_RABBITMQ_HOST
+    port: 5672
+    username: YOUR_RABBITMQ_USER
+    password: YOUR_RABBITMQ_PASSWORD
+    virtual-host: qingyou
+  cos:
+    host: https://YOUR-BUCKET.cos.ap-shanghai.myqcloud.com
+    secret-id: YOUR_COS_SECRET_ID
+    secret-key: YOUR_COS_SECRET_KEY
+    region: ap-shanghai
+    bucket: YOUR-BUCKET
+  BgeVector:
+    host: http://127.0.0.1:8000/encode
+
+ai:
+  api-key: YOUR_AI_API_KEY
+
+knife4j:
+  enable: true
+  production: true
+
+app:
+  cors:
+    allowed-origin-patterns:
+      - https://turtle.qingyou.icu
+      - https://www.turtle.qingyou.icu
+      - http://124.220.226.16
+      - http://124.220.226.16:*
+  openapi:
+    server-url: https://turtle.qingyou.icu
+
+logging:
+  level:
+    com.guanyu.haigui: info

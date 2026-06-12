@@ -11,4 +11,9 @@ public interface HaiGuiChatMessageRepository extends JpaRepository<HaiGuiChatMes
     List<HaiGuiChatMessageWithFragments> findAllByGameSessionId(String gameSessionId);
 
     List<HaiGuiChatMessageWithFragments> findAllByGameSessionIdOrderByCreatedAtAsc(String gameSessionId);
+
+    long countByUserId(Long userId);
+
+    List<HaiGuiChatMessageWithFragments> findAllByGameSessionIdAndUserIdOrderByCreatedAtAsc(
+            String gameSessionId, Long userId);
 }

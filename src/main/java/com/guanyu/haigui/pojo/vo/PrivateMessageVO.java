@@ -22,6 +22,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class PrivateMessageVO {
     private String messageId;
+    private String clientMsgId;
     private Long senderId;
     private Long receiverId;
     private String content;
@@ -36,6 +37,7 @@ public class PrivateMessageVO {
     public static PrivateMessageVO fromEntity(PrivateMessage message) {
         PrivateMessageVOBuilder builder = PrivateMessageVO.builder()
                 .messageId(message.getMessageId())
+                .clientMsgId(message.getClientMsgId())
                 .senderId(message.getSender().getUserId())
                 .receiverId(message.getReceiver().getUserId())
                 .content(message.getContent())

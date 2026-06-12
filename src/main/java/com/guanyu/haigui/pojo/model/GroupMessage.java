@@ -34,6 +34,10 @@ public class GroupMessage {
     @Schema(description = "消息唯一ID（UUID）")
     private String messageId;
 
+    @Column(name = "client_msg_id", length = 64)
+    @Schema(description = "客户端消息ID，发送重试幂等")
+    private String clientMsgId;
+
     /** 所属群聊（修正：关联chat_groups表的group_id） */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "group_id", nullable = false)

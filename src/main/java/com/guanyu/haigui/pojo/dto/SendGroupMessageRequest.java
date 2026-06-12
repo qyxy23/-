@@ -11,4 +11,6 @@ public class SendGroupMessageRequest {
     private String groupId;       // 群ID
     private String content;       // 消息内容
     private MessageType messageType; // 消息类型（TEXT/IMAGE等）
+    /** 客户端消息 ID，发送重试幂等 */
+    private String clientMsgId;
 }

@@ -7,16 +7,21 @@ rocketmq:
   name-server: 127.0.0.1:9876
 
 jwt:
-  # 设置jwt签名加密时使用的秘钥
-  admin-secret-key: mySuperLongSecretKeyForJWTWithMoreThan32Bytes!!
-  # 设置jwt过期时间
+  # 生产部署请通过环境变量 JWT_ADMIN_SECRET_KEY / JWT_USER_SECRET_KEY 注入强密钥
+  admin-secret-key: ${JWT_ADMIN_SECRET_KEY:mySuperLongSecretKeyForJWTWithMoreThan32Bytes!!}
   admin-ttl: 2592000000
-  # 设置前端传递过来的令牌名称
   admin-token-name: authorization
-  # 用户令牌
-  user-secret-key: client
+  user-secret-key: ${JWT_USER_SECRET_KEY:client}
   user-ttl: 2592000000
   user-token-name: authorization
+
+app:
+  cors:
+    allowed-origin-patterns:
+      - "*"
+  # OpenAPI 文档中的 Server 地址（生产 profile 可覆盖）
+  openapi:
+    server-url: http://localhost:8080
 
 spring:
   profiles:
@@ -169,3 +174,18 @@ haiqutang:
     reject-cooldown-days: 7
   replay-cache:
     ttl-days: 3
+  chat-retention:
+    enabled: true
+    max-messages: 500
+    max-days: 180
+    cron: "0 30 3 * * ?"
+  theory-submission:
+    unlock-progress: 60
+    win-progress: 80
+    min-triggered-clues: 3
+    min-questions: 5
+    max-formal-attempts: 2
+    min-theory-length: 20
+    coverage-reject: 0.40
+    coverage-win: 0.85
+    task-similarity-threshold: 0.45

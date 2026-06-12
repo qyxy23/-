@@ -29,6 +29,10 @@ public class PrivateMessage {
     @GeneratedValue(strategy = GenerationType.UUID)
     private String messageId;
 
+    @Column(name = "client_msg_id", length = 64)
+    @Schema(description = "客户端消息ID，发送重试幂等")
+    private String clientMsgId;
+
     /**
      * 发送者
      */

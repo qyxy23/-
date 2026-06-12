@@ -27,4 +27,6 @@ public class PrivateMessageDTO {
     private Boolean isRead;
     // 创建时间
     private LocalDateTime createTime;
+    /** 客户端消息 ID，发送重试幂等 */
+    private String clientMsgId;
 }

@@ -6,10 +6,13 @@ import com.guanyu.haigui.Strategy.LoginStrategy;
 import com.guanyu.haigui.Strategy.RegisterStrategy;
 import com.guanyu.haigui.context.BaseContext;
 import com.guanyu.haigui.pojo.dto.*;
+import com.guanyu.haigui.pojo.vo.AchievementListVO;
+import com.guanyu.haigui.pojo.vo.AchievementView;
 import com.guanyu.haigui.pojo.vo.LogVO;
 import com.guanyu.haigui.pojo.vo.UserInfoVO;
 import com.guanyu.haigui.pojo.vo.otherInfoVO;
 import com.guanyu.haigui.result.Result;
+import com.guanyu.haigui.service.AchievementService;
 import com.guanyu.haigui.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -34,6 +37,7 @@ public class UserController {
     @Resource
     private final Map<LoginType, LoginStrategy> strategyMap; // 策略映射（Spring自动注入所有实现）
     private final UserService userService;
+    private final AchievementService achievementService;
     @Resource
     private final Map<RegisterType, RegisterStrategy> RegisterstrategyMap; // 策略映射（Spring自动注入所有实现）
 
@@ -138,5 +142,19 @@ public class UserController {
     @GetMapping("/otherInfo/{userId}")
     public Result<otherInfoVO> getOtherInfo(@PathVariable Long userId) {
         return Result.success(userService.getOtherInfo(userId));
+    }
+
+    @Operation(summary = "个人成就列表")
+    @GetMapping("/achievements")
+    public Result<AchievementListVO> listAchievements() {
+        return Result.success(achievementService.listForUser(BaseContext.getCurrentId()));
+    }
+
+    @Operation(summary = "本局新解锁成就")
+    @GetMapping("/achievements/session")
+    public Result<java.util.List<AchievementView>> sessionAchievements(
+            @RequestParam String gameSessionId) {
+        return Result.success(achievementService.listUnlockedInSession(
+                BaseContext.getCurrentId(), gameSessionId));
     }
 }

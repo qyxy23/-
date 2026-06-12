@@ -1,5 +1,6 @@
 package com.guanyu.haigui.service.ServicesImpl;
 
+import com.guanyu.haigui.Enum.QuestionWithAiAnswer;
 import com.guanyu.haigui.pojo.model.*;
 import com.guanyu.haigui.pojo.result.ClueSummaryView;
 import com.guanyu.haigui.pojo.result.GameHistoryMemberView;
@@ -29,6 +30,7 @@ public class GameHistoryBuilder {
     private final ChatGameMemberRepository chatGameMemberRepository;
     private final ClueFragmentRepository clueFragmentRepository;
     private final ChatGameRepository chatGameRepository;
+    private final MemberContributionAggregator memberContributionAggregator;
 
     public HistoryBundle build(String roomId, String soupId) {
         String gameSessionId = chatGameRepository.findById(roomId)
@@ -56,7 +58,8 @@ public class GameHistoryBuilder {
         }
 
         List<GameHistoryQuestionView> questions = buildQuestions(aiMessages, fragmentMap, userMap);
-        List<GameHistoryMemberView> memberScores = buildMemberScores(members, aiMessages, fragmentMap);
+        List<GameHistoryMemberView> memberScores =
+                memberContributionAggregator.buildHistoryMemberViews(members, aiMessages, fragmentMap);
         List<GameHistoryTimelineItem> timeline = buildTimeline(lobbyMessages, questions);
 
         Long mvpUserId = memberScores.stream()
@@ -108,7 +111,11 @@ public class GameHistoryBuilder {
         int questionCount = aiMessages.size();
         Set<Long> attributedFragments = new HashSet<>();
         int score = 0;
+        int yesCount = 0;
         for (HaiGuiChatMessageWithFragments message : aiMessages) {
+            if (message.getAiAnswer() == QuestionWithAiAnswer.YES) {
+                yesCount++;
+            }
             if (message.getTriggeredFragmentIds() == null) {
                 continue;
             }
@@ -126,6 +133,7 @@ public class GameHistoryBuilder {
         view.setAvatar(player.getAvatar());
         view.setScore(score);
         view.setQuestionCount(questionCount);
+        view.setYesCount(yesCount);
         view.setMvp(true);
         return List.of(view);
     }
@@ -160,57 +168,6 @@ public class GameHistoryBuilder {
             }
             result.add(view);
         }
-        return result;
-    }
-
-    private List<GameHistoryMemberView> buildMemberScores(
-            List<ChatGameMember> members,
-            List<HaiGuiChatMessageWithFragments> aiMessages,
-            Map<Long, ClueFragment> fragmentMap) {
-        Map<Long, Integer> scoreByUser = new HashMap<>();
-        Map<Long, Integer> questionCountByUser = new HashMap<>();
-        Set<Long> attributedFragments = new HashSet<>();
-
-        for (HaiGuiChatMessageWithFragments message : aiMessages) {
-            Long userId = message.getUserId();
-            questionCountByUser.merge(userId, 1, Integer::sum);
-
-            if (message.getTriggeredFragmentIds() == null) {
-                continue;
-            }
-            for (Long fragmentId : message.getTriggeredFragmentIds()) {
-                if (!fragmentMap.containsKey(fragmentId) || attributedFragments.contains(fragmentId)) {
-                    continue;
-                }
-                attributedFragments.add(fragmentId);
-                scoreByUser.merge(userId, 1, Integer::sum);
-            }
-        }
-
-        List<GameHistoryMemberView> result = new ArrayList<>();
-        for (ChatGameMember member : members) {
-            if (member.getMember() == null) {
-                continue;
-            }
-            UserInfo user = member.getMember();
-            GameHistoryMemberView view = new GameHistoryMemberView();
-            view.setUserId(user.getUserId());
-            view.setUsername(user.getUsername());
-            view.setAvatar(user.getAvatar());
-            view.setScore(scoreByUser.getOrDefault(user.getUserId(), 0));
-            view.setQuestionCount(questionCountByUser.getOrDefault(user.getUserId(), 0));
-            result.add(view);
-        }
-
-        int maxScore = result.stream().mapToInt(GameHistoryMemberView::getScore).max().orElse(0);
-        if (maxScore > 0) {
-            for (GameHistoryMemberView view : result) {
-                view.setMvp(view.getScore() == maxScore);
-            }
-        }
-        result.sort(Comparator
-                .comparingInt(GameHistoryMemberView::getScore).reversed()
-                .thenComparing(Comparator.comparingInt(GameHistoryMemberView::getQuestionCount)));
         return result;
     }
 

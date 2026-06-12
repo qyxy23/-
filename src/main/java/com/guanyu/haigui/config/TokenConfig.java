@@ -29,9 +29,12 @@ public class TokenConfig implements WebMvcConfigurer {
                 .addPathPatterns("/**")
                 // 排除无需校验Token的接口（关键：避免拦截登录、静态资源等）
                 .excludePathPatterns(
-                        "/user/login",// 登录接口
-                        "/user/register",// 注册接口
-                        "/ws/**", // WebSocket端点
+                        "/user/login",
+                        "/user/register",
+                        "/searchLobbies",
+                        "/api/haigui/ranking/soup-list",
+                        "/api/haigui/ranking/soup/**",
+                        "/ws/**",
                         "/swagger-ui/**", // Swagger UI界面
                         "/v3/api-docs/**", // Swagger API文档
                         "/v3/api-docs", // Swagger API文档根路径
