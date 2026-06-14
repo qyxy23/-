@@ -8,6 +8,7 @@ import com.guanyu.haigui.pojo.result.ChatWithAIRoomRequest;
 import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.service.ServicesImpl.SoupQuestionServiceImpl;
+import com.guanyu.haigui.service.LobbyShareTokenService;
 import com.guanyu.haigui.service.SoloGameService;
 import com.guanyu.haigui.service.SoupQuestionService;
 import com.guanyu.haigui.service.TheorySubmissionService;
@@ -35,6 +36,7 @@ public class ChatRoomController {
     private final SoupQuestionService soupQuestionService;
     private final SoupQuestionServiceImpl soupQuestionServiceImpl;
     private final TheorySubmissionService theorySubmissionService;
+    private final LobbyShareTokenService lobbyShareTokenService;
 
 
     /**
@@ -154,8 +156,14 @@ public class ChatRoomController {
     @PostMapping("/joinRoom")
     @ResponseBody
     public Result<joinChatRoomVO> joinRoom(@RequestBody JoinChatRoomRequest request) {
-        // 加入大厅
-        return Result.success(roomService.joinChatRoom(request.getChatRoomId()));
+        return Result.success(roomService.joinChatRoom(request.getChatRoomId(), request.getShareToken()));
+    }
+
+    @Operation(summary = "生成大厅分享令牌（微信小程序分享链接）")
+    @PostMapping({ "/lobby/shareToken", "/createLobby/shareToken" })
+    @ResponseBody
+    public Result<LobbyShareTokenVO> createShareToken(@RequestBody LobbyShareTokenRequest request) {
+        return Result.success(lobbyShareTokenService.createOrRefresh(request.getRoomId()));
     }
 
     @Operation(summary = "离开大厅")

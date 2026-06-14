@@ -16,11 +16,21 @@ public interface UserDetailsMapper {
     @Select("SELECT * FROM sys_user WHERE username = #{username}")
     UserInfo selectUserInfoByUsername(String username);
 
+    @Select("SELECT * FROM sys_user WHERE wx_openid = #{openid}")
+    UserInfo selectUserInfoByWxOpenid(String openid);
+
+    @Select("SELECT * FROM sys_user WHERE wx_unionid = #{unionid}")
+    UserInfo selectUserInfoByWxUnionid(String unionid);
+
+    int updateWechatIdentity(UserInfo userInfo);
+
     @Select("SELECT * FROM sys_user WHERE id IN (#{userIds})")
     List<UserInfo> getUsersByIds(List<String> userIds);
 
 
     int insert(CustomUserDetails customUserDetails);
+
+    int insertWechatUser(CustomUserDetails customUserDetails);
 
 
     int insertUserRole(UserRole userRole);
@@ -41,4 +51,7 @@ public interface UserDetailsMapper {
 
     @Select("UPDATE sys_user SET phone = #{phone} WHERE sys_user.user_id = #{currentId}")
     void updateUserPhone(String phone, Long currentId);
+
+    @Select("UPDATE sys_user SET username = #{username} WHERE sys_user.user_id = #{currentId}")
+    void updateUserUsername(String username, Long currentId);
 }

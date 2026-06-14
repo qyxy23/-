@@ -26,6 +26,8 @@ public class LogVO {
     private boolean enabled;
     @Schema(description = "jwt令牌")
     private String token;
+    @Schema(description = "小程序微信新用户是否需补全用户名/头像")
+    private Boolean needsProfileSetup;
     @Schema(description = "权限列表")
     private Collection<? extends GrantedAuthority> authorities;
 }

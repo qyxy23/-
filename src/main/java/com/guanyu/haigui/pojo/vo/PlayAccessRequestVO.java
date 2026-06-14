@@ -9,7 +9,6 @@ public class PlayAccessRequestVO {
     private Long requestId;
     private Long userId;
     private String username;
-    private String nickname;
     private String status;
     private String userMessage;
     private String adminNote;

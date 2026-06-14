@@ -64,6 +64,12 @@ public class UserInfo implements Principal {
     // 头像
     @Schema(description = "头像")
     private String avatar;
+    // 微信小程序 openid
+    @Column(name = "wx_openid")
+    private String wxOpenid;
+    // 微信 unionid
+    @Column(name = "wx_unionid")
+    private String wxUnionid;
     // 状态
     private boolean enabled;
 

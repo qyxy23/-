@@ -1,5 +1,6 @@
 package com.guanyu.haigui.controller;
 
+import com.guanyu.haigui.Exception.BusinessException;
 import com.guanyu.haigui.Enum.LoginType;
 import com.guanyu.haigui.Enum.RegisterType;
 import com.guanyu.haigui.Strategy.LoginStrategy;
@@ -14,6 +15,7 @@ import com.guanyu.haigui.pojo.vo.otherInfoVO;
 import com.guanyu.haigui.result.Result;
 import com.guanyu.haigui.service.AchievementService;
 import com.guanyu.haigui.service.UserService;
+import com.guanyu.haigui.service.WechatBindService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
@@ -38,6 +40,7 @@ public class UserController {
     private final Map<LoginType, LoginStrategy> strategyMap; // 策略映射（Spring自动注入所有实现）
     private final UserService userService;
     private final AchievementService achievementService;
+    private final WechatBindService wechatBindService;
     @Resource
     private final Map<RegisterType, RegisterStrategy> RegisterstrategyMap; // 策略映射（Spring自动注入所有实现）
 
@@ -54,10 +57,25 @@ public class UserController {
         return Result.success(userService.bindEmail(request.getEmail()));
     }
 
+    @PostMapping("/bindWechat")
+    @Operation(summary = "绑定微信", description = "已登录用户绑定微信；小程序/App 绑定后可在小程序微信一键登录同一账号")
+    public Result<String> bindWechat(@RequestBody BindWechatRequest request) {
+        return Result.success(wechatBindService.bindWechat(
+                request.getCode(),
+                request.getPlatform() != null ? request.getPlatform() : com.guanyu.haigui.Enum.WechatBindPlatform.MP_WEIXIN
+        ));
+    }
+
     @PostMapping("/bindPassword")
     @Operation(summary = "修改密码", description = "需校验旧密码后更新为新密码")
     public Result<String> changePassword(@RequestBody BindPasswordRequest request) {
         return Result.success(userService.changePassword(request.getOldPassword(), request.getNewPassword()));
+    }
+
+    @PostMapping("/username")
+    @Operation(summary = "设置用户名", description = "微信小程序完善资料：将占位 wx_ 用户名改为自选唯一用户名")
+    public Result<String> updateUsername(@RequestBody UpdateUsernameRequest request) {
+        return Result.success(userService.updateUsername(request.getUsername()));
     }
 
 
@@ -74,6 +92,8 @@ public class UserController {
             return ResponseEntity.ok(Collections.singletonMap("avatarUrl", avatarUrl));
         } catch (IllegalArgumentException e) {
             // 参数错误（如文件过大、类型不对）
+            return ResponseEntity.badRequest().body(Collections.singletonMap("error", e.getMessage()));
+        } catch (BusinessException e) {
             return ResponseEntity.badRequest().body(Collections.singletonMap("error", e.getMessage()));
         } catch (RuntimeException e) {
             // 系统错误（如上传失败、用户不存在）

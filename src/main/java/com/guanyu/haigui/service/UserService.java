@@ -15,6 +15,8 @@ public interface UserService {
 
     String changePassword(String oldPassword, String newPassword);
 
+    String updateUsername(String username);
+
     UserInfoVO getUserInfo(Long userId);
 
     otherInfoVO getOtherInfo(Long userId);

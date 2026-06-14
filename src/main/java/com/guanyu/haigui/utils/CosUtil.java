@@ -30,28 +30,60 @@ public class CosUtil {
     /** 用户头像：avatars/user/{userId}/ */
     public UploadedImage uploadUserAvatar(MultipartFile file) {
         Long userId = BaseContext.getCurrentId();
-        String ext = resolveExt(file.getOriginalFilename());
+        String ext = resolveExt(file.getOriginalFilename(), file.getContentType());
         String objectKey = String.format("avatars/user/%d/%s.%s", userId, UUID.randomUUID(), ext);
         return uploadImage(file, objectKey);
     }
 
+    /** 从字节流上传用户头像（微信临时 URL 下载后入库） */
+    public UploadedImage uploadUserAvatarBytes(Long userId, byte[] bytes, String contentType) {
+        if (userId == null) {
+            throw new IllegalArgumentException("用户 ID 不能为空");
+        }
+        if (bytes == null || bytes.length == 0) {
+            throw new IllegalArgumentException("图片内容不能为空");
+        }
+        if (bytes.length > 10 * 1024 * 1024) {
+            throw new IllegalArgumentException("图片大小不能超过10MB");
+        }
+        String ext = contentType != null && contentType.contains("png") ? "png" : "jpg";
+        String objectKey = String.format("avatars/user/%d/%s.%s", userId, UUID.randomUUID(), ext);
+        try (InputStream inputStream = new java.io.ByteArrayInputStream(bytes)) {
+            ObjectMetadata metadata = new ObjectMetadata();
+            metadata.setContentLength(bytes.length);
+            metadata.setContentType(contentType != null ? contentType : "image/jpeg");
+            PutObjectRequest request = new PutObjectRequest(
+                    cosProps.getBucket(),
+                    objectKey,
+                    inputStream,
+                    metadata
+            );
+            cosClient.putObject(request);
+            log.info("COS 上传成功（微信头像）→ key: {}", objectKey);
+            return new UploadedImage(objectKey, buildPublicUrl(objectKey), bytes.length);
+        } catch (Exception e) {
+            log.error("COS 上传失败 → key: {}", objectKey, e);
+            throw new RuntimeException("图片上传失败，请重试", e);
+        }
+    }
+
     /** 群头像：avatars/group/{groupId}/ */
     public UploadedImage uploadGroupAvatar(MultipartFile file, String groupId) {
-        String ext = resolveExt(file.getOriginalFilename());
+        String ext = resolveExt(file.getOriginalFilename(), file.getContentType());
         String objectKey = String.format("avatars/group/%s/%s.%s", groupId, UUID.randomUUID(), ext);
         return uploadImage(file, objectKey);
     }
 
     /** 审核员封面：covers/official/{soupId}/ */
     public UploadedImage uploadSoupCoverOfficial(MultipartFile file, String soupId) {
-        String ext = resolveExt(file.getOriginalFilename());
+        String ext = resolveExt(file.getOriginalFilename(), file.getContentType());
         String objectKey = String.format("covers/official/%s/%s.%s", soupId, UUID.randomUUID(), ext);
         return uploadImage(file, objectKey);
     }
 
     /** 上传者封面：covers/pending/{soupId}/ */
     public UploadedImage uploadSoupCoverPending(MultipartFile file, String soupId) {
-        String ext = resolveExt(file.getOriginalFilename());
+        String ext = resolveExt(file.getOriginalFilename(), file.getContentType());
         String objectKey = String.format("covers/pending/%s/%s.%s", soupId, UUID.randomUUID(), ext);
         return uploadImage(file, objectKey);
     }
@@ -124,17 +156,70 @@ public class CosUtil {
             throw new IllegalArgumentException("图片大小不能超过10MB");
         }
         String contentType = file.getContentType();
-        if (contentType == null || !contentType.startsWith("image/")) {
-            throw new IllegalArgumentException("仅支持图片文件（jpg/png/jpeg等）");
+        if (contentType != null && contentType.startsWith("image/")) {
+            return;
         }
+        // 微信小程序 chooseAvatar + uploadFile 常不带 image/*，而是 application/octet-stream
+        if (contentType == null || "application/octet-stream".equals(contentType)) {
+            if (looksLikeImage(file)) {
+                return;
+            }
+        }
+        throw new IllegalArgumentException("仅支持图片文件（jpg/png/jpeg等）");
     }
 
-    private String resolveExt(String originalFilename) {
-        String ext = StrUtil.subAfter(originalFilename, ".", true);
-        if (StrUtil.isBlank(ext)) {
-            throw new IllegalArgumentException("文件格式无效");
+    private boolean looksLikeImage(MultipartFile file) {
+        try (InputStream in = file.getInputStream()) {
+            byte[] header = in.readNBytes(12);
+            if (header.length >= 3
+                    && header[0] == (byte) 0xFF
+                    && header[1] == (byte) 0xD8
+                    && header[2] == (byte) 0xFF) {
+                return true;
+            }
+            if (header.length >= 8
+                    && header[0] == (byte) 0x89
+                    && header[1] == 'P'
+                    && header[2] == 'N'
+                    && header[3] == 'G') {
+                return true;
+            }
+            if (header.length >= 4
+                    && header[0] == 'R'
+                    && header[1] == 'I'
+                    && header[2] == 'F'
+                    && header[3] == 'F') {
+                return true;
+            }
+        } catch (Exception e) {
+            log.warn("读取图片头失败", e);
         }
-        return ext.toLowerCase();
+        return false;
+    }
+
+    private String resolveExt(String originalFilename, String contentType) {
+        if (StringUtils.hasText(originalFilename)) {
+            String ext = StrUtil.subAfter(originalFilename, ".", true);
+            if (StrUtil.isNotBlank(ext) && !ext.equals(originalFilename) && ext.length() <= 5) {
+                return ext.toLowerCase();
+            }
+        }
+        if (contentType != null) {
+            if (contentType.contains("png")) {
+                return "png";
+            }
+            if (contentType.contains("jpeg") || contentType.contains("jpg")) {
+                return "jpg";
+            }
+            if (contentType.contains("webp")) {
+                return "webp";
+            }
+            if (contentType.contains("gif")) {
+                return "gif";
+            }
+        }
+        // chooseAvatar 经 uploadFile 上传时 originalFilename 常为 "avatar" 无后缀
+        return "jpg";
     }
 
     private String buildPublicUrl(String objectKey) {

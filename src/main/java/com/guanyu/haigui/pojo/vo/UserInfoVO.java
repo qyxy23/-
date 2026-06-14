@@ -26,9 +26,15 @@ public class UserInfoVO {
     // 状态
     private boolean enabled;
     @Schema(description = "权限列表")
-    private Collection<? extends GrantedAuthority> authorities; // 必须有此属性！
+    private Collection<? extends GrantedAuthority> authorities;
+    @Schema(description = "是否已绑定微信")
+    private boolean wechatBound;
 
     public static UserInfoVO from(UserInfo userInfo, Collection<? extends GrantedAuthority> authorities) {
+        return from(userInfo, authorities, false);
+    }
+
+    public static UserInfoVO from(UserInfo userInfo, Collection<? extends GrantedAuthority> authorities, boolean wechatBound) {
         UserInfoVO userInfoVO = new UserInfoVO();
         userInfoVO.setUserId(userInfo.getUserId());
         userInfoVO.setUsername(userInfo.getUsername());
@@ -38,6 +44,7 @@ public class UserInfoVO {
         userInfoVO.setAvatar(userInfo.getAvatar());
         userInfoVO.setEnabled(userInfo.getEnabled());
         userInfoVO.setAuthorities(authorities);
+        userInfoVO.setWechatBound(wechatBound);
         return userInfoVO;
     }
 }

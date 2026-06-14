@@ -345,7 +345,6 @@ public class PlayQuotaServiceImpl implements PlayQuotaService {
         UserInfo applicant = userMap.get(request.getUserId());
         if (applicant != null) {
             vo.setUsername(applicant.getUsername());
-            vo.setNickname(applicant.getUsername());
         }
         if (request.getReviewerId() != null) {
             UserInfo reviewer = userMap.get(request.getReviewerId());

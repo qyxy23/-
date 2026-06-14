@@ -7,9 +7,19 @@
     <insert id="insert" useGeneratedKeys="true" keyProperty="userId">
         insert into sys_user (username, password) values (#{username}, #{password})
     </insert>
+    <insert id="insertWechatUser" useGeneratedKeys="true" keyProperty="userId">
+        insert into sys_user (username, wx_openid, wx_unionid)
+        values (#{username}, #{wxOpenid}, #{wxUnionid})
+    </insert>
     <insert id="insertUserRole">
         insert into sys_user_role (user_id, role_id) values (#{userId}, #{roleId})
     </insert>
+    <update id="updateWechatIdentity">
+        update sys_user
+        set wx_openid = #{wxOpenid},
+            wx_unionid = #{wxUnionid}
+        where user_id = #{userId}
+    </update>
     <!-- 根据用户ID查角色 -->
     <select id="selectUserRolesByUserId" resultType="java.lang.String">
         SELECT r.role_name AS role

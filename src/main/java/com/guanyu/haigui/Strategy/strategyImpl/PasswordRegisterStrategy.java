@@ -11,6 +11,7 @@ import com.guanyu.haigui.pojo.vo.CustomUserDetails;
 import com.guanyu.haigui.pojo.vo.LogVO;
 import com.guanyu.haigui.service.PlayQuotaService;
 import com.guanyu.haigui.utils.JwtTokenUtil;
+import com.guanyu.haigui.utils.UsernameUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -38,10 +39,9 @@ public class PasswordRegisterStrategy implements RegisterStrategy {
 
     @Override
     public LogVO register(RegisterRequest params) {
-        String username = params.getUsername();
+        String username = UsernameUtils.validateForRegister(params.getUsername());
         String password = params.getPassword();
 
-        // 1. 检查用户名是否已经存在
         UserInfo userInfo = userDetailsMapper.selectUserInfoByUsername(username);
         // 如果用户名已经存在，则抛出异常
         if (userInfo != null) {

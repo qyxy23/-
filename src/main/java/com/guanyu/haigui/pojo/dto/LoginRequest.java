@@ -11,4 +11,6 @@ import java.io.Serializable;
 @Data
 public class LoginRequest extends UserInfo implements Serializable {
     private LoginType type;
+    /** 微信小程序 wx.login 返回的 code */
+    private String code;
 }

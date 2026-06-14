@@ -13,6 +13,7 @@ import com.guanyu.haigui.pojo.dto.*;
 import com.guanyu.haigui.pojo.model.*;
 import com.guanyu.haigui.pojo.vo.*;
 import com.guanyu.haigui.repository.*;
+import com.guanyu.haigui.service.LobbyShareTokenService;
 import com.guanyu.haigui.service.PlayQuotaService;
 import com.guanyu.haigui.service.ServicesImpl.SoupPlayabilityService;
 import com.guanyu.haigui.service.ServicesImpl.SoupQuestionServiceImpl;
@@ -70,6 +71,7 @@ public class RoomService {
     private final GameSessionResolver gameSessionResolver;
     private final PlayQuotaService playQuotaService;
     private final SoupPlayabilityService soupPlayabilityService;
+    private final LobbyShareTokenService lobbyShareTokenService;
 
 
     /**
@@ -147,15 +149,16 @@ public class RoomService {
                 RoomStatus.VOTING
         );
 
-        // 查询用户参与的、状态在目标范围内的房间
+        // 查询用户参与的、状态在目标范围内的房间（按 roomId 去重，避免成员关联重复行）
         List<ChatGame> userGames = chatGameRepository.findByMembers_Member_UserIdAndStatusIn(
                 userId,
                 targetStatuses
         );
 
         return userGames.stream()
+                .collect(Collectors.toMap(ChatGame::getRoomId, g -> g, (a, b) -> a))
+                .values().stream()
                 .map(ChatGameDTO::from)
-                .peek(dto -> log.info("DTO 转换结果：{}", dto))
                 .collect(Collectors.toList());
     }
 
@@ -236,7 +239,7 @@ public class RoomService {
     }
 
     @Transactional // 事务保证原子性：成员添加+房间人数更新
-    public joinChatRoomVO joinChatRoom(String roomId) {
+    public joinChatRoomVO joinChatRoom(String roomId, String shareToken) {
         // 1. 获取当前用户信息
         UserInfo user = userInfoRepository.findById(BaseContext.getCurrentId()).orElseThrow(() -> new RuntimeException("用户不存在"));
 
@@ -244,8 +247,11 @@ public class RoomService {
         ChatGame room = chatGameRepository.findById(roomId)
                 .orElseThrow(() -> new RoomNotFoundException("房间不存在：ID=" + roomId));
         if (room.getPrivacyType() == ChatGame.PrivacyType.PRIVATE) {
-            if(!chatGameInvitationRepository.existsByChatGameRoomIdAndInviteeUserIdAndStatus(roomId, BaseContext.getCurrentId(), InvitationStatus.PENDING)){
-                throw new BusinessException(405,"当前房间为私人房间,请等待邀请");
+            boolean hasPendingInvite = chatGameInvitationRepository.existsByChatGameRoomIdAndInviteeUserIdAndStatus(
+                    roomId, BaseContext.getCurrentId(), InvitationStatus.PENDING);
+            boolean hasValidShare = StringUtils.hasText(shareToken) && lobbyShareTokenService.isValid(roomId, shareToken);
+            if (!hasPendingInvite && !hasValidShare) {
+                throw new BusinessException(405, "当前房间为私人房间,请等待邀请或使用分享链接");
             }
         }
         if (room.getStatus() == RoomStatus.WAITING) {
