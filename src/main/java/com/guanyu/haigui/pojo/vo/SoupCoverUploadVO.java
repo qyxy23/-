@@ -13,4 +13,6 @@ public class SoupCoverUploadVO {
     private String pendingCoverUrl;
     private CoverAuditStatus coverAuditStatus;
     private String message;
+    /** AI 生成封面时返回，便于审核员核对 Prompt */
+    private String promptUsed;
 }

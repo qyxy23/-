@@ -18,6 +18,8 @@ import com.guanyu.haigui.service.PlayQuotaService;
 import com.guanyu.haigui.service.ServicesImpl.SoupPlayabilityService;
 import com.guanyu.haigui.service.ServicesImpl.SoupQuestionServiceImpl;
 import com.guanyu.haigui.service.UserChatSessionService;
+import com.guanyu.haigui.service.TheoryDraftService;
+import com.guanyu.haigui.service.TheorySubmissionService;
 import com.guanyu.haigui.service.VoteTimeoutService;
 import com.guanyu.haigui.utils.GameSessionResolver;
 import com.guanyu.haigui.utils.GameSessionResolver;
@@ -68,6 +70,7 @@ public class RoomService {
     private final HaiGuiVoteSessionRepository haiGuiVoteSessionRepository;
     private final SoupQuestionServiceImpl soupQuestionService;
     private final VoteTimeoutService voteTimeoutService;
+    private final TheorySubmissionService theorySubmissionService;
     private final GameSessionResolver gameSessionResolver;
     private final PlayQuotaService playQuotaService;
     private final SoupPlayabilityService soupPlayabilityService;
@@ -894,6 +897,9 @@ public class RoomService {
                 if (LocalDateTime.now().isAfter(currentSession.getEndTime())) {
                     voteTimeoutService.expireVoteIfOverdue(chatGame, currentSession, VoteTimeoutService.NotifyPolicy.PASSIVE_QUERY);
                 } else {
+                    if (currentSession.getVoteType() == VoteType.THEORY_SUBMIT) {
+                        return VoteEndGameVO.error("推理投票进行中，无法发起结束游戏投票");
+                    }
                     return VoteEndGameVO.error("当前房间有正在进行中的投票");
                 }
             }
@@ -908,6 +914,7 @@ public class RoomService {
         HaiGuiVoteSession voteSession = new HaiGuiVoteSession();
         voteSession.setVoteSessionId(UUID.randomUUID().toString());
         voteSession.setGameSessionId(gameSession.getSessionId());
+        voteSession.setVoteType(VoteType.END_GAME);
         LocalDateTime endTime = LocalDateTime.now().plusMinutes(5);
         voteSession.setEndTime(endTime);
         voteSession.setInitiatorId(currentUserId);
@@ -935,8 +942,92 @@ public class RoomService {
 
         VoteEndGameVO voteEndGameVO = VoteEndGameVO.success(voteSession.getTotalVoters(),endTime,1);
         voteEndGameVO.setChatType(MessageChatType.START_VOTING);
+        voteEndGameVO.setVoteType(VoteType.END_GAME);
         simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId, voteEndGameVO);
         return voteEndGameVO;
+    }
+
+    /** 多人：草案通过编辑锁校验后，发起全队推理投票 */
+    public VoteEndGameVO startTheorySubmitVote(
+            String roomId, Long initiatorId, String theoryText, int draftVersion) {
+        ChatGame chatGame = chatGameRepository.findById(roomId)
+                .orElseThrow(() -> new RoomException("房间不存在，房间ID：" + roomId));
+        if (chatGame.getStatus() == RoomStatus.VOTING) {
+            return resolveOngoingVoteOrError(chatGame);
+        }
+        if (chatGame.getStatus() != RoomStatus.ACTIVE) {
+            return VoteEndGameVO.error("当前房间未开始或已结束");
+        }
+        GameSession gameSession = gameSessionRepository.findById(chatGame.getGameSessionId())
+                .orElseThrow(() -> new RoomException("游戏会话不存在"));
+
+        chatGame.setStatus(RoomStatus.VOTING);
+        chatGameRepository.save(chatGame);
+
+        HaiGuiVoteSession voteSession = new HaiGuiVoteSession();
+        voteSession.setVoteSessionId(UUID.randomUUID().toString());
+        voteSession.setGameSessionId(gameSession.getSessionId());
+        voteSession.setVoteType(VoteType.THEORY_SUBMIT);
+        voteSession.setTheoryText(theoryText);
+        voteSession.setDraftVersion(draftVersion);
+        LocalDateTime endTime = LocalDateTime.now().plusMinutes(5);
+        voteSession.setEndTime(endTime);
+        voteSession.setInitiatorId(initiatorId);
+        voteSession.setStatus(HaiGuiVoteSession.VoteStatus.ONGOING);
+        voteSession.setIsDeleted(false);
+        voteSession.setCreatedAt(LocalDateTime.now());
+        voteSession.setAgreedVotes(1);
+        voteSession.setTotalVoters(chatGame.getCurrentMembers());
+        haiGuiVoteSessionRepository.saveAndFlush(voteSession);
+
+        HaiGuiVoteRecord voteRecord = new HaiGuiVoteRecord();
+        voteRecord.setVoteSessionId(voteSession.getVoteSessionId());
+        voteRecord.setVoteOption(HaiGuiVoteRecord.VoteOption.AGREE);
+        voteRecord.setUserId(initiatorId);
+        voteRecord.setIsDeleted(false);
+        haiGuiVoteRecordRepository.save(voteRecord);
+
+        VoteEndGameVO voteEndGameVO = VoteEndGameVO.success(
+                voteSession.getTotalVoters(), endTime, 1);
+        voteEndGameVO.setChatType(MessageChatType.THEORY_VOTE_START);
+        voteEndGameVO.setVoteType(VoteType.THEORY_SUBMIT);
+        voteEndGameVO.setTheoryPreview(truncateTheoryPreview(theoryText));
+        voteEndGameVO.setDraftVersion(draftVersion);
+        simpMessagingTemplate.convertAndSend("/topic/memberChange" + roomId, voteEndGameVO);
+        checkVoteResult(voteSession);
+        return voteEndGameVO;
+    }
+
+    public void broadcastTheoryDraftUpdate(String roomId, TheoryDraftVO draftVo) {
+        TheoryDraftPushVO push = new TheoryDraftPushVO();
+        push.setChatType(MessageChatType.THEORY_DRAFT_UPDATE);
+        push.setTheoryDraft(draftVo);
+        simpMessagingTemplate.convertAndSend("/topic/memberChange" + roomId, push);
+    }
+
+    private VoteEndGameVO resolveOngoingVoteOrError(ChatGame chatGame) {
+        List<HaiGuiVoteSession> sessions = haiGuiVoteSessionRepository.findByGameSessionIdAndStatusOrderByCreatedAtDesc(
+                chatGame.getGameSessionId(), HaiGuiVoteSession.VoteStatus.ONGOING);
+        if (!sessions.isEmpty()) {
+            HaiGuiVoteSession currentSession = sessions.get(0);
+            if (LocalDateTime.now().isAfter(currentSession.getEndTime())) {
+                voteTimeoutService.expireVoteIfOverdue(chatGame, currentSession, VoteTimeoutService.NotifyPolicy.PASSIVE_QUERY);
+            } else {
+                return VoteEndGameVO.error("当前房间有正在进行中的投票");
+            }
+        }
+        return VoteEndGameVO.error("当前房间有正在进行中的投票");
+    }
+
+    private static String truncateTheoryPreview(String theory) {
+        if (theory == null) {
+            return null;
+        }
+        String trimmed = theory.trim();
+        if (trimmed.length() <= 120) {
+            return trimmed;
+        }
+        return trimmed.substring(0, 120) + "…";
     }
 
     public VoteEndGameVO continueVote(String roomId, HaiGuiVoteRecord.VoteOption voteOption) {
@@ -999,6 +1090,11 @@ public class RoomService {
         // 返回最新统计信息
         VoteEndGameVO voteEndGameVO = VoteEndGameVO.success(currentSession.getTotalVoters(),currentSession.getEndTime(),currentSession.getAgreedVotes());
         voteEndGameVO.setChatType(MessageChatType.CONTINUE_VOTING);
+        voteEndGameVO.setVoteType(currentSession.getVoteType());
+        if (currentSession.getVoteType() == VoteType.THEORY_SUBMIT) {
+            voteEndGameVO.setTheoryPreview(truncateTheoryPreview(currentSession.getTheoryText()));
+            voteEndGameVO.setDraftVersion(currentSession.getDraftVersion());
+        }
         simpMessagingTemplate.convertAndSend("/topic/memberChange"+roomId, voteEndGameVO);
 
         checkVoteResult(currentSession);
@@ -1051,9 +1147,12 @@ public class RoomService {
             session.setStatus(HaiGuiVoteSession.VoteStatus.PASSED);
             haiGuiVoteSessionRepository.save(session);
 
-            // 结束游戏
-            soupQuestionService.endGame(gameSessionResolver.requireRoomId(session.getGameSessionId()),
-                    GameEndReason.VOTE_PASSED);
+            String roomId = gameSessionResolver.requireRoomId(session.getGameSessionId());
+            if (session.getVoteType() == VoteType.THEORY_SUBMIT) {
+                handleTheoryVotePassed(session, roomId);
+            } else {
+                soupQuestionService.endGame(roomId, GameEndReason.VOTE_PASSED);
+            }
         } else if (agreeCount == totalMembers) {
             // 所有成员已投票但未通过
             session.setStatus(HaiGuiVoteSession.VoteStatus.FAILED);
@@ -1065,8 +1164,22 @@ public class RoomService {
         }
     }
 
-
-
+    private void handleTheoryVotePassed(HaiGuiVoteSession session, String roomId) {
+        String theory = session.getTheoryText();
+        if (theory == null || theory.isBlank()) {
+            restoreRoomStatus(roomId);
+            log.warn("theory vote passed but empty text roomId={}", roomId);
+            return;
+        }
+        SubmitTheoryVO result = theorySubmissionService.submitTheoryAfterTeamVote(
+                session.getGameSessionId(), theory.trim(), session.getInitiatorId());
+        if (result.getEndGame() != null) {
+            return;
+        }
+        restoreRoomStatus(roomId);
+        result.setChatType(MessageChatType.THEORY_SUBMIT_RESULT);
+        simpMessagingTemplate.convertAndSend("/topic/memberChange" + roomId, result);
+    }
 
     // 恢复房间状态
     private void restoreRoomStatus(String roomId) {

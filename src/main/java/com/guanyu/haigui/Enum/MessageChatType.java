@@ -31,7 +31,10 @@ public enum MessageChatType {
     START_VOTING("发起投票"),
     CONTINUE_VOTING("普通(跟风)投票"),
     VOTE_TIMEOUT("投票超时"),
-    SOUP_QUESTION("海龟汤问答"), 
+    THEORY_DRAFT_UPDATE("推理草案更新"),
+    THEORY_VOTE_START("发起推理投票"),
+    THEORY_SUBMIT_RESULT("推理裁定结果"),
+    SOUP_QUESTION("海龟汤问答"),
     GAME_END("结束游戏"), 
     GAME_JOIN("加入游戏"),
     GAME_QUIT("退出游戏");

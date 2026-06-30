@@ -160,11 +160,15 @@ public class SoloGameServiceImpl implements SoloGameService {
         HaiGuiSoup soup = haiGuiSoupRepository.findById(session.getSoupId())
                 .orElseThrow(() -> new BusinessException(404, "海龟汤不存在"));
         EndGameVO vo = EndGameVO.fromSnapshot(snapshot);
+        if (session.getEndReason() != null) {
+            vo.setEndReason(session.getEndReason().name());
+        }
         ReplayBuildHints replayHints = new ReplayBuildHints();
         replayHints.setSnapshot(snapshot);
         replayHints.setSoupId(soup.getSoupId());
         replayHints.setSoupSurface(soup.getSoupSurface());
         replayHints.setEndTime(session.getEndTime());
+        replayHints.setEndReason(session.getEndReason());
         vo.setReplayDetail(gameReplayService.getOrBuildAndCache(
                 gameSessionId, null, BaseContext.getCurrentId(), replayHints));
         return vo;

@@ -29,6 +29,8 @@ public class EndGameVO {
     private getAIChatListDetailVO replayDetail;
     /** 本局新解锁成就（当前用户） */
     private List<AchievementView> newlyUnlockedAchievements;
+    /** 结束原因枚举名，如 GUESS_CORRECT */
+    private String endReason;
 
     public static EndGameVO fromSnapshot(GameSettlementSnapshot snapshot) {
         EndGameVO vo = new EndGameVO();

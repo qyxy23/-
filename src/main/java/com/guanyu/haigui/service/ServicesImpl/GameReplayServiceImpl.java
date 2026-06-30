@@ -72,6 +72,9 @@ public class GameReplayServiceImpl implements GameReplayService {
     public void attachReplayAtEnd(EndGameVO endGameVO, String gameSessionId, String roomId, Long soloUserId,
                                   ReplayBuildHints hints) {
         getAIChatListDetailVO replay = getOrBuildAndCache(gameSessionId, roomId, soloUserId, hints);
+        if (endGameVO.getEndReason() != null && replay.getEndReason() == null) {
+            replay.setEndReason(endGameVO.getEndReason());
+        }
         endGameVO.setReplayDetail(replay);
         purgeLobbyMessagesAfterReplay(roomId);
     }
@@ -176,6 +179,7 @@ public class GameReplayServiceImpl implements GameReplayService {
         detail.setRoomId(roomId);
         detail.setSoupSurface(soupSurface);
         detail.setEndTime(endTime);
+        applyEndReason(detail, hints, gameSessionId);
 
         GameHistoryBuilder.HistoryBundle history =
                 gameHistoryBuilder.buildForSession(roomId, soupId, gameSessionId);
@@ -218,6 +222,7 @@ public class GameReplayServiceImpl implements GameReplayService {
         detail.setGameSessionId(gameSessionId);
         detail.setSoupSurface(soupSurface);
         detail.setEndTime(endTime);
+        applyEndReason(detail, hints, gameSessionId);
 
         GameHistoryBuilder.HistoryBundle history =
                 gameHistoryBuilder.buildSolo(gameSessionId, soupId, player);
@@ -239,6 +244,22 @@ public class GameReplayServiceImpl implements GameReplayService {
 
     private static boolean hasContext(ReplayBuildHints hints) {
         return hints != null && hints.getSoupId() != null && !hints.getSoupId().isBlank();
+    }
+
+    /** 复盘缓存写入结束原因：优先 hints，否则读已结束的 GameSession */
+    private void applyEndReason(getAIChatListDetailVO detail, ReplayBuildHints hints, String gameSessionId) {
+        if (hints != null && hints.getEndReason() != null) {
+            detail.setEndReason(hints.getEndReason().name());
+            return;
+        }
+        if (gameSessionId == null || gameSessionId.isBlank()) {
+            return;
+        }
+        gameSessionRepository.findById(gameSessionId).ifPresent(session -> {
+            if (session.getEndReason() != null) {
+                detail.setEndReason(session.getEndReason().name());
+            }
+        });
     }
 
     private Optional<getAIChatListDetailVO> getCached(String gameSessionId) {

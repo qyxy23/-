@@ -21,6 +21,12 @@ public class AIConfig {
     @Value("${ai.api-key:}")
     private String apiKey;
 
+    /** 文生图推理接入点（如 ep-xxx），需在火山方舟控制台开通 */
+    private String imageEndpoint = "";
+
+    /** 生成尺寸：3:1 宽图；Seedream 要求总像素 ≥ 3686400（如 3840×1280） */
+    private String imageSize = "3840x1280";
+
     @Bean
     public ArkService getArkService() {
         // 检查apiKey是否为空，如果为空则返回null而不是抛出异常

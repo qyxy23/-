@@ -11,6 +11,7 @@ import com.guanyu.haigui.service.ServicesImpl.SoupQuestionServiceImpl;
 import com.guanyu.haigui.service.LobbyShareTokenService;
 import com.guanyu.haigui.service.SoloGameService;
 import com.guanyu.haigui.service.SoupQuestionService;
+import com.guanyu.haigui.service.TheoryDraftService;
 import com.guanyu.haigui.service.TheorySubmissionService;
 import com.guanyu.haigui.websocket.RoomService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -36,6 +37,7 @@ public class ChatRoomController {
     private final SoupQuestionService soupQuestionService;
     private final SoupQuestionServiceImpl soupQuestionServiceImpl;
     private final TheorySubmissionService theorySubmissionService;
+    private final TheoryDraftService theoryDraftService;
     private final LobbyShareTokenService lobbyShareTokenService;
 
 
@@ -259,6 +261,57 @@ public class ChatRoomController {
         return Result.success(theorySubmissionService.submitTheory(
                 request.getGameSessionId().trim(),
                 request.getTheory()));
+    }
+
+    @Operation(summary = "抢推理草案编辑锁")
+    @PostMapping("/theoryDraft/acquireLock")
+    @ResponseBody
+    public Result<TheoryDraftVO> acquireTheoryDraftLock(@RequestBody TheoryDraftRoomRequest request) {
+        requireRoomId(request);
+        return Result.success(theoryDraftService.acquireLock(request.getRoomId().trim(), BaseContext.getCurrentId()));
+    }
+
+    @Operation(summary = "放弃推理草案编辑")
+    @PostMapping("/theoryDraft/releaseLock")
+    @ResponseBody
+    public Result<TheoryDraftVO> releaseTheoryDraftLock(@RequestBody TheoryDraftRoomRequest request) {
+        requireRoomId(request);
+        return Result.success(theoryDraftService.releaseLock(request.getRoomId().trim(), BaseContext.getCurrentId()));
+    }
+
+    @Operation(summary = "保存推理草案（需持锁）")
+    @PostMapping("/theoryDraft/save")
+    @ResponseBody
+    public Result<TheoryDraftVO> saveTheoryDraft(@RequestBody TheoryDraftSaveRequest request) {
+        if (request == null || request.getRoomId() == null || request.getRoomId().isBlank()) {
+            return Result.error("房间 ID 不能为空");
+        }
+        return Result.success(theoryDraftService.saveDraft(
+                request.getRoomId().trim(),
+                BaseContext.getCurrentId(),
+                request.getDraftText()));
+    }
+
+    @Operation(summary = "提交推理草案全队投票（需持锁）")
+    @PostMapping("/theoryDraft/submitForVote")
+    @ResponseBody
+    public Result<VoteEndGameVO> submitTheoryDraftForVote(@RequestBody TheoryDraftSaveRequest request) {
+        if (request == null || request.getRoomId() == null || request.getRoomId().isBlank()) {
+            return Result.error("房间 ID 不能为空");
+        }
+        if (request.getDraftText() == null || request.getDraftText().isBlank()) {
+            return Result.error("推理草案不能为空");
+        }
+        return Result.success(theoryDraftService.submitDraftForVote(
+                request.getRoomId().trim(),
+                BaseContext.getCurrentId(),
+                request.getDraftText()));
+    }
+
+    private static void requireRoomId(TheoryDraftRoomRequest request) {
+        if (request == null || request.getRoomId() == null || request.getRoomId().isBlank()) {
+            throw new BusinessException(400, "房间 ID 不能为空");
+        }
     }
 
     @Operation(summary = "继续投票")

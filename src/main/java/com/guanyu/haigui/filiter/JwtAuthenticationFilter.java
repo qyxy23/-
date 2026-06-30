@@ -49,6 +49,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 "/user/register",
                 "/api/haigui/ranking/soup-list",
                 "/api/haigui/ranking/soup/**",
+                "/api/app/version",
                 "/searchLobbies");
         boolean shouldSkip = excludePaths.stream()
                 .anyMatch(excludePath -> pathMatcher.match(excludePath, requestURI));

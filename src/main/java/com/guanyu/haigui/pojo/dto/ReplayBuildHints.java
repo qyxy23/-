@@ -1,5 +1,6 @@
 package com.guanyu.haigui.pojo.dto;
 
+import com.guanyu.haigui.Enum.GameEndReason;
 import com.guanyu.haigui.pojo.result.GameSettlementSnapshot;
 import lombok.Data;
 
@@ -12,4 +13,6 @@ public class ReplayBuildHints {
     private String soupId;
     private String soupSurface;
     private LocalDateTime endTime;
+    /** 对局结束原因（写入 Redis 复盘缓存） */
+    private GameEndReason endReason;
 }

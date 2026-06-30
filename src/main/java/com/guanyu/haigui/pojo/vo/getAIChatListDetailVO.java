@@ -35,6 +35,8 @@ public class getAIChatListDetailVO {
     private List<GameHistoryQuestionView> questions;
     /** 大厅聊天 + AI 提问统一时间线 */
     private List<GameHistoryTimelineItem> timeline;
+    /** 结束原因枚举名，如 GUESS_CORRECT（Redis 复盘缓存字段） */
+    private String endReason;
 
     public static getAIChatListDetailVO fromSnapshot(GameSettlementSnapshot snapshot) {
         getAIChatListDetailVO vo = new getAIChatListDetailVO();

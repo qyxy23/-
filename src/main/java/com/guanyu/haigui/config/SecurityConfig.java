@@ -111,6 +111,7 @@ public class SecurityConfig {
                         .requestMatchers("/user/register").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/haigui/ranking/soup-list").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/haigui/ranking/soup/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/app/version").permitAll()
                         .requestMatchers(HttpMethod.POST, "/searchLobbies").permitAll()
                         .requestMatchers("/webjars/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/doc.html").permitAll()

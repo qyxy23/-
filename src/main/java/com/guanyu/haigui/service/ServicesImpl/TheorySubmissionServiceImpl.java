@@ -52,7 +52,20 @@ public class TheorySubmissionServiceImpl implements TheorySubmissionService {
 
     @Override
     public SubmitTheoryVO submitTheory(String gameSessionId, String theory) {
-        Long userId = BaseContext.getCurrentId();
+        return submitTheoryInternal(gameSessionId, theory, false);
+    }
+
+    @Override
+    public SubmitTheoryVO submitTheoryAfterTeamVote(String gameSessionId, String theory, Long submitterUserId) {
+        return submitTheoryInternal(gameSessionId, theory, true, submitterUserId);
+    }
+
+    private SubmitTheoryVO submitTheoryInternal(String gameSessionId, String theory, boolean teamVoteApproved) {
+        return submitTheoryInternal(gameSessionId, theory, teamVoteApproved, BaseContext.getCurrentId());
+    }
+
+    private SubmitTheoryVO submitTheoryInternal(
+            String gameSessionId, String theory, boolean teamVoteApproved, Long userId) {
         if (!StringUtils.hasText(gameSessionId)) {
             throw new BusinessException(400, "游戏会话 ID 不能为空");
         }
@@ -64,7 +77,18 @@ public class TheorySubmissionServiceImpl implements TheorySubmissionService {
 
         GameSession session = gameSessionRepository.findById(gameSessionId)
                 .orElseThrow(() -> new BusinessException(404, "游戏会话不存在"));
-        assertCanAccessSession(session, userId);
+        if (userId == null) {
+            throw new BusinessException(401, "未登录");
+        }
+        if (!teamVoteApproved) {
+            assertCanAccessSession(session, userId);
+        } else {
+            assertMemberForTeamVote(session, userId);
+        }
+
+        if (session.getPlayMode() == PlayMode.MULTI && !teamVoteApproved) {
+            throw new BusinessException(400, "多人模式请先编辑草案并经全队投票后再提交推理");
+        }
 
         if (session.getStatus() != GameSession.GameSessionStatus.ONGOING) {
             throw new BusinessException(400, "游戏已结束");
@@ -323,6 +347,21 @@ public class TheorySubmissionServiceImpl implements TheorySubmissionService {
                 .orElse(null);
         if (member == null) {
             throw new BusinessException(403, "您不是该房间成员");
+        }
+    }
+
+    private void assertMemberForTeamVote(GameSession session, Long userId) {
+        if (session.getPlayMode() != PlayMode.MULTI) {
+            return;
+        }
+        String roomId = chatGameRepository.findFirstByGameSessionId(session.getSessionId())
+                .map(game -> game.getRoomId())
+                .orElseThrow(() -> new BusinessException(404, "未找到关联大厅"));
+        ChatGameMember member = chatGameMemberRepository
+                .findById(new ChatGameMemberId(userId, roomId))
+                .orElse(null);
+        if (member == null) {
+            throw new BusinessException(403, "推理提交者不是该房间成员");
         }
     }
 

@@ -88,6 +88,55 @@ public class CosUtil {
         return uploadImage(file, objectKey);
     }
 
+    /** AI 生成封面字节流（审核员 official 路径） */
+    public UploadedImage uploadSoupCoverOfficialBytes(String soupId, byte[] bytes, String contentType) {
+        if (!StringUtils.hasText(soupId)) {
+            throw new IllegalArgumentException("soupId 不能为空");
+        }
+        if (bytes == null || bytes.length == 0) {
+            throw new IllegalArgumentException("图片内容不能为空");
+        }
+        String ext = contentType != null && contentType.contains("png") ? "png" : "jpg";
+        String objectKey = String.format("covers/official/%s/%s.%s", soupId, UUID.randomUUID(), ext);
+        return uploadImageBytes(bytes, contentType, objectKey);
+    }
+
+    /** AI 文生图草稿：covers/ai-draft/{soupId}/ */
+    public UploadedImage uploadSoupCoverAiDraftBytes(String soupId, byte[] bytes, String contentType) {
+        if (!StringUtils.hasText(soupId)) {
+            throw new IllegalArgumentException("soupId 不能为空");
+        }
+        if (bytes == null || bytes.length == 0) {
+            throw new IllegalArgumentException("图片内容不能为空");
+        }
+        String ext = contentType != null && contentType.contains("png") ? "png" : "jpg";
+        String objectKey = String.format("covers/ai-draft/%s/%s.%s", soupId, UUID.randomUUID(), ext);
+        return uploadImageBytes(bytes, contentType, objectKey);
+    }
+
+    private UploadedImage uploadImageBytes(byte[] bytes, String contentType, String objectKey) {
+        if (bytes.length > 10 * 1024 * 1024) {
+            throw new IllegalArgumentException("图片大小不能超过10MB");
+        }
+        try (InputStream inputStream = new java.io.ByteArrayInputStream(bytes)) {
+            ObjectMetadata metadata = new ObjectMetadata();
+            metadata.setContentLength(bytes.length);
+            metadata.setContentType(contentType != null ? contentType : "image/jpeg");
+            PutObjectRequest request = new PutObjectRequest(
+                    cosProps.getBucket(),
+                    objectKey,
+                    inputStream,
+                    metadata
+            );
+            cosClient.putObject(request);
+            log.info("COS 上传成功 → key: {}", objectKey);
+            return new UploadedImage(objectKey, buildPublicUrl(objectKey), bytes.length);
+        } catch (Exception e) {
+            log.error("COS 上传失败 → key: {}", objectKey, e);
+            throw new RuntimeException("图片上传失败，请重试", e);
+        }
+    }
+
     /**
      * 上传图片并返回 objectKey 与公网 URL
      */

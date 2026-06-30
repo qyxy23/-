@@ -174,6 +174,20 @@ haiqutang:
     reject-cooldown-days: 7
   replay-cache:
     ttl-days: 3
+  app-update:
+    android:
+      # 发版时改为 true，并更新 version-code / download-url
+      enabled: false
+      version-code: 100
+      version-name: "1.0.0"
+      update-type: wgt
+      download-url: ""
+      apk-download-url: ""
+      changelog: ""
+      force-update: false
+      min-supported-code: 100
+      file-size:
+      file-md5: ""
   chat-retention:
     enabled: true
     max-messages: 500

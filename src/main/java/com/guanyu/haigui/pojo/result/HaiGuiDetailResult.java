@@ -76,6 +76,12 @@ public class HaiGuiDetailResult{
     /** 封面上传审核状态 */
     private CoverAuditStatus coverAuditStatus = CoverAuditStatus.NONE;
 
+    /** 是否有审核员正在为该汤 AI 生成封面 */
+    private Boolean coverAiGenerating = false;
+
+    /** 当前用户是否为正在生成封面的审核员 */
+    private Boolean coverAiGeneratingByMe = false;
+
     public static HaiGuiDetailResult fromHaiGuiSoupAudit(HaiGuiSoupAudit audit, HaiGuiInfoResult haiGuiInfoResult) {
         HaiGuiDetailResult result = new HaiGuiDetailResult();
         result.setAuditId(audit.getAuditId());

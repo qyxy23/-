@@ -21,6 +21,8 @@ import com.guanyu.haigui.pojo.vo.PublishResponseVO;
 import com.guanyu.haigui.pojo.vo.QueryMyTurtleSoupListVO;
 import com.guanyu.haigui.pojo.vo.QueryTurtleSoupListVO;
 import com.guanyu.haigui.repository.*;
+import com.guanyu.haigui.service.SoupCoverAiGenStatusService;
+import com.guanyu.haigui.pojo.vo.CoverAiGenStatusVO;
 import com.guanyu.haigui.utils.AuditDraftValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +60,7 @@ public class AuditService {
     private final AuditAiGenerateService auditAiGenerateService;
     private final AuditPublishService auditPublishService;
     private final AuditDraftService auditDraftService;
+    private final SoupCoverAiGenStatusService soupCoverAiGenStatusService;
 
     private static final String AI_GENERATE_LOCK_PREFIX = "audit:ai_generate:";
     private static final String PUBLISH_LOCK_PREFIX = "audit:publish:";
@@ -312,6 +315,10 @@ public class AuditService {
                         result.setPendingCoverUrl(soup.getPendingCoverUrl());
                         result.setCoverAuditStatus(soup.getCoverAuditStatus() != null
                                 ? soup.getCoverAuditStatus() : CoverAuditStatus.NONE);
+                        CoverAiGenStatusVO coverGen = soupCoverAiGenStatusService.resolveStatus(
+                                soup.getSoupId(), BaseContext.getCurrentId());
+                        result.setCoverAiGenerating(coverGen.isGenerating());
+                        result.setCoverAiGeneratingByMe(coverGen.isGeneratingByMe());
                         if (audit.getAuditStatus() == HaiGuiSoupAudit.AuditStatus.APPROVED) {
                             result.setPlayerCount(soup.getPlayerCount());
                             result.setDefaultMaxQuestions(soup.getDefaultMaxQuestions());

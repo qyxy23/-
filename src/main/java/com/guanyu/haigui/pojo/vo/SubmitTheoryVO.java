@@ -1,6 +1,7 @@
 package com.guanyu.haigui.pojo.vo;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.guanyu.haigui.Enum.MessageChatType;
 import com.guanyu.haigui.Enum.TheoryPartialReason;
 import com.guanyu.haigui.Enum.TheorySubmissionStatus;
 import lombok.Data;
@@ -33,4 +34,7 @@ public class SubmitTheoryVO {
     private TheoryUnlockVO theoryUnlock;
 
     private EndGameVO endGame;
+
+    /** WebSocket 推送用，HTTP 响应可不填 */
+    private MessageChatType chatType;
 }

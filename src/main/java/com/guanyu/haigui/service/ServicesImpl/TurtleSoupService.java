@@ -74,13 +74,15 @@ public class TurtleSoupService {
         }
         HaiGuiSoup soup = haiGuiSoupRepository.findById(soupId)
                 .orElseThrow(() -> new BusinessException(404, "故事不存在"));
-        if (soup.getCoverAuditStatus() != CoverAuditStatus.PENDING_REVIEW
+        if ((soup.getCoverAuditStatus() != CoverAuditStatus.PENDING_REVIEW
+                && soup.getCoverAuditStatus() != CoverAuditStatus.AI_DRAFT)
                 || !StringUtils.hasText(soup.getPendingCoverUrl())) {
             throw new BusinessException(400, "当前没有待复核的封面");
         }
 
         String oldAvatar = soup.getSoupAvatar();
         String pendingUrl = soup.getPendingCoverUrl();
+        boolean aiDraft = soup.getCoverAuditStatus() == CoverAuditStatus.AI_DRAFT;
         soup.setSoupAvatar(pendingUrl);
         soup.setPendingCoverUrl(null);
         soup.setCoverAuditStatus(CoverAuditStatus.NONE);
@@ -90,7 +92,7 @@ public class TurtleSoupService {
             cosUtil.deleteByUrl(oldAvatar);
         }
         log.info("封面人工通过 → soupId={}, url={}", soupId, pendingUrl);
-        return buildCoverVo(soup, "封面已通过人工复核");
+        return buildCoverVo(soup, aiDraft ? "已采用 AI 封面" : "封面已通过人工复核");
     }
 
     public SoupCoverUploadVO rejectPendingCover(String soupId, String reason) {
@@ -100,17 +102,24 @@ public class TurtleSoupService {
         }
         HaiGuiSoup soup = haiGuiSoupRepository.findById(soupId)
                 .orElseThrow(() -> new BusinessException(404, "故事不存在"));
-        if (soup.getCoverAuditStatus() != CoverAuditStatus.PENDING_REVIEW
+        if ((soup.getCoverAuditStatus() != CoverAuditStatus.PENDING_REVIEW
+                && soup.getCoverAuditStatus() != CoverAuditStatus.AI_DRAFT)
                 || !StringUtils.hasText(soup.getPendingCoverUrl())) {
             throw new BusinessException(400, "当前没有待复核的封面");
         }
 
+        boolean aiDraft = soup.getCoverAuditStatus() == CoverAuditStatus.AI_DRAFT;
         cosUtil.deleteByUrl(soup.getPendingCoverUrl());
         soup.setPendingCoverUrl(null);
-        soup.setCoverAuditStatus(CoverAuditStatus.REJECTED);
+        soup.setCoverAuditStatus(aiDraft ? CoverAuditStatus.NONE : CoverAuditStatus.REJECTED);
         haiGuiSoupRepository.save(soup);
 
-        String msg = StringUtils.hasText(reason) ? reason : "封面未通过人工复核";
+        String msg;
+        if (aiDraft) {
+            msg = StringUtils.hasText(reason) ? reason : "已丢弃 AI 生成封面";
+        } else {
+            msg = StringUtils.hasText(reason) ? reason : "封面未通过人工复核";
+        }
         log.info("封面人工拒绝 → soupId={}, reason={}", soupId, msg);
         return buildCoverVo(soup, msg);
     }
@@ -164,7 +173,8 @@ public class TurtleSoupService {
             cosUtil.deleteByUrl(soup.getPendingCoverUrl());
             soup.setPendingCoverUrl(null);
         }
-        if (soup.getCoverAuditStatus() == CoverAuditStatus.PENDING_REVIEW) {
+        if (soup.getCoverAuditStatus() == CoverAuditStatus.PENDING_REVIEW
+                || soup.getCoverAuditStatus() == CoverAuditStatus.AI_DRAFT) {
             soup.setCoverAuditStatus(CoverAuditStatus.NONE);
         }
     }

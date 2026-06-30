@@ -1,5 +1,6 @@
 package com.guanyu.haigui.pojo.model;
 
+import com.guanyu.haigui.Enum.VoteType;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
@@ -27,6 +28,16 @@ public class HaiGuiVoteSession {
     /** 关联的游戏会话 ID（haigui_game_session.session_id） */
     @Column(name = "session_id", length = 36, nullable = false)
     private String gameSessionId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "vote_type", columnDefinition = "ENUM('END_GAME','THEORY_SUBMIT')", nullable = false)
+    private VoteType voteType = VoteType.END_GAME;
+
+    @Column(name = "theory_text", columnDefinition = "TEXT")
+    private String theoryText;
+
+    @Column(name = "draft_version")
+    private Integer draftVersion;
 
     @Column(name = "initiator_id", nullable = false)
     private Long initiatorId;

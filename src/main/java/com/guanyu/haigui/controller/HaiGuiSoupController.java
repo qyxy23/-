@@ -17,6 +17,7 @@ import com.guanyu.haigui.pojo.vo.SoupContentReportListVO;
 import com.guanyu.haigui.service.ServicesImpl.SoupContentReportService;
 import com.guanyu.haigui.service.ServicesImpl.SoupCoverReportService;
 import com.guanyu.haigui.service.ServicesImpl.TurtleSoupService;
+import com.guanyu.haigui.service.SoupCoverAiService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,7 @@ import java.util.Map;
 @Tag(name = "海龟汤管理", description = "海龟汤的创建、搜索、推荐等操作")
 public class HaiGuiSoupController {
     private final TurtleSoupService turtleSoupService;
+    private final SoupCoverAiService soupCoverAiService;
     private final SoupCoverReportService soupCoverReportService;
     private final SoupContentReportService soupContentReportService;
 
@@ -66,6 +68,18 @@ public class HaiGuiSoupController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Collections.singletonMap("error", "服务器内部错误，请稍后重试"));
         }
+    }
+
+    @Operation(summary = "审核员 AI 生成海龟汤封面", description = "文生图通过机器审后直接替换正式封面；同一条海龟汤同时仅允许一人生成")
+    @PostMapping("/{soupId}/generateCover")
+    public Result<SoupCoverUploadVO> generateCover(@PathVariable String soupId) {
+        return Result.success(soupCoverAiService.generateCover(soupId));
+    }
+
+    @Operation(summary = "查询海龟汤封面 AI 生成状态")
+    @GetMapping("/{soupId}/coverGenerateStatus")
+    public Result<com.guanyu.haigui.pojo.vo.CoverAiGenStatusVO> coverGenerateStatus(@PathVariable String soupId) {
+        return Result.success(soupCoverAiService.getGenerateStatus(soupId));
     }
 
     @Operation(summary = "审核员通过待复核封面")

@@ -1,6 +1,7 @@
 package com.guanyu.haigui.pojo.vo;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.guanyu.haigui.Enum.VoteType;
 import com.guanyu.haigui.pojo.result.ClueSummaryView;
 import com.guanyu.haigui.pojo.result.SettlementTaskView;
 import com.guanyu.haigui.Enum.RoomStatus;
@@ -51,6 +52,18 @@ public class RoomGetClueVO {
 
     /** 成员实时贡献（P3，仅多人进行中） */
     private List<MemberContributionView> memberContributions;
+
+    /** 多人推理草案与编辑锁 */
+    private TheoryDraftVO theoryDraft;
+
+    /** 进行中投票类型（VOTING 时有值） */
+    private VoteType voteType;
+
+    /** 推理投票中的草案预览 */
+    private String theoryVotePreview;
+
+    /** 推理投票绑定的草案版本 */
+    private Integer theoryVoteDraftVersion;
 
 
     @Data

@@ -23,6 +23,7 @@ import com.guanyu.haigui.service.AchievementService;
 import com.guanyu.haigui.service.GameReplayService;
 import com.guanyu.haigui.service.PlayQuotaService;
 import com.guanyu.haigui.service.SoupQuestionService;
+import com.guanyu.haigui.service.TheoryDraftService;
 import com.guanyu.haigui.service.VoteTimeoutService;
 import com.guanyu.haigui.utils.BgeVectorClientUtil;
 import com.guanyu.haigui.utils.RedisStackClient;
@@ -84,6 +85,7 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
     private final GameProgressEnricher gameProgressEnricher;
     private final MemberContributionAggregator memberContributionAggregator;
     private final AchievementService achievementService;
+    private final TheoryDraftService theoryDraftService;
 
 
 
@@ -328,11 +330,13 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         playQuotaService.chargeOnSettlement(gameSessionId);
 
         EndGameVO endGameVO = EndGameVO.fromSnapshot(snapshot);
+        endGameVO.setEndReason(endReason.name());
         ReplayBuildHints replayHints = new ReplayBuildHints();
         replayHints.setSnapshot(snapshot);
         replayHints.setSoupId(soup.getSoupId());
         replayHints.setSoupSurface(soup.getSoupSurface());
         replayHints.setEndTime(gameSession.getEndTime());
+        replayHints.setEndReason(endReason);
         gameReplayService.attachReplayAtEnd(
                 endGameVO, gameSessionId, null, gameSession.getUserId(), replayHints);
         if (endReason == GameEndReason.MANUAL_GIVE_UP) {
@@ -380,6 +384,11 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
                 roomGetClueVO.setAgreedVotes(currentSession.getAgreedVotes());
                 roomGetClueVO.setTotalVoters(currentSession.getTotalVoters());
                 roomGetClueVO.setEndTime(currentSession.getEndTime());
+                roomGetClueVO.setVoteType(currentSession.getVoteType());
+                if (currentSession.getVoteType() == VoteType.THEORY_SUBMIT) {
+                    roomGetClueVO.setTheoryVotePreview(truncateTheoryPreview(currentSession.getTheoryText()));
+                    roomGetClueVO.setTheoryVoteDraftVersion(currentSession.getDraftVersion());
+                }
                 HaiGuiVoteRecord voteRecord = haiGuiVoteRecordRepository.findByVoteSessionIdAndUserId(
                         currentSession.getVoteSessionId(), BaseContext.getCurrentId());
                 roomGetClueVO.setHasVoted(voteRecord != null);
@@ -395,9 +404,27 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         roomGetClueVO.setQuestion(ChatServicesImpl.getQuestions(messages));
         if (game.getStatus() == RoomStatus.ACTIVE || game.getStatus() == RoomStatus.VOTING) {
             gameProgressEnricher.enrichInGameProgress(roomGetClueVO, session);
+            Long userId = BaseContext.getCurrentId();
+            if (userId != null) {
+                roomGetClueVO.setTheoryDraft(theoryDraftService.getDraftStateBySession(
+                        game.getGameSessionId(),
+                        userId,
+                        game.getStatus() == RoomStatus.VOTING));
+            }
         }
 
         return roomGetClueVO;
+    }
+
+    private static String truncateTheoryPreview(String theory) {
+        if (theory == null) {
+            return null;
+        }
+        String trimmed = theory.trim();
+        if (trimmed.length() <= 120) {
+            return trimmed;
+        }
+        return trimmed.substring(0, 120) + "…";
     }
 
     public EndGameVO endGame(String roomId) {
@@ -436,11 +463,13 @@ public class SoupQuestionServiceImpl implements SoupQuestionService {
         playQuotaService.chargeOnSettlement(chatGame.getGameSessionId());
 
         EndGameVO endGameVO = EndGameVO.fromSnapshot(snapshot);
+        endGameVO.setEndReason(endReason.name());
         ReplayBuildHints replayHints = new ReplayBuildHints();
         replayHints.setSnapshot(snapshot);
         replayHints.setSoupId(soup.getSoupId());
         replayHints.setSoupSurface(soup.getSoupSurface());
         replayHints.setEndTime(chatGame.getEndTime());
+        replayHints.setEndReason(endReason);
         gameReplayService.attachReplayAtEnd(
                 endGameVO, chatGame.getGameSessionId(), roomId, null, replayHints);
         applySettlementAchievements(gameSession, roomId, snapshot, endGameVO);

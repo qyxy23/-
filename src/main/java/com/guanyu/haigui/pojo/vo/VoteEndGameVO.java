@@ -2,6 +2,7 @@ package com.guanyu.haigui.pojo.vo;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.guanyu.haigui.Enum.MessageChatType;
+import com.guanyu.haigui.Enum.VoteType;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -21,6 +22,12 @@ public class VoteEndGameVO {
     private String msg;
     //消息类型
     private MessageChatType chatType;
+    /** END_GAME | THEORY_SUBMIT */
+    private VoteType voteType;
+    /** 推理投票时的草案预览（截断） */
+    private String theoryPreview;
+    private Integer draftVersion;
+
     public static VoteEndGameVO error(String s) {
         VoteEndGameVO voteEndGameVO = new VoteEndGameVO();
         voteEndGameVO.setStatus("error");
