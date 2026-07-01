@@ -27,8 +27,6 @@ public class RedisServiceUtil {
     private static final String ROOM_ONLINE_KEY_PREFIX = "room:online"; // Redis 在线状态键前缀
     private static final String CHAT_LAST_MSG_KEY = "chat:lastMsg";
     private static final String CHAT_UNREAD_KEY = "chat:unread";
-    private static final String USER_GROUP_STICKY_KEY = "chat:grpSticky";
-    private static final String USER_PRIVATE_STICKY_KEY = "chat:privateSticky";
     private static final String GROUP_LAST_MSG_KEY = "chat:grpLastMsg";
     private static final String GROUP_LAST_TIME_KEY = "chat:grpLastTime";
     private static final String GROUP_UNREAD_KEY = "chat:grpUnread";
@@ -196,18 +194,6 @@ public class RedisServiceUtil {
 
     public void deleteUnreadMsgCount(PrivateMessage message) {
         redisTemplate.delete(CHAT_UNREAD_KEY + ":"+ message.getReceiver().getUserId()+":"+message.getSender().getUserId());
-    }
-
-    public void updateUserPrivateSticky(Long currentUserId, String sessionId, boolean isSticky) {
-        redisTemplate.opsForValue().set(USER_PRIVATE_STICKY_KEY + ":" + currentUserId + ":" + sessionId, String.valueOf(isSticky));
-    }
-
-    public void updateUserGroupSticky(Long currentUserId, String sessionId, boolean isSticky) {
-        redisTemplate.opsForValue().set(USER_GROUP_STICKY_KEY + ":" + currentUserId + ":" + sessionId, String.valueOf(isSticky));
-    }
-
-    public Object selectUserPrivateSticky(Long currentUserId, Long friendId) {
-        return redisTemplate.opsForValue().get(USER_PRIVATE_STICKY_KEY + ":" + currentUserId + ":" + friendId);
     }
 
     /**

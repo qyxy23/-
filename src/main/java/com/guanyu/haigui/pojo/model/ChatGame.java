@@ -56,7 +56,7 @@ public class ChatGame {
 
     /** 房间状态（对应status，枚举存储字符串） */
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, columnDefinition = "ENUM('WAITING', 'ACTIVE', 'FINISHED','CANCELLED')")
+    @Column(name = "status", nullable = false, columnDefinition = "ENUM('WAITING', 'ACTIVE', 'VOTING', 'FINISHED', 'CANCELLED')")
     private RoomStatus status;
 
     /** 创建时间（数据库自动生成，对应create_time） */

@@ -7,11 +7,9 @@ import com.guanyu.haigui.pojo.vo.FriendSearchResultVO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
 import java.util.List;
@@ -92,108 +90,6 @@ public interface UserInfoRepository extends JpaRepository<UserInfo, Long> {
                 LIMIT 1                    -- 取最后一条
             """)
     List<Object[]> findLastGroupMessage(@Param("roomId") String roomId);
-
-    /**
-     * 群聊置顶：存在则更新，不存在则插入（依赖联合唯一约束：user_id + group_id）
-     * 
-     * @param currentUserId 当前用户ID
-     * @param roomId        群ID（sessionId）
-     * @param isSticky      是否置顶（true=置顶）
-     */
-    @Modifying
-    @Transactional(rollbackFor = Exception.class)
-    @Query(nativeQuery = true, value = """
-                INSERT INTO user_group_sticky (user_id, group_id, is_sticky)
-                VALUES (:currentUserId, :roomId, :isSticky)
-                ON DUPLICATE KEY UPDATE is_sticky = :isSticky
-            """)
-    void insertOrUpdateGroupSticky(
-            @Param("currentUserId") Long currentUserId,
-            @Param("roomId") String roomId,
-            @Param("isSticky") Boolean isSticky);
-
-    /**
-     * 群聊取消置顶：删除置顶记录
-     * 
-     * @param currentUserId 当前用户ID
-     * @param roomId        群ID（sessionId）
-     */
-    @Modifying
-    @Transactional(rollbackFor = Exception.class)
-    @Query(nativeQuery = true, value = """
-                DELETE FROM user_group_sticky
-                WHERE user_id = :currentUserId AND group_id = :roomId
-            """)
-    void deleteGroupSticky(
-            @Param("currentUserId") Long currentUserId,
-            @Param("roomId") String roomId);
-
-    /**
-     * 检查当前用户是否置顶某群聊
-     * 
-     * @param currentUserId 当前用户ID
-     * @param roomId        群聊ID（对应 chat_groups.group_id）
-     * @return 是否置顶（1=是，0=否）
-     */
-    @Query(nativeQuery = true, value = """
-                SELECT is_sticky
-                FROM user_group_sticky
-                WHERE user_id = :currentUserId
-                  AND group_id = :roomId  -- 目标群聊
-            """)
-    List<Object[]> isGroupSticky(
-            @Param("currentUserId") Long currentUserId,
-            @Param("roomId") String roomId);
-
-    // -------------------------- 私聊置顶查询 --------------------------
-    /**
-     * 检查当前用户是否置顶某私聊
-     * 
-     * @param currentUserId 当前用户ID
-     * @param friendId      好友ID（对方用户ID）
-     * @return 是否置顶（1=是，0=否）
-     */
-    @Query(nativeQuery = true, value = """
-                SELECT is_sticky
-                FROM user_private_chat_sticky
-                WHERE user_id = :currentUserId AND other_user_id = :friendId
-            """)
-    List<Object[]> isPrivateSticky(@Param("currentUserId") Long currentUserId, @Param("friendId") Long friendId);
-
-    /**
-     * 私聊置顶：存在则更新，不存在则插入（依赖联合唯一约束：user_id + other_user_id）
-     * 
-     * @param currentUserId 当前用户ID
-     * @param friendId      对方用户ID（sessionId）
-     * @param isSticky      是否置顶（true=置顶）
-     */
-    @Modifying // 标记为修改操作
-    @Transactional(rollbackFor = Exception.class)
-    @Query(nativeQuery = true, value = """
-                INSERT INTO user_private_chat_sticky (user_id, other_user_id, is_sticky)
-                VALUES (:currentUserId, :friendId, :isSticky)
-                ON DUPLICATE KEY UPDATE is_sticky = :isSticky
-            """)
-    void insertOrUpdatePrivateSticky(
-            @Param("currentUserId") Long currentUserId,
-            @Param("friendId") Long friendId,
-            @Param("isSticky") Boolean isSticky);
-
-    /**
-     * 私聊取消置顶：删除置顶记录
-     * 
-     * @param currentUserId 当前用户ID
-     * @param friendId      对方用户ID（sessionId）
-     */
-    @Modifying
-    @Transactional(rollbackFor = Exception.class)
-    @Query(nativeQuery = true, value = """
-                DELETE FROM user_private_chat_sticky
-                WHERE user_id = :currentUserId AND other_user_id = :friendId
-            """)
-    void deletePrivateSticky(
-            @Param("currentUserId") Long currentUserId,
-            @Param("friendId") Long friendId);
 
     // 根据用户名/昵称搜索用户（排除自己和已有好友）
     /**

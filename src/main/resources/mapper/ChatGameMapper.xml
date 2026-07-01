@@ -24,20 +24,23 @@
     </resultMap>
 
     <insert id="createChatGame">
-        INSERT INTO chat_games(room_id, room_name, creator_id, required_members, current_members, status, group_avatar)
-        VALUES (#{roomId}, #{roomName}, #{creator.userId}, #{requiredMembers}, #{currentMembers}, #{status}, #{groupAvatar})
+        INSERT INTO chat_games(room_id, soup_id, room_name, creator_id, required_members, current_members, status, privacy_type, session_id)
+        VALUES (#{roomId}, #{haiGuiSoup.soupId}, #{roomName}, #{creator.userId}, #{requiredMembers}, #{currentMembers}, #{status}, #{privacyType}, #{gameSessionId})
     </insert>
 
     <update id="updateRoom">
         UPDATE chat_games
         <set>
             <if test="roomName != null">room_name = #{roomName},</if>
-            <if test="creator != null">creator_id = #{creator.id},</if>
+            <if test="haiGuiSoup != null">soup_id = #{haiGuiSoup.soupId},</if>
+            <if test="creator != null">creator_id = #{creator.userId},</if>
             <if test="requiredMembers != null">required_members = #{requiredMembers},</if>
             <if test="currentMembers != null">current_members = #{currentMembers},</if>
             <if test="status != null">status = #{status},</if>
-            <if test="groupAvatar != null">group_avatar = #{groupAvatar},</if>
+            <if test="privacyType != null">privacy_type = #{privacyType},</if>
+            <if test="gameSessionId != null">session_id = #{gameSessionId},</if>
         </set>
+        WHERE room_id = #{roomId}
     </update>
 
     <update id="updateRoomStatus">
