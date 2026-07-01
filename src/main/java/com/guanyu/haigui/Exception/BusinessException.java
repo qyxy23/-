@@ -1,7 +1,14 @@
 package com.guanyu.haigui.Exception;
 
+import lombok.Getter;
+
+@Getter
 public class BusinessException extends RuntimeException {
-    public BusinessException(int i, String message) {
+
+    private final int code;
+
+    public BusinessException(int code, String message) {
         super(message);
+        this.code = code;
     }
 }

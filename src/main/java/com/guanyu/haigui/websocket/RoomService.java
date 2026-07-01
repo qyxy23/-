@@ -75,6 +75,7 @@ public class RoomService {
     private final PlayQuotaService playQuotaService;
     private final SoupPlayabilityService soupPlayabilityService;
     private final LobbyShareTokenService lobbyShareTokenService;
+    private final LobbyAccessService lobbyAccessService;
 
 
     /**
@@ -246,8 +247,8 @@ public class RoomService {
         // 1. 获取当前用户信息
         UserInfo user = userInfoRepository.findById(BaseContext.getCurrentId()).orElseThrow(() -> new RuntimeException("用户不存在"));
 
-        // 3. 获取目标房间（验证存在性与状态）
-        ChatGame room = chatGameRepository.findById(roomId)
+        // 3. 获取目标房间（悲观锁，防止并发加入超员）
+        ChatGame room = chatGameRepository.findByRoomIdForUpdate(roomId)
                 .orElseThrow(() -> new RoomNotFoundException("房间不存在：ID=" + roomId));
         if (room.getPrivacyType() == ChatGame.PrivacyType.PRIVATE) {
             boolean hasPendingInvite = chatGameInvitationRepository.existsByChatGameRoomIdAndInviteeUserIdAndStatus(
@@ -338,6 +339,7 @@ public class RoomService {
      */
     public Page<GameRoomMessageVO> getGameMessages(RoomChatHistoryDTO dto) {
         validateRoomHistoryParams(dto);
+        lobbyAccessService.assertMember(BaseContext.getCurrentId(), dto.getRoomId());
 
         // 构造分页请求（页码从 0 开始，按 createTime 倒序）
         Pageable pageable = PageRequest.of(
@@ -362,8 +364,10 @@ public class RoomService {
      * @param limit  最新消息数量（1~100，避免全表扫描）
      * @return 最新消息列表（按时间倒序）
      */
-    public List<GameRoomMessageVO> getRecentMessages(String roomId, int limit) {
+    public List<GameRoomMessageVO> getRecentMessages(String roomId, int limit, String sessionId) {
         validateGetRecentMessagesParams(roomId, limit);
+        Long userId = sessionMapUtil.getUserIdBySessionId(sessionId);
+        lobbyAccessService.assertMember(userId, roomId);
 
         // 构造分页请求（仅取第 1 页，数量为 limit，倒序）
         Pageable pageable = PageRequest.of(
@@ -402,6 +406,8 @@ public class RoomService {
         // 2. 校验群聊是否存在
         ChatGame room = chatGameRepository.findById(request.getRoomId())
                 .orElseThrow(() -> new BusinessException(403, "群聊不存在：" + request.getRoomId()));
+
+        lobbyAccessService.assertMember(sender.getUserId(), room.getRoomId());
 
         // 3. 构造群聊消息实体
         ChatGameMessage message = ChatGameMessage.builder()

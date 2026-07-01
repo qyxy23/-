@@ -3,6 +3,7 @@ package com.guanyu.haigui.interceptor;
 import com.guanyu.haigui.pojo.vo.CustomUserDetails;
 import com.guanyu.haigui.tracker.SessionActivityTracker;
 import com.guanyu.haigui.websocket.WebSocketUserSessionManager;
+import com.guanyu.haigui.websocket.StompSubscriptionAuthorizer;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
@@ -42,6 +43,8 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
     private ConcurrentHashMap<String, CustomUserDetails> sessionUserMap;
     @Resource
     private WebSocketUserSessionManager webSocketUserSessionManager;
+    @Resource
+    private StompSubscriptionAuthorizer stompSubscriptionAuthorizer;
 
     @Override
     public Message<?> preSend(@NotNull Message<?> message, @NotNull MessageChannel channel) {
@@ -61,18 +64,22 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
             // 无论是否为心跳帧，都更新会话活跃时间
             updateSessionActivity(sessionId);
 
-            if ("dev".equals(active)) {
-                log.info("开发环境：跳过非 CONNECT 帧的验证");
-                log.info("===== STOMP 消息处理完毕 =====");
+            if (StompCommand.SUBSCRIBE.equals(command)) {
+                String destination = accessor.getDestination();
+                Long userId = resolveUserId(accessor, sessionId);
+                if (!stompSubscriptionAuthorizer.canSubscribe(userId, destination)) {
+                    log.warn("拒绝 SUBSCRIBE：userId={}, destination={}, sessionId={}", userId, destination, sessionId);
+                    return null;
+                }
+                log.debug("SUBSCRIBE 已授权：userId={}, destination={}", userId, destination);
                 return message;
             }
 
-            if (StompCommand.SUBSCRIBE.equals(command)) {
-                String destination = accessor.getDestination();
-                log.info("处理 SUBSCRIBE 帧，目标地址: {}", destination);
-                // TODO：验证用户是否有权限订阅该主题（需自行实现）
-
+            if ("dev".equals(active)) {
+                log.debug("开发环境：跳过非 CONNECT/SUBSCRIBE 帧的验证");
+                return message;
             }
+
             return message;
         } catch (Exception e) {
             log.error("STOMP 消息处理异常：命令={}, 会话ID={}, 错误={}", command, sessionId, e.getMessage(), e);
@@ -82,30 +89,23 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
 
     /**
      * 处理 CONNECT 帧（核心：验证身份 + 设置上下文）
-     * 
-     * @param accessor        STOMP 头部访问器
-     * @param originalMessage 原始 CONNECT 帧消息（校验成功时返回）
-     * @return 校验成功返回原始消息，失败返回 null
      */
     private Message<?> DealWithConnectFrame(StompHeaderAccessor accessor, Message<?> originalMessage) {
         String sessionId = accessor.getSessionId();
         log.info("开始处理 CONNECT 帧（STOMP 握手），会话ID: {}", sessionId);
 
-        // 1. 校验会话属性是否存在
         Map<String, Object> sessionAttrs = accessor.getSessionAttributes();
         if (sessionAttrs == null || sessionAttrs.isEmpty()) {
             log.warn("会话未初始化（无属性），拒绝 CONNECT，会话ID: {}", sessionId);
             return rejectConnection(accessor, "会话未初始化");
         }
 
-        // 2. 从会话属性获取 Principal（握手阶段存入的 CustomUserDetails）
         Principal principal = (Principal) sessionAttrs.get(Principal.class.getName());
         if (principal == null) {
             log.warn("未找到 Principal（认证信息），拒绝 CONNECT，会话ID: {}", sessionId);
             return rejectConnection(accessor, "无认证信息");
         }
 
-        // 3. 校验 Principal 类型（必须是 CustomUserDetails）
         if (!(principal instanceof CustomUserDetails customUserDetails)) {
             String errorMsg = String.format(
                     "Principal 类型错误，预期 CustomUserDetails，实际：%s，会话ID: %s",
@@ -114,26 +114,21 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
             return rejectConnection(accessor, errorMsg);
         }
 
-        // 4. 记录用户信息（调试用）
         log.info(
                 "CONNECT 帧验证通过：用户名={}, 角色={}, 会话ID={}",
                 customUserDetails.getName(),
                 customUserDetails.getAuthorities(),
                 sessionId);
 
-        // 5. 关键：重新设置 SecurityContext（跨线程传递认证信息）
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 customUserDetails,
                 null,
                 customUserDetails.getAuthorities());
         SecurityContextHolder.getContext().setAuthentication(authentication);
-        log.info("SecurityContext 已设置：认证信息={}", authentication);
 
-        // 6. 将 Principal 绑定到 STOMP 会话（必须写回消息头，否则 user 目的地无法路由）
         accessor.setUser(customUserDetails);
         accessor.setLeaveMutable(true);
 
-        // 7. 关键：将用户信息存入全局 Map（仅当 sessionId 有效时）
         if (StringUtils.hasText(sessionId)) {
             sessionUserMap.put(sessionId, customUserDetails);
             webSocketUserSessionManager.register(customUserDetails.getUserId(), sessionId);
@@ -145,8 +140,15 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
             log.warn("sessionId 为空，无法存入 sessionUserMap");
         }
 
-        // 8. 校验成功，返回携带 user 的新消息以完成 CONNECT
         return MessageBuilder.createMessage(originalMessage.getPayload(), accessor.getMessageHeaders());
+    }
+
+    private Long resolveUserId(StompHeaderAccessor accessor, String sessionId) {
+        if (accessor.getUser() instanceof CustomUserDetails details) {
+            return details.getUserId();
+        }
+        CustomUserDetails cached = sessionUserMap.get(sessionId);
+        return cached != null ? cached.getUserId() : null;
     }
 
     private void updateSessionActivity(String sessionId) {

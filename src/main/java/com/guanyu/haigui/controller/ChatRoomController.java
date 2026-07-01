@@ -115,9 +115,10 @@ public class ChatRoomController {
     @MessageMapping("/chat.recent/{roomId}/{limit}") // 接收请求：包含roomId和limit
     @SendTo("/topic/recent/{roomId}") // 广播结果：发送到对应房间的Topic（仅订阅该房间的客户端能收到）
     public List<GameRoomMessageVO> getRecentMessages(
-            @DestinationVariable String roomId, // 从路径变量获取roomId
-            @DestinationVariable int limit) { // 从路径变量获取limit（带校验）
-        return roomService.getRecentMessages(roomId, limit);
+            @DestinationVariable String roomId,
+            @DestinationVariable int limit,
+            @Header("simpSessionId") String sessionId) {
+        return roomService.getRecentMessages(roomId, limit, sessionId);
     }
 
 

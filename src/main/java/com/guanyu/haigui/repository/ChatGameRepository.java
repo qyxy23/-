@@ -3,7 +3,9 @@ package com.guanyu.haigui.repository;
 import com.guanyu.haigui.Enum.RoomStatus;
 import com.guanyu.haigui.pojo.model.ChatGame;
 import com.guanyu.haigui.pojo.model.UserInfo;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -22,6 +24,10 @@ public interface ChatGameRepository extends JpaRepository<ChatGame, String> {
 
     @Query("SELECT r FROM ChatGame r WHERE r.roomId = :roomId")
     Optional<ChatGame> findByRoomId(@Param("roomId") String roomId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM ChatGame c WHERE c.roomId = :roomId")
+    Optional<ChatGame> findByRoomIdForUpdate(@Param("roomId") String roomId);
 
     Optional<ChatGame> findFirstByGameSessionId(String gameSessionId);
 

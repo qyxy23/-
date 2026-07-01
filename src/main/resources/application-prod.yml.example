@@ -39,7 +39,7 @@ ai:
   api-key: YOUR_AI_API_KEY
 
 knife4j:
-  enable: true
+  enable: false
   production: true
 
 app:

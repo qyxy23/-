@@ -1,4 +1,4 @@
-package com.guanyu.haigui.Hanldler;
+package com.guanyu.haigui.Handler;
 
 import com.guanyu.haigui.Exception.*;
 import com.guanyu.haigui.result.Result;
@@ -47,7 +47,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(UserAlreadyExistsException.class)
     public Result<?> handleUserAlreadyExists(UserAlreadyExistsException ex) {
-        return Result.error(ex.getMessage()); // 返回类似 "用户名 'admin' 已被注册"
+        return Result.error(ex.getCode(), ex.getMessage());
     }
 
     @ExceptionHandler(DisabledException.class)
@@ -66,26 +66,29 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(RoomException.class)
-    public Result<?> handleAccessDenied(RoomException ex) {
+    public Result<?> handleRoomException(RoomException ex) {
         return Result.error(ex.getMessage());
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public Result<?> handleIllegalArgument(IllegalArgumentException ex) {
+        return Result.error(ex.getMessage());
+    }
 
     @ExceptionHandler(RuntimeException.class)
     public Result<?> handleRuntimeException(RuntimeException ex) {
-        ex.printStackTrace();
-        // log.error("RuntimeException: {}", ex.getMessage());
-        return Result.error(405, ex.getMessage());
+        log.error("未捕获的运行时异常", ex);
+        return Result.error("系统繁忙，请稍后重试");
     }
 
     @ExceptionHandler(Exception.class)
     public Result<?> handleException(Exception ex) {
-        ex.printStackTrace();
-        return Result.error(ex.getMessage());
+        log.error("未捕获的异常", ex);
+        return Result.error("系统繁忙，请稍后重试");
     }
 
     @ExceptionHandler(AuthenticationException.class)
-    public Result<?> handleThrowable(Throwable ex) {
+    public Result<?> handleAuthenticationException(AuthenticationException ex) {
         return Result.error(ex.getMessage());
     }
 
@@ -112,12 +115,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(FriendsException.class)
     public Result<String> handleFriendsException(FriendsException e) {
-        return Result.success(e.getMessage());
+        return Result.error(e.getMessage());
     }
 
     @ExceptionHandler(BusinessException.class)
     public Result<String> handleBusinessException(BusinessException e) {
-        return Result.error(e.getMessage());
+        return Result.error(e.getCode(), e.getMessage());
     }
 
     @ExceptionHandler(PlayQuotaException.class)
